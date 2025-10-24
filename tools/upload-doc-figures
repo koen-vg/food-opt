@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Upload documentation figures to a GitHub release
+# Usage: tools/upload-doc-figures [RELEASE_TAG]
+# Default tag: doc-figures
+
+set -euo pipefail
+
+RELEASE_TAG="${1:-doc-figures}"
+FIGURES_DIR="docs/_static/figures"
+
+# Check if gh CLI is installed
+if ! command -v gh &> /dev/null; then
+    echo "Error: gh (GitHub CLI) is not installed."
+    echo "Install with: sudo dnf install gh  (or brew install gh on macOS)"
+    exit 1
+fi
+
+# Check if authenticated
+if ! gh auth status &> /dev/null; then
+    echo "Error: Not authenticated with GitHub CLI."
+    echo "Run: gh auth login"
+    exit 1
+fi
+
+# Check if figures directory exists and has PNG files
+if [ ! -d "$FIGURES_DIR" ]; then
+    echo "Error: Figures directory not found: $FIGURES_DIR"
+    echo "Generate figures first with: tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs"
+    exit 1
+fi
+
+PNG_COUNT=$(find "$FIGURES_DIR" -name "*.png" | wc -l)
+if [ "$PNG_COUNT" -eq 0 ]; then
+    echo "Error: No PNG files found in $FIGURES_DIR"
+    echo "Generate figures first with: tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs"
+    exit 1
+fi
+
+echo "Found $PNG_COUNT PNG files to upload"
+
+# Check if release exists, create if not
+if ! gh release view "$RELEASE_TAG" &> /dev/null; then
+    echo "Creating release: $RELEASE_TAG"
+    gh release create "$RELEASE_TAG" \
+        --title "Documentation Figures" \
+        --notes "Auto-generated documentation figures for Sphinx docs. Do not use this release for the code itself." \
+        --latest=false
+else
+    echo "Release $RELEASE_TAG already exists"
+
+    # Delete existing assets to avoid duplicates
+    echo "Removing existing figure assets..."
+    gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | while read -r asset; do
+        if [[ "$asset" == *.png ]]; then
+            echo "  Deleting: $asset"
+            gh release delete-asset "$RELEASE_TAG" "$asset" --yes 2>/dev/null || true
+        fi
+    done
+fi
+
+# Upload all PNG files
+echo "Uploading figures to release $RELEASE_TAG..."
+find "$FIGURES_DIR" -name "*.png" | while read -r figure; do
+    filename=$(basename "$figure")
+    echo "  Uploading: $filename"
+    gh release upload "$RELEASE_TAG" "$figure" --clobber
+done
+
+echo ""
+echo "✓ Upload complete!"
+echo ""
+echo "Figures are now available at:"
+echo "https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/download/$RELEASE_TAG/{filename}.png"

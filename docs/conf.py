@@ -87,3 +87,16 @@ autodoc_mock_imports = [
     "pypsa",
     "color_utils",
 ]
+
+# Figure URL configuration
+# Figures are hosted on GitHub Releases to avoid tracking large assets in git
+FIGURE_RELEASE_TAG = "doc-figures"
+GITHUB_REPO = "Sustainable-Solutions-Lab/food-opt"
+FIGURE_BASE_URL = (
+    f"https://github.com/{GITHUB_REPO}/releases/download/{FIGURE_RELEASE_TAG}"
+)
+
+# Define global substitutions for easy figure referencing
+rst_prolog = f"""
+.. |figure_url| replace:: {FIGURE_BASE_URL}
+"""

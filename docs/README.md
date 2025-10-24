@@ -75,13 +75,75 @@ The HTML documentation will be in `_build/html/`. Open `_build/html/index.html` 
 4. Preview in browser: `open _build/html/index.html` (macOS) or `xdg-open _build/html/index.html` (Linux)
 5. Commit changes to Git
 
+## Documentation Figures
+
+Documentation figures are **not tracked in git** to avoid repository bloat. Instead, they are:
+1. Generated locally using Snakemake
+2. Uploaded to a GitHub Release
+3. Referenced in `.rst` files via URLs
+
+### Generating Figures
+
+Generate all documentation figures using the lightweight `doc_figures` configuration:
+
+```bash
+tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs
+```
+
+This creates figures in `docs/_static/figures/` (ignored by git).
+
+### Uploading Figures
+
+After generating figures, upload them to the GitHub release:
+
+```bash
+tools/upload-doc-figures [RELEASE_TAG]
+```
+
+Default tag is `doc-figures`. This script:
+- Creates the release if it doesn't exist
+- Removes existing figure assets
+- Uploads all PNG files from `docs/_static/figures/`
+
+**Prerequisites**: Install and authenticate with GitHub CLI (`gh`):
+```bash
+gh auth login
+```
+
+### Updating Figure References
+
+Documentation files reference figures via GitHub release URLs:
+
+```rst
+.. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/figure_name.png
+```
+
+To switch between local and remote references:
+
+```bash
+# Update to use GitHub URLs (for commits)
+tools/update-figure-refs --to-remote
+
+# Revert to local paths (for testing)
+tools/update-figure-refs --to-local
+```
+
+### Workflow Summary
+
+When updating figures:
+1. Generate: `tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs`
+2. Test locally: `make html` (figures work with local paths)
+3. Upload: `tools/upload-doc-figures`
+4. Update refs: `tools/update-figure-refs --to-remote`
+5. Commit: Only `.rst` files change, not the figures themselves
+
 ## Publishing to ReadTheDocs
 
-(Configuration to be added when ReadTheDocs hosting is set up)
+Documentation builds automatically on ReadTheDocs when pushed to GitHub:
 
-1. Create `.readthedocs.yaml` in project root
-2. Connect GitHub repository to ReadTheDocs
-3. Builds will automatically trigger on push
+1. Configuration: `.readthedocs.yaml` in project root
+2. Figures: Fetched from GitHub release during build
+3. Builds trigger: Automatically on push to main branch
 
 ## Sphinx Configuration
 

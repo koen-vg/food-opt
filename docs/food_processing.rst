@@ -117,7 +117,7 @@ Hub positions are determined by k-means clustering on region centroids:
 
 This ensures hubs are spatially distributed to minimize total transport distance.
 
-.. figure:: _static/figures/trade_network.png
+.. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/trade_network.png
    :alt: Trade network topology
    :width: 100%
    :align: center
