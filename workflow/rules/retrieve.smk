@@ -222,8 +222,7 @@ rule download_gleam_supplement:
 
 rule download_land_cover:
     output:
-        # TODO: mark as temp once downstream extraction is confirmed to work
-        "data/downloads/land_cover.zip",
+        temp("data/downloads/land_cover.zip"),
     params:
         dataset="satellite-land-cover",
         request={

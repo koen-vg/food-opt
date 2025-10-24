@@ -2149,7 +2149,6 @@ if __name__ == "__main__":
             + ("..." if len(missing_water_regions) > 10 else ""),
         )
 
-    logger.debug("Crops data:\n%s", crops.head(10))
     logger.debug("Foods data:\n%s", foods.head())
     logger.debug("Food groups data:\n%s", food_groups.head())
     logger.debug("Nutrition data:\n%s", nutrition.head())

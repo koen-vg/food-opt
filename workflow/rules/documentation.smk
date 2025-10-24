@@ -9,6 +9,8 @@ They use a coarser resolution configuration for faster generation
 and to showcase global coverage.
 """
 
+from glob import glob
+
 # Documentation figures are generated using the doc_figures config
 DOC_FIG_NAME = "doc_figures"
 
@@ -216,7 +218,7 @@ rule build_docs:
         expand("docs/_static/figures/{fig}.png", fig=DOC_FIGURES),
         # Documentation source files
         "docs/conf.py",
-        "docs/index.rst",
+        glob("docs/**/*.rst", recursive=True),
     output:
         "docs/_build/html/index.html",
     shell:
