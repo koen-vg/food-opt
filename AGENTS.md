@@ -87,6 +87,10 @@ Notes:
 - Don’t commit large data or generated results; `.gitignore` and the workflow manage these.
 - If you are working on incorporating a new dataset, check that the dataset is listed in data/DATASETS.md.
 
+### Git guidelines
+
+- AI Agents (Claude, Codex, etc) should not add themselves as co-authors to commits unless explicitly asked for.
+
 ## PyPSA Modeling Notes
 
 - Use standard PyPSA components: carriers, buses, stores, links, etc.
@@ -114,6 +118,40 @@ Notes:
 - When adding features or changing behavior, update relevant documentation sections in `docs/*.rst`.
 - Build docs locally: `cd docs && make html` (requires `uv sync --extra dev`).
 - Documentation is version-controlled and builds automatically on ReadTheDocs.
+
+### Documentation Figures
+
+**Important**: Documentation figures are **NOT tracked in git**. They are:
+- Generated locally via Snakemake using the lightweight `config/doc_figures.yaml` configuration
+- Uploaded to a GitHub Release (tag: `doc-figures`)
+- Referenced in `.rst` files via GitHub release URLs
+- Located in `docs/_static/figures/*` (ignored by `.gitignore`)
+
+When updating documentation figures:
+
+```bash
+# 1. Generate figures
+tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs
+
+# 2. Upload to GitHub release (requires gh CLI authentication)
+tools/upload-doc-figures
+
+# 3. Update .rst references to use remote URLs
+tools/update-figure-refs --to-remote
+
+# 4. Commit only the .rst changes (not the figures)
+git add docs/*.rst
+git commit -m "Update documentation figures"
+```
+
+For local testing, you can use local figure paths:
+```bash
+tools/update-figure-refs --to-local
+make html  # Build docs with local figures
+tools/update-figure-refs --to-remote  # Switch back before committing
+```
+
+**Never** commit figure files (`*.png`, `*.svg`) to git - they are hosted externally to keep the repository lean.
 
 ## Validation Checklist
 
