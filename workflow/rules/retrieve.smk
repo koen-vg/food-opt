@@ -163,7 +163,10 @@ rule download_grassland_yield_data:
     params:
         url="https://files.isimip.org/ISIMIP2a/OutputData/agriculture/LPJmL/watch/historical/lpjml_watch_nobc_hist_co2_yield-mgr-noirr-default_global_annual_1971_2001.nc4",
     shell:
-        "wget -O {output} {params.url}"
+        r"""
+        mkdir -p "$(dirname {output})"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        """
 
 
 rule download_wpp_population:
@@ -179,8 +182,9 @@ rule download_wpp_population:
         ),
     shell:
         r"""
-        wget -O {output.population} "{params.population_url}"
-        wget -O {output.life_table} "{params.life_table_url}"
+        mkdir -p "$(dirname {output.population})"
+        curl -L --fail --progress-bar -o "{output.population}" "{params.population_url}"
+        curl -L --fail --progress-bar -o "{output.life_table}" "{params.life_table_url}"
         """
 
 
@@ -192,7 +196,7 @@ rule download_waterfootprint_appendix:
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        wget -O "{output}" "{params.url}"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}"
         """
 
 

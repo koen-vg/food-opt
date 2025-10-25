@@ -45,7 +45,6 @@ pycountry = ">=24.6.1"          # ISO country codes and mappings
 
 # System tools
 curl = "*"                      # HTTP downloads in workflow rules
-wget = "*"                      # HTTP downloads in workflow rules
 
 [pypi-dependencies]
 # Workflow engine
