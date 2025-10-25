@@ -21,7 +21,17 @@ pixi install --environment dev
 
 ### Build HTML Documentation
 
-From this directory:
+Using pixi tasks (recommended):
+
+```bash
+# From project root - build docs with figures via Snakemake
+pixi run --environment dev build-docs
+
+# Build with local figures for testing
+pixi run --environment dev docs-local
+```
+
+Or from this directory:
 
 ```bash
 make html
@@ -123,11 +133,11 @@ tools/update-figure-refs --to-local
 
 ### Workflow Summary
 
-When updating figures:
-1. Generate: `tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs`
-2. Test locally: `make html` (figures work with local paths)
-3. Upload: `tools/upload-doc-figures`
-4. Update refs: `tools/update-figure-refs --to-remote`
+When updating figures (using pixi tasks):
+1. Generate: `pixi run --environment dev build-docs`
+2. Test locally: `pixi run --environment dev docs-local`
+3. Upload: `pixi run --environment dev upload-doc-figures`
+4. Update refs: `pixi run --environment dev update-figure-refs-remote`
 5. Commit: Only `.rst` files change, not the figures themselves
 
 ## Publishing to ReadTheDocs

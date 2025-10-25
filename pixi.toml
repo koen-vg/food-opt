@@ -16,60 +16,87 @@ gurobi = { features = ["gurobi"], solve-group = "default" }
 dev-gurobi = { features = ["dev", "gurobi"], solve-group = "default" }
 
 [dependencies]
+# Core
 python = ">=3.12,<3.13"
-seaborn = "*"
-numpy = "*"
-pandas = ">=2.1"
-matplotlib = "*"
-cartopy = "*"
-networkx = "*"
-geopandas = "*"
-shapely = ">=2.1"
-rasterio = "*"
-scikit-learn = ">=1.4"
-xlrd = ">=2.0.1"
-openpyxl = ">=3.1.5"
-requests = "*"
-graphviz = "*"
-pycountry = ">=24.6.1"
-curl = "*"
-wget = "*"
-gdal = "*"
 
-# PyPI-only or git dependencies
+# Scientific computing
+numpy = "*"                     # Numerical arrays and computations
+pandas = ">=2.1"                # Data frames and tabular data
+scikit-learn = ">=1.4"          # Clustering for region aggregation
+
+# Visualization
+matplotlib = "*"                # Plotting library
+cartopy = "*"                   # Map projections and geospatial plotting
+graphviz = "*"                  # Graph rendering (provides dot command for workflow diagrams)
+
+# Geospatial data processing
+geopandas = "*"                 # Spatial data frames
+shapely = ">=2.1"               # Geometric operations
+rasterio = "*"                  # Raster data I/O
+gdal = "*"                      # Geospatial data abstraction library (provides ogr2ogr)
+
+# File format support
+openpyxl = ">=3.1.5"            # Excel (.xlsx) file support
+xlrd = ">=2.0.1"                # Excel (.xls) file support
+
+# Data retrieval
+requests = "*"                  # HTTP requests for downloading data
+pycountry = ">=24.6.1"          # ISO country codes and mappings
+
+# System tools
+curl = "*"                      # HTTP downloads in workflow rules
+wget = "*"                      # HTTP downloads in workflow rules
+
 [pypi-dependencies]
-snakemake = ">=9.0"
-linopy = { git = "https://github.com/coroa/linopy.git", branch = "feat/add-sos-constraints" }
-pypsa = { git = "https://github.com/koen-vg/PyPSA.git", branch = "food-opt" }
-exactextract = "*"
-highspy = "*"
-snakemake-storage-plugin-http = "*"
-faostat = "*"
-gsutil = ">=5.35"
-ecmwf-datastores-client = "*"
+# Workflow engine
+snakemake = ">=9.0"                                                                                 # Workflow management system
+
+# Optimization and modeling
+linopy = { git = "https://github.com/coroa/linopy.git", branch = "feat/add-sos-constraints" }      # Linear optimization with SOS constraints
+pypsa = { git = "https://github.com/koen-vg/PyPSA.git", branch = "food-opt" }                      # Energy/resource system modeling
+
+# Geospatial processing
+exactextract = "*"                                                                                  # Fast zonal statistics from rasters
+
+# Data retrieval
+faostat = "*"                                                                                       # FAO statistics API client
+ecmwf-datastores-client = "*"                                                                       # ECMWF climate data access
+gsutil = ">=5.35"                                                                                   # Google Cloud Storage CLI
 
 [feature.gurobi.pypi-dependencies]
-gurobipy = "*"
+gurobipy = "*"                                  # Gurobi commercial MILP solver (requires license)
 
 [feature.dev.dependencies]
-jupyter = "*"
-ipython = "*"
-pre-commit = "*"
-ruff = "*"
-sphinx = ">=8.1.3"
-sphinx-autodoc-typehints = ">=3.0.1"
-furo = "*"
-pydot = ">=3.0.0"
+# Interactive development
+jupyter = "*"                                   # Jupyter notebook interface
+ipython = "*"                                   # Enhanced Python REPL
+
+# Code quality
+pre-commit = "*"                                # Git pre-commit hooks framework
+ruff = "*"                                      # Fast Python linter and formatter
+
+# Documentation
+sphinx = ">=8.1.3"                              # Documentation generator
+sphinx-autodoc-typehints = ">=3.0.1"            # Type hint support for Sphinx
+furo = "*"                                      # Clean Sphinx theme
+pydot = ">=3.0.0"                               # Python interface to Graphviz for workflow diagrams
 
 [feature.dev.pypi-dependencies]
-snakefmt = "*"
+snakefmt = "*"                                  # Snakemake code formatter
 
 [tasks]
 smk = { cmd = "tools/smk" }
 lint = { cmd = "ruff check ." }
 format = { cmd = "ruff format ." }
-docs = { cmd = "sphinx-build -b html docs docs/_build/html" }
 
 [feature.dev.tasks]
+# Formatting tasks
 format-snakemake = { cmd = "snakefmt workflow/" }
 format-all = { depends-on = ["format", "format-snakemake"] }
+
+# Documentation tasks
+build-docs = { cmd = "tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs" }
+upload-doc-figures = { cmd = "tools/upload-doc-figures" }
+update-figure-refs-remote = { cmd = "tools/update-figure-refs --to-remote" }
+update-figure-refs-local = { cmd = "tools/update-figure-refs --to-local" }
+docs-local = { cmd = "tools/update-figure-refs --to-local && sphinx-build -b html docs docs/_build/html" }
