@@ -34,6 +34,7 @@ geopandas = "*"                 # Spatial data frames
 shapely = ">=2.1"               # Geometric operations
 rasterio = "*"                  # Raster data I/O
 gdal = "*"                      # Geospatial data abstraction library (provides ogr2ogr)
+libgdal-netcdf = "*"            # GDAL netCDF driver plugin
 
 # File format support
 openpyxl = ">=3.1.5"            # Excel (.xlsx) file support

@@ -7,8 +7,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
 from pathlib import Path
 
 import numpy as np
+from osgeo import gdal, osr
 import rasterio
 import xarray as xr
+
+# Enable GDAL exceptions for better error messages
+gdal.UseExceptions()
+osr.UseExceptions()
 
 
 def _extract_grid(yield_raster_path: str) -> xr.Dataset:

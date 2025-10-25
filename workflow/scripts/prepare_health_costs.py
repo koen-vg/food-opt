@@ -215,7 +215,7 @@ def _filter_and_prepare_data(
         (diet["age"] == "All ages")
         & (diet["year"] == reference_year)
         & (diet["country"].isin(cfg_countries))
-    ]
+    ].copy()
 
     # Build relative risk lookup tables
     rr_lookup, max_exposure_g_per_day = _build_rr_tables(rr_df, risk_factors)

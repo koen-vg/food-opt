@@ -4,16 +4,27 @@ SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
 SPDX-License-Identifier: GPL-3.0-or-later
 """
 
+import os
 from pathlib import Path
 
 from affine import Affine
 import numpy as np
+from osgeo import gdal, osr
 import rasterio
 from rasterio.crs import CRS
-from rasterio.warp import Resampling, reproject
+from rasterio.enums import Resampling
+from rasterio.vrt import WarpedVRT
 import xarray as xr
 
 NO_DATA = -9999.0
+
+# Enable GDAL exceptions for better error messages
+gdal.UseExceptions()
+osr.UseExceptions()
+
+# Enable GDAL multi-threading for better performance
+os.environ["GDAL_NUM_THREADS"] = "ALL_CPUS"
+os.environ["GDAL_CACHEMAX"] = "512"
 
 
 def _load_target_grid(
@@ -58,24 +69,27 @@ def main() -> None:
         coords,
     ) = _load_target_grid(grid_path)
 
+    # Use WarpedVRT for efficient resampling - much faster than reproject()
+    # for large files as it uses GDAL's optimized warping internally
     with rasterio.open(regrowth_path) as src:
-        src_crs = src.crs
-        if src_crs is None:
+        if src.crs is None:
             raise ValueError("regrowth raster missing CRS information")
-        src_transform = src.transform
 
-        dst = np.full(target_shape, NO_DATA, dtype=np.float32)
-        reproject(
-            source=rasterio.band(src, 1),
-            destination=dst,
-            src_transform=src_transform,
-            src_crs=src_crs,
-            dst_transform=target_transform,
-            dst_crs=target_crs,
+        # Create a virtual warped dataset with the target resolution
+        # Using bilinear resampling for performance (much faster than average)
+        with WarpedVRT(
+            src,
+            crs=target_crs,
+            transform=target_transform,
+            height=target_shape[0],
+            width=target_shape[1],
+            resampling=Resampling.bilinear,
             src_nodata=src.nodata,
-            dst_nodata=NO_DATA,
-            resampling=Resampling.average,
-        )
+            nodata=NO_DATA,
+        ) as vrt:
+            # Read the entire warped dataset at once
+            # This is efficient because GDAL handles the resampling internally
+            dst = vrt.read(1, out_dtype=np.float32)
 
     dst[dst == NO_DATA] = np.nan
 

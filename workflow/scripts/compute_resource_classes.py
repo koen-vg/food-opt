@@ -8,9 +8,14 @@ from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
+from osgeo import gdal, osr
 import rasterio
 import rasterio.features as rfeatures
 import xarray as xr
+
+# Enable GDAL exceptions for better error messages
+gdal.UseExceptions()
+osr.UseExceptions()
 
 
 def read_raster_float(path: str):

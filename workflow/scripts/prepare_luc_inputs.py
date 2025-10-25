@@ -8,10 +8,15 @@ from pathlib import Path
 
 from affine import Affine
 import numpy as np
+from osgeo import gdal, osr
 import rasterio
 from rasterio.crs import CRS
 from rasterio.warp import Resampling, reproject
 import xarray as xr
+
+# Enable GDAL exceptions for better error messages
+gdal.UseExceptions()
+osr.UseExceptions()
 
 NO_DATA = -9999.0
 

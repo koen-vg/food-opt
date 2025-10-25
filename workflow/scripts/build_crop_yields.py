@@ -6,18 +6,23 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 from pathlib import Path
 
-from exactextract import exact_extract
-from exactextract.raster import NumPyRasterSource
-import geopandas as gpd
-import numpy as np
-import rasterio
-import xarray as xr
+from osgeo import gdal, osr
+
+gdal.UseExceptions()
+osr.UseExceptions()
+
+from exactextract import exact_extract  # noqa: E402
+from exactextract.raster import NumPyRasterSource  # noqa: E402
+import geopandas as gpd  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import rasterio  # noqa: E402
+import xarray as xr  # noqa: E402
 
 try:
     from workflow.scripts.raster_utils import calculate_all_cell_areas, scale_fraction
 except ImportError:  # Snakemake script execution fallback
     from raster_utils import calculate_all_cell_areas, scale_fraction  # type: ignore
-import pandas as pd
 
 
 def read_raster_float(path: str):

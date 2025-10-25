@@ -7,7 +7,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
 from pathlib import Path
 
 import numpy as np
-import rasterio
 import xarray as xr
 
 COARSEN_FACTOR = 30
@@ -42,83 +41,81 @@ def _aggregate_fractions(path: str) -> dict[str, np.ndarray]:
     cropland_lookup = _build_lookup(CROPLAND_CLASSES)
     grassland_lookup = _build_lookup(GRASSLAND_CLASSES)
 
-    with rasterio.open(land_cover_path) as src:
-        height = src.height
-        width = src.width
-        if height % COARSEN_FACTOR != 0 or width % COARSEN_FACTOR != 0:
-            raise ValueError(
-                "land cover grid size must be divisible by the coarsen factor"
+    # Open NetCDF file with xarray (avoids needing GDAL HDF5 plugin)
+    ds = xr.open_dataset(land_cover_path)
+    # Get the lccs_class variable and squeeze out the time dimension
+    data = ds["lccs_class"].isel(time=0)
+
+    height = data.sizes["lat"]
+    width = data.sizes["lon"]
+
+    if height % COARSEN_FACTOR != 0 or width % COARSEN_FACTOR != 0:
+        raise ValueError("land cover grid size must be divisible by the coarsen factor")
+
+    agg_height = height // COARSEN_FACTOR
+    agg_width = width // COARSEN_FACTOR
+
+    valid_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
+    forest_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
+    cropland_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
+    grassland_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
+
+    row_chunk = ROW_CHUNK_SIZE
+    if row_chunk % COARSEN_FACTOR != 0:
+        raise ValueError("row chunk size must be divisible by the coarsen factor")
+
+    for row_start in range(0, height, row_chunk):
+        rows = min(row_chunk, height - row_start)
+        if rows % COARSEN_FACTOR != 0:
+            raise ValueError("row chunk must align with coarsen factor")
+
+        rows_coarse = rows // COARSEN_FACTOR
+        row_slice = slice(
+            row_start // COARSEN_FACTOR,
+            row_start // COARSEN_FACTOR + rows_coarse,
+        )
+
+        # Read chunk using xarray's isel for efficient slicing
+        block = data.isel(
+            lat=slice(row_start, row_start + rows), lon=slice(0, width)
+        ).values.astype(np.uint8)
+        block = block.reshape(rows_coarse, COARSEN_FACTOR, agg_width, COARSEN_FACTOR)
+        block = block.transpose(0, 2, 1, 3)
+
+        valid_counts[row_slice] = np.count_nonzero(
+            block != NODATA_VALUE,
+            axis=(2, 3),
+        ).astype(np.uint16)
+
+        forest_counts[row_slice] = (
+            forest_lookup[block]
+            .reshape(
+                rows_coarse,
+                agg_width,
+                -1,
             )
+            .sum(axis=2, dtype=np.uint16)
+        )
 
-        agg_height = height // COARSEN_FACTOR
-        agg_width = width // COARSEN_FACTOR
-
-        valid_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
-        forest_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
-        cropland_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
-        grassland_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
-
-        row_chunk = ROW_CHUNK_SIZE
-        if row_chunk % COARSEN_FACTOR != 0:
-            raise ValueError("row chunk size must be divisible by the coarsen factor")
-
-        for row_start in range(0, height, row_chunk):
-            rows = min(row_chunk, height - row_start)
-            if rows % COARSEN_FACTOR != 0:
-                raise ValueError("row chunk must align with coarsen factor")
-
-            rows_coarse = rows // COARSEN_FACTOR
-            row_slice = slice(
-                row_start // COARSEN_FACTOR,
-                row_start // COARSEN_FACTOR + rows_coarse,
+        cropland_counts[row_slice] = (
+            cropland_lookup[block]
+            .reshape(
+                rows_coarse,
+                agg_width,
+                -1,
             )
+            .sum(axis=2, dtype=np.uint16)
+        )
 
-            window = rasterio.windows.Window(
-                col_off=0,
-                row_off=row_start,
-                width=width,
-                height=rows,
+        grassland_counts[row_slice] = (
+            grassland_lookup[block]
+            .reshape(
+                rows_coarse,
+                agg_width,
+                -1,
             )
-            block = src.read(1, window=window, out_dtype=np.uint8)
-            block = block.reshape(
-                rows_coarse, COARSEN_FACTOR, agg_width, COARSEN_FACTOR
-            )
-            block = block.transpose(0, 2, 1, 3)
-
-            valid_counts[row_slice] = np.count_nonzero(
-                block != NODATA_VALUE,
-                axis=(2, 3),
-            ).astype(np.uint16)
-
-            forest_counts[row_slice] = (
-                forest_lookup[block]
-                .reshape(
-                    rows_coarse,
-                    agg_width,
-                    -1,
-                )
-                .sum(axis=2, dtype=np.uint16)
-            )
-
-            cropland_counts[row_slice] = (
-                cropland_lookup[block]
-                .reshape(
-                    rows_coarse,
-                    agg_width,
-                    -1,
-                )
-                .sum(axis=2, dtype=np.uint16)
-            )
-
-            grassland_counts[row_slice] = (
-                grassland_lookup[block]
-                .reshape(
-                    rows_coarse,
-                    agg_width,
-                    -1,
-                )
-                .sum(axis=2, dtype=np.uint16)
-            )
+            .sum(axis=2, dtype=np.uint16)
+        )
 
     valid_counts_f = valid_counts.astype(np.float32)
     nonzero_mask = valid_counts != 0
@@ -140,6 +137,7 @@ def _aggregate_fractions(path: str) -> dict[str, np.ndarray]:
         )
         fractions[name] = fraction.clip(0.0, 1.0).astype(np.float32)
 
+    ds.close()
     return fractions
 
 

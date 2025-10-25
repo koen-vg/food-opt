@@ -5,8 +5,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 import numpy as np
+from osgeo import gdal, osr
 from pyproj import Geod
 import rasterio
+
+# Enable GDAL exceptions to avoid FutureWarning and get better error messages
+gdal.UseExceptions()
+osr.UseExceptions()
 
 
 def calculate_all_cell_areas(
