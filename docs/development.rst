@@ -107,7 +107,8 @@ Repository Structure
     ├── notebooks/           # Exploratory Jupyter notebooks
     ├── vendor/              # Bundled third-party code (customized PyPSA/linopy)
     ├── .gitignore
-    ├── pyproject.toml       # Dependencies and tool config
+    ├── pixi.toml            # Dependencies and environments
+    ├── ruff.toml            # Linter configuration
     ├── README.md
     └── AGENTS.md            # AI agent guidance
 

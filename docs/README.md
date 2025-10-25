@@ -16,15 +16,8 @@ Ensure documentation dependencies are installed:
 
 ```bash
 cd ..  # Return to project root
-uv sync --extra dev
+pixi install --environment dev
 ```
-
-Additionally, building workflow diagrams requires [Graphviz](https://graphviz.org/) to be installed on your system:
-
-- **Debian/Ubuntu**: `sudo apt install graphviz`
-- **macOS**: `brew install graphviz`
-- **Fedora**: `sudo dnf install graphviz`
-- **Windows**: Download from [graphviz.org](https://graphviz.org/download/)
 
 ### Build HTML Documentation
 
@@ -37,7 +30,7 @@ make html
 Or directly with sphinx-build:
 
 ```bash
-uv run sphinx-build -b html . _build/html
+pixi run sphinx-build -b html . _build/html
 ```
 
 The HTML documentation will be in `_build/html/`. Open `_build/html/index.html` in your web browser.

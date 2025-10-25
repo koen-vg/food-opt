@@ -31,8 +31,8 @@ fi
 
 if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
   exec systemd-run --user --scope -p MemoryMax="${MEM_MAX}" -p MemorySwapMax=0 \
-    uv run snakemake "$@"
+    pixi run snakemake "$@"
 fi
 
 echo "[tools/smk] systemd user scope unavailable; running without memory cap" >&2
-exec uv run snakemake "$@"
+exec pixi run snakemake "$@"

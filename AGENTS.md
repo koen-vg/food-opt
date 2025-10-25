@@ -44,18 +44,34 @@ Provide clear expectations and a safe, efficient workflow so agents can make sma
 
 ## Environment & Tooling
 
-- Dependency manager: `uv` (see `pyproject.toml`).
+- Dependency manager: `pixi` (see `pixi.toml`).
 - Lint/format: `ruff` (auto-enforced via hooks; no manual action usually needed).
 - Workflow engine: `snakemake` (run via `tools/smk` wrapper by default).
+
+### Available Environments
+
+- `default`: Base environment with HiGHS solver (open-source)
+- `dev`: Development tools (Jupyter, Sphinx, pre-commit, etc.)
+- `gurobi`: Includes Gurobi solver (requires license)
+- `dev-gurobi`: Development tools + Gurobi solver
 
 Recommended commands (use the memory-capped wrapper):
 
 ```bash
-# Install and sync dependencies
-uv sync
+# Install and sync dependencies (default environment)
+pixi install
+
+# Install with Gurobi solver support
+pixi install --environment gurobi
+
+# Install development environment
+pixi install --environment dev
 
 # Run the full workflow (data prep → build → solve)
 tools/smk -j4 --configfile config/<name>.yaml
+
+# Run with specific environment
+pixi run --environment gurobi tools/smk -j4 --configfile config/<name>.yaml
 
 # Build model only
 tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/build/model.nc
@@ -67,7 +83,7 @@ tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/solved/mo
 tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs
 
 # Test small snippets of code
-uv run python <...>
+pixi run python <...>
 ```
 
 Notes:
@@ -116,7 +132,7 @@ Notes:
   - All model aspects: land use, crops, livestock, nutrition, health, environment
   - Contributing guidelines, API reference
 - When adding features or changing behavior, update relevant documentation sections in `docs/*.rst`.
-- Build docs locally: `cd docs && make html` (requires `uv sync --extra dev`).
+- Build docs locally: `cd docs && make html` (requires `pixi install --environment dev`).
 - Documentation is version-controlled and builds automatically on ReadTheDocs.
 
 ### Documentation Figures
@@ -164,4 +180,4 @@ tools/update-figure-refs --to-remote  # Switch back before committing
 
 - Respect SPDX headers; keep or add them to new files following repository practice.
 - Do not introduce secrets, credentials, or hard-coded local paths.
-- Use only licensed datasets and dependencies already declared in `pyproject.toml` unless explicitly instructed to add new ones.
+- Use only licensed datasets and dependencies already declared in `pixi.toml` unless explicitly instructed to add new ones.

@@ -161,7 +161,7 @@ Checking Workflow Status
 
     tools/smk --configfile config/my_scenario.yaml -n
 
-**Dependency graph**: See the workflow dependency graph figure at the top of this page. To generate a detailed job-level DAG for a specific configuration (requires Graphviz)::
+**Dependency graph**: See the workflow dependency graph figure at the top of this page. To generate a detailed job-level DAG for a specific configuration::
 
     tools/smk --dag all | dot -Tpdf > dag.pdf
 

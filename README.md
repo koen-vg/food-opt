@@ -22,16 +22,22 @@ Documentation (model design, configuration reference, data provenance, API) live
 
 ## Quickstart
 
-To install, clone the git repository and make sure you have [uv](https://docs.astral.sh/uv/) installed.
+To install, clone the git repository and make sure you have [pixi](https://pixi.sh/) installed.
 
 In order to build the model, you will first have to download a few datasets manually. See the documentation for details. Then you are ready to run the model:
 
 ```bash
-uv sync
+pixi install
 tools/smk -j4 --config name=test
 ```
 
-- `tools/smk` wraps Snakemake with the repository’s resource limits and environment pins.
+The default environment uses the HiGHS open-source solver. If you have a Gurobi license, install with:
+
+```bash
+pixi install --environment gurobi
+```
+
+- `tools/smk` wraps Snakemake with the repository's resource limits and environment pins.
 - Snakemake targets land under `results/{name}/`.
 
 ## Repository Layout
