@@ -5,10 +5,10 @@
 
 """Generate an objective breakdown plot with updated emissions accounting."""
 
+from collections.abc import Iterable
 import logging
-import sys
 from pathlib import Path
-from typing import Iterable
+import sys
 
 import matplotlib
 
@@ -63,7 +63,7 @@ def compute_system_costs(n: pypsa.Network) -> pd.Series:
         return pd.Series(dtype=float)
     idx = costs.index
     if "category" not in idx.names:
-        idx = idx.set_names(list(idx.names[:-1]) + ["category"])
+        idx = idx.set_names([*list(idx.names[:-1]), "category"])
         costs.index = idx
     return costs.groupby("category").sum().sort_values(ascending=False)
 

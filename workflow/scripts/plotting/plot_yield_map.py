@@ -11,15 +11,14 @@ import cartopy.crs as ccrs
 import matplotlib
 
 matplotlib.use("pdf")
+from matplotlib import colormaps
+from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FixedLocator
 import numpy as np
 import pandas as pd
 import rasterio
 import xarray as xr
-from matplotlib import colormaps
-from matplotlib.colors import Normalize
-from matplotlib.ticker import FixedLocator
-
 
 logger = logging.getLogger(__name__)
 

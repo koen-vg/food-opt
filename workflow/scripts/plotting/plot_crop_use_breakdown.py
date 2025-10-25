@@ -4,8 +4,8 @@
 
 """Create a stacked bar chart of global crop uses (human vs. animal feed)."""
 
-import logging
 from collections import defaultdict
+import logging
 from pathlib import Path
 
 import matplotlib
@@ -14,7 +14,6 @@ import pypsa
 
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ def _extract_crop_production(
             continue
 
         bus1 = str(links_df.at[link, "bus1"]) if link in links_df.index else ""
-        if bus1.startswith("co2") or bus1.startswith("ch4"):
+        if bus1.startswith(("co2", "ch4")):
             continue
         if not bus1.startswith("crop_"):
             continue
@@ -114,7 +113,7 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
         return _strip_country_suffix(base)
 
     food_bus_to_crop: dict[str, str] = {}
-    for link, attrs in links_df.iterrows():
+    for _link, attrs in links_df.iterrows():
         bus1 = str(attrs.get("bus1", ""))
         bus0 = str(attrs.get("bus0", ""))
         if not bus1.startswith("food_"):
@@ -139,9 +138,7 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
                 crop = _infer_crop_from_food_bus(bus0)
             human_use[crop] += flow_in
         elif link.startswith("convert_") and (
-            bus1.startswith("feed_")
-            or carrier.startswith("convert_to_feed")
-            or carrier.startswith("feed_")
+            bus1.startswith("feed_") or carrier.startswith(("convert_to_feed", "feed_"))
         ):
             crop = _infer_crop_from_crop_bus(bus0)
             feed_use[crop] += flow_in

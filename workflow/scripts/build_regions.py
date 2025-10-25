@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import geopandas as gpd
-import pandas as pd
 from pathlib import Path
-import numpy as np
-from pyproj import Geod, CRS
 
-from sklearn.cluster import KMeans, AgglomerativeClustering
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+from pyproj import CRS, Geod
+from sklearn.cluster import AgglomerativeClustering, KMeans
 
 GEOD = Geod(ellps="WGS84")
 

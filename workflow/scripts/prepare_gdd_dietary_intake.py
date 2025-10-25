@@ -21,8 +21,8 @@ Output:
     - Age groups: 0-1, 1-2, 2-5, 6-10, 11-74, 75+ years, plus "All ages" aggregate
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import pandas as pd
 
@@ -279,7 +279,7 @@ def main():
     if missing_countries:
         raise ValueError(
             f"[prepare_gdd_dietary_intake] ERROR: GDD dietary data is missing {len(missing_countries)} required countries: "
-            f"{sorted(list(missing_countries))[:20]}{'...' if len(missing_countries) > 20 else ''}. "
+            f"{sorted(missing_countries)[:20]}{'...' if len(missing_countries) > 20 else ''}. "
             f"Please ensure the GDD download includes all countries listed in config."
         )
 

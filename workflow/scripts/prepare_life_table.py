@@ -15,8 +15,9 @@ Output format:
 - Age groups standardized to model age buckets
 """
 
-import re
+import contextlib
 from pathlib import Path
+import re
 
 import pandas as pd
 
@@ -53,13 +54,13 @@ def normalize_age_bucket(label: object) -> str | None:
     text = str(label).strip().lower()
 
     # Handle special cases for youngest age groups
-    if text in {"<1", "under age 1", "under 1", "0", "0-0", "0 – 0"}:
+    if text in {"<1", "under age 1", "under 1", "0", "0-0", "0 - 0"}:
         return "<1"
-    if text in {"1-4", "1 – 4", "01-04", "01–04", "1 to 4"}:
+    if text in {"1-4", "1 - 4", "01-04", "1 to 4"}:
         return "1-4"
 
     # Parse age ranges with regex
-    match = _AGE_BUCKET_PATTERN.match(text.replace("–", "-").replace("to", "-"))
+    match = _AGE_BUCKET_PATTERN.match(text.replace("-", "-").replace("to", "-"))
     if match:
         start = int(match.group("start"))
         end = int(match.group("end"))
@@ -73,7 +74,7 @@ def normalize_age_bucket(label: object) -> str | None:
             return "95+"
 
     # Handle oldest age group variations
-    if text in {"95-99", "95 – 99", "100+", "95+", "95 plus", "100 plus", "100+ years"}:
+    if text in {"95-99", "95 - 99", "100+", "95+", "95 plus", "100 plus", "100+ years"}:
         return "95+"
 
     return None
@@ -152,10 +153,8 @@ def main() -> None:
         candidates = df[df["AgeGrp"].astype(str).isin(["95-99", "95+", "100+"])]
         if not candidates.empty:
             first = candidates.iloc[0]
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 age_to_life_exp["95+"] = float(first["ex"])
-            except (TypeError, ValueError):
-                pass
 
     # Validate completeness
     missing = [bucket for bucket in AGE_BUCKETS if bucket not in age_to_life_exp]

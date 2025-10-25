@@ -10,8 +10,8 @@ capturing heterogeneity without excessive computational burden.
 Focuses on a single example region (California) to illustrate the concept.
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature

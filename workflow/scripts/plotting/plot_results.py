@@ -2,14 +2,15 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import matplotlib
 import pandas as pd
 import pypsa
-import matplotlib
 
 matplotlib.use("pdf")  # Use PDF backend
-import matplotlib.pyplot as plt
-from pathlib import Path
 import logging
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ def plot_crop_production(crop_production: pd.Series, output_dir: Path) -> None:
     else:
         plt.bar(range(len(ser)), ser.values)
         max_value = ser.max()
-        for i, (crop, value) in enumerate(ser.items()):
+        for i, (_crop, value) in enumerate(ser.items()):
             plt.text(
                 i,
                 value + max_value * 0.01,

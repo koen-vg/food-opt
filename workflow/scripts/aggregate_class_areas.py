@@ -5,14 +5,15 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 from pathlib import Path
+
+from exactextract import exact_extract
+from exactextract.raster import NumPyRasterSource
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 import rasterio
 from rasterio.enums import Resampling
 from rasterio.warp import reproject
-from exactextract import exact_extract
-from exactextract.raster import NumPyRasterSource
 import xarray as xr
 
 try:  # Prefer package import when available (e.g., during documentation builds)

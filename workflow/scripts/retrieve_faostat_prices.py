@@ -4,7 +4,7 @@
 
 """
 Retrieve FAOSTAT producer prices (USD/tonne) for configured crops and
-compute a 10-year global average (2015–2024) using the `faostat` Python package.
+compute a 10-year global average (2015-2024) using the `faostat` Python package.
 
 Inputs
 - snakemake.params.crops: list of crop names from config
@@ -19,11 +19,11 @@ Notes
 - If any crop lacks data, the script writes NaN for its price and logs a warning.
 """
 
+from collections.abc import Iterable
 import logging
-from typing import Iterable
 
-import pandas as pd
 import faostat
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ def main():
     if missing:
         logger.warning("Missing FAOSTAT item mapping for crops: %s", ", ".join(missing))
 
-    items = _unique_preserve([i for i in map_df["faostat_item"].dropna().tolist()])
+    items = _unique_preserve(list(map_df["faostat_item"].dropna().tolist()))
     if not items:
         # Nothing to fetch; produce empty with NaNs
         out = pd.DataFrame(

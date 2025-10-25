@@ -8,8 +8,8 @@
 Shows trade hubs and connections (country-to-hub and hub-to-hub links).
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import cartopy.crs as ccrs
 import geopandas as gpd
@@ -19,7 +19,7 @@ from sklearn.cluster import KMeans
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import apply_doc_style, COLORS, FIGURE_SIZES, save_doc_figure
+from doc_figures_config import COLORS, FIGURE_SIZES, apply_doc_style, save_doc_figure
 
 
 def compute_hubs_and_assignments(
@@ -159,8 +159,8 @@ def main(
         if lonlats:
             lons, lats = zip(*lonlats)
             # Add start and end points
-            lons = [lon1] + list(lons) + [lon2]
-            lats = [lat1] + list(lats) + [lat2]
+            lons = [lon1, *list(lons), lon2]
+            lats = [lat1, *list(lats), lat2]
         else:
             # For very short distances, just use endpoints
             lons = [lon1, lon2]
@@ -190,7 +190,7 @@ def main(
         return segments
 
     # Draw country-to-hub links as great circles
-    for idx, row in country_centroids.iterrows():
+    for _idx, row in country_centroids.iterrows():
         country = row["country"]
         hub_idx = country_to_hub[country]
         country_lon, country_lat = row["lon"], row["lat"]

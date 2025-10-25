@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Iterable, Mapping
 import functools
 import logging
-from typing import Iterable, Mapping
 
 import geopandas as gpd
 import numpy as np
@@ -50,7 +50,7 @@ def _per_capita_to_bus_units(
 ) -> float:
     kind = _nutrient_kind(unit)
     if kind == "mass":
-        # g/person/day → Mt/year (1e-12 = 1e-6 g→t × 1e-6 t→Mt)
+        # g/person/day → Mt/year (1e-12 = 1e-6 g→t x 1e-6 t→Mt)
         return value_per_person_per_day * population * DAYS_PER_YEAR * 1e-12
     if kind == "energy":
         return value_per_person_per_day * population * DAYS_PER_YEAR * KCAL_TO_MCAL
@@ -285,7 +285,7 @@ def add_carriers_and_buses(
     ]
     crop_carriers = [f"crop_{crop}" for country in countries for crop in crop_list]
     if crop_buses:
-        n.add("Carrier", sorted(set(f"crop_{crop}" for crop in crop_list)), unit="t")
+        n.add("Carrier", sorted({f"crop_{crop}" for crop in crop_list}), unit="t")
         n.add("Bus", crop_buses, carrier=crop_carriers)
 
     # Residues per country
@@ -308,7 +308,7 @@ def add_carriers_and_buses(
     ]
     food_carriers = [f"food_{food}" for country in countries for food in food_list]
     if food_buses:
-        n.add("Carrier", sorted(set(f"food_{food}" for food in food_list)), unit="t")
+        n.add("Carrier", sorted({f"food_{food}" for food in food_list}), unit="t")
         n.add("Bus", food_buses, carrier=food_carriers)
 
     # Food groups per country
@@ -321,7 +321,7 @@ def add_carriers_and_buses(
     if group_buses:
         n.add(
             "Carrier",
-            sorted(set(f"group_{group}" for group in food_group_list)),
+            sorted({f"group_{group}" for group in food_group_list}),
             unit="Mt",
         )
         n.add("Bus", group_buses, carrier=group_carriers)
@@ -552,8 +552,7 @@ def add_regional_crop_production_links(
 
         if "r" not in available_supplies:
             raise ValueError(
-                "Rainfed yield data missing for crop '%s'; ensure build_crop_yields ran"
-                % crop
+                f"Rainfed yield data missing for crop '{crop}'; ensure build_crop_yields ran"
             )
 
         # Process available water supplies (rainfed always first for stability)
@@ -563,7 +562,9 @@ def add_regional_crop_production_links(
 
             # Add a unique name per link including water supply and class
             crop_yields["name"] = crop_yields.index.map(
-                lambda x: f"produce_{crop}_{'irrigated' if ws == 'i' else 'rainfed'}_{x[0]}_class{x[1]}"
+                lambda x,
+                crop=crop,
+                ws=ws: f"produce_{crop}_{'irrigated' if ws == 'i' else 'rainfed'}_{x[0]}_class{x[1]}"
             )
 
             # Make index levels columns
@@ -614,10 +615,13 @@ def add_regional_crop_production_links(
                 # Use the crop's own carrier so no extra carrier is needed
                 "carrier": f"crop_{crop}",
                 "bus0": df.apply(
-                    lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_{'i' if ws == 'i' else 'r'}",
+                    lambda r,
+                    ws=ws: f"land_{r['region']}_class{int(r['resource_class'])}_{'i' if ws == 'i' else 'r'}",
                     axis=1,
                 ).tolist(),
-                "bus1": df["country"].apply(lambda c: f"crop_{crop}_{c}").tolist(),
+                "bus1": df["country"]
+                .apply(lambda c, crop=crop: f"crop_{crop}_{c}")
+                .tolist(),
                 "efficiency": df["yield"] * 1e6,  # t/ha → t/Mha
                 "bus3": df["country"].apply(lambda c: f"fertilizer_{c}").tolist(),
                 "efficiency3": -fert_n_rate_kg_per_ha
@@ -669,7 +673,7 @@ def add_regional_crop_production_links(
                         for region, resource_class in zip(regions, resource_classes)
                         for feed_item in residue_lookup.get(
                             (crop, water_code, region, int(resource_class)), {}
-                        ).keys()
+                        )
                     }
                 )
                 if residue_feed_items:
@@ -1597,7 +1601,7 @@ def add_food_nutrition_links(
         # macronutrient outputs
         out_bus_lists = []
         eff_lists = []
-        for i, nutrient in enumerate(nutrients, start=1):
+        for _i, nutrient in enumerate(nutrients, start=1):
             unit = nutrient_units[nutrient]
             factor = _nutrition_efficiency_factor(unit)
             out_bus_lists.append([f"{nutrient}_{c}" for c in countries])
@@ -1646,7 +1650,7 @@ def _resolve_trade_costs(
 
     # Override with category-specific costs
     categories = trade_config.get(categories_key, {})
-    for category, cfg in categories.items():
+    for _category, cfg in categories.items():
         category_cost = float(cfg.get("cost_per_km", default_cost))
         configured_items = cfg.get(category_item_key, [])
 
@@ -1937,10 +1941,10 @@ if __name__ == "__main__":
             if not isinstance(feed_item, str) or not feed_item:
                 continue
             key = (
-                str(getattr(row, "crop")),
-                str(getattr(row, "water_supply")),
-                str(getattr(row, "region")),
-                int(getattr(row, "resource_class")),
+                str(row.crop),
+                str(row.water_supply),
+                str(row.region),
+                int(row.resource_class),
             )
             residue_lookup.setdefault(key, {})[feed_item] = float(
                 getattr(row, "residue_yield_t_per_ha", 0.0)
@@ -1978,8 +1982,8 @@ if __name__ == "__main__":
             except AttributeError as exc:
                 supply_label = "irrigated" if ws == "i" else "rainfed"
                 raise ValueError(
-                    "Missing %s yield input for crop '%s'. Ensure the crop yield preprocessing "
-                    "step produced '%s'." % (supply_label, crop, yields_key)
+                    f"Missing {supply_label} yield input for crop '{crop}'. Ensure the crop yield preprocessing "
+                    f"step produced '{yields_key}'."
                 ) from exc
 
             yields_df, var_units = _load_crop_yield_table(path)

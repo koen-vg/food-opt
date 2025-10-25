@@ -5,8 +5,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 import numpy as np
-import rasterio
 from pyproj import Geod
+import rasterio
 
 
 def calculate_all_cell_areas(
@@ -24,7 +24,7 @@ def calculate_all_cell_areas(
     pixel_width_deg = abs(src.transform.a)
     pixel_height_deg = abs(src.transform.e)
     rows, cols = src.shape
-    left, bottom, right, top = src.bounds
+    left, bottom, _right, top = src.bounds
     lats = np.linspace(top - pixel_height_deg / 2, bottom + pixel_height_deg / 2, rows)
     geod = Geod(ellps="WGS84")
     areas_ha = np.zeros(rows, dtype=np.float32)

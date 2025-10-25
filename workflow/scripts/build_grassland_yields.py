@@ -6,13 +6,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-import xarray as xr
 from affine import Affine
 from exactextract import exact_extract
 from exactextract.raster import NumPyRasterSource
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import xarray as xr
 
 try:
     from workflow.scripts.raster_utils import calculate_all_cell_areas, raster_bounds

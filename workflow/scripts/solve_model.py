@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections import defaultdict
 import logging
 import math
-from collections import defaultdict
-from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -23,7 +22,6 @@ except Exception:  # pragma: no cover - documentation build without linopy
 
 from pypsa._options import options
 from pypsa.optimization.optimize import _optimize_guard
-
 
 HEALTH_AUX_MAP: dict[int, set[str]] = {}
 
@@ -266,7 +264,7 @@ def add_health_objective(
         for cause, df in cause_log_breakpoints.groupby("cause")
     }
 
-    log_rr_totals: Dict[tuple[int, str], object] = {}
+    log_rr_totals: dict[tuple[int, str], object] = {}
 
     # Group (cluster, risk) pairs by their intake coordinate patterns
     intake_groups: dict[tuple[float, ...], list[tuple[int, str]]] = defaultdict(list)

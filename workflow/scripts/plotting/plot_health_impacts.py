@@ -5,12 +5,12 @@
 
 """Plot objective breakdown and visualize health risk factors by region."""
 
-import logging
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+import logging
 from math import exp
 from pathlib import Path
-from typing import Dict, Iterable, Mapping
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -24,7 +24,6 @@ import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import pypsa
-
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +63,8 @@ def sanitize_food_name(food: str) -> str:
 
 def _build_food_lookup(
     food_map: pd.DataFrame,
-) -> Dict[str, list[dict[str, float | str]]]:
-    lookup: Dict[str, list[dict[str, float | str]]] = {}
+) -> dict[str, list[dict[str, float | str]]]:
+    lookup: dict[str, list[dict[str, float | str]]] = {}
     for sanitized, group in food_map.groupby("sanitized"):
         lookup[sanitized] = group[["risk_factor", "share"]].to_dict("records")
     return lookup
@@ -75,7 +74,7 @@ def _cluster_population(
     cluster_summary: pd.DataFrame,
     clusters: pd.DataFrame,
     population: pd.DataFrame,
-) -> Dict[int, float]:
+) -> dict[int, float]:
     clusters = clusters.assign(country_iso3=lambda df: df["country_iso3"].str.upper())
     cluster_lookup = (
         clusters.set_index("country_iso3")["health_cluster"].astype(int).to_dict()
@@ -92,7 +91,7 @@ def _cluster_population(
     population = population.assign(iso3=lambda df: df["iso3"].str.upper())
     population_map = population.set_index("iso3")["population"].astype(float).to_dict()
 
-    result: Dict[int, float] = {}
+    result: dict[int, float] = {}
     for cluster, base_value in baseline.items():
         members = [iso for iso, c in cluster_lookup.items() if c == cluster]
         planning = sum(population_map.get(iso, 0.0) for iso in members)
@@ -107,11 +106,11 @@ def _prepare_health_inputs(
     value_per_yll: float,
     food_groups_df: pd.DataFrame,
 ) -> tuple[
-    Dict[str, pd.DataFrame],
-    Dict[str, pd.DataFrame],
-    Dict[str, list[dict[str, float | str]]],
-    Dict[str, int],
-    Dict[int, float],
+    dict[str, pd.DataFrame],
+    dict[str, pd.DataFrame],
+    dict[str, list[dict[str, float | str]]],
+    dict[str, int],
+    dict[int, float],
     float,
 ]:
     risk_tables = {}
@@ -561,17 +560,16 @@ def plot_health_map(
     )
 
     # Flatten axes array for easy iteration
-    if num_panels == 1:
-        axes = [axes]  # type: ignore[list-item]
-    else:
-        axes = axes.flatten()  # type: ignore[union-attr]
+    axes = [axes] if num_panels == 1 else axes.flatten()  # type: ignore[list-item,union-attr]
 
     # Plot individual risk factors
     for ax, risk in zip(axes, risks):
         data = gdf.copy()
         cluster_map = per_capita_by_risk.get(risk, {})
         data["value"] = data["country"].map(
-            lambda iso: cluster_map.get(cluster_lookup.get(iso, -1))
+            lambda iso, cluster_map=cluster_map: cluster_map.get(
+                cluster_lookup.get(iso, -1)
+            )
         )
 
         values = data["value"].dropna()

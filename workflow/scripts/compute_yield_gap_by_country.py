@@ -25,16 +25,16 @@ Notes:
 import logging
 from pathlib import Path
 
+from exactextract import exact_extract
+from exactextract.raster import NumPyRasterSource
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.transform import Affine
 from rasterio.warp import reproject
-from exactextract import exact_extract
-from rasterio.crs import CRS
-from exactextract.raster import NumPyRasterSource
 
 logger = logging.getLogger(__name__)
 

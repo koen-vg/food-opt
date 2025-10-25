@@ -4,10 +4,10 @@
 
 """Pre-compute health data for SOS2 linearisation in the solver."""
 
+from collections.abc import Iterable
 import logging
 import math
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
 
 import geopandas as gpd
 import numpy as np
@@ -70,7 +70,7 @@ def _build_country_clusters(
     regions_path: str,
     countries: Iterable[str],
     n_clusters: int,
-) -> Tuple[pd.Series, Dict[int, List[str]]]:
+) -> tuple[pd.Series, dict[int, list[str]]]:
     regions = gpd.read_file(regions_path)
 
     regions_equal_area = regions.to_crs(6933)
@@ -94,18 +94,18 @@ def _build_country_clusters(
     cluster_series = dissolved["health_cluster"].astype(int)
     grouped = cluster_series.groupby(cluster_series).groups
     cluster_to_countries = {
-        int(cluster): sorted(list(indexes)) for cluster, indexes in grouped.items()
+        int(cluster): sorted(indexes) for cluster, indexes in grouped.items()
     }
     return cluster_series, cluster_to_countries
 
 
-class RelativeRiskTable(Dict[Tuple[str, str], Dict[str, np.ndarray]]):
+class RelativeRiskTable(dict[tuple[str, str], dict[str, np.ndarray]]):
     """Container mapping (risk, cause) to exposure grids and log RR values."""
 
 
 def _build_rr_tables(
     rr_df: pd.DataFrame, risk_factors: Iterable[str]
-) -> Tuple[RelativeRiskTable, Dict[str, float]]:
+) -> tuple[RelativeRiskTable, dict[str, float]]:
     """Build lookup tables for relative risk curves by (risk, cause) pairs.
 
     Returns:
@@ -113,7 +113,7 @@ def _build_rr_tables(
         max_exposure_g_per_day: Dict mapping risk factor to maximum exposure level in data
     """
     table: RelativeRiskTable = RelativeRiskTable()
-    max_exposure_g_per_day: Dict[str, float] = {}
+    max_exposure_g_per_day: dict[str, float] = {}
     allowed = set(risk_factors)
 
     for (risk, cause), grp in rr_df.groupby(["risk_factor", "cause"], sort=True):
@@ -156,7 +156,7 @@ def _evaluate_rr(
 
 def _load_input_data(
     snakemake,
-    cfg_countries: List[str],
+    cfg_countries: list[str],
     reference_year: int,
 ) -> tuple:
     """Load and perform initial processing of all input datasets."""
@@ -198,10 +198,10 @@ def _filter_and_prepare_data(
     dr: pd.DataFrame,
     pop: pd.DataFrame,
     rr_df: pd.DataFrame,
-    cfg_countries: List[str],
+    cfg_countries: list[str],
     reference_year: int,
     life_exp: pd.Series,
-    risk_factors: List[str],
+    risk_factors: list[str],
 ) -> tuple:
     """Filter datasets to reference year and compute derived quantities."""
     # Filter dietary intake data
@@ -240,15 +240,13 @@ def _filter_and_prepare_data(
 
     # Determine relevant risk-cause pairs
     relevant_pairs = {
-        (risk, cause) for (risk, cause) in rr_lookup.keys() if risk in risk_factors
+        (risk, cause) for (risk, cause) in rr_lookup if risk in risk_factors
     }
     relevant_causes = sorted({cause for _, cause in relevant_pairs})
-    risk_to_causes: Dict[str, List[str]] = {}
+    risk_to_causes: dict[str, list[str]] = {}
     for risk, cause in relevant_pairs:
         risk_to_causes.setdefault(risk, set()).add(cause)
-    risk_to_causes = {
-        risk: sorted(list(causes)) for risk, causes in risk_to_causes.items()
-    }
+    risk_to_causes = {risk: sorted(causes) for risk, causes in risk_to_causes.items()}
 
     dr = dr[dr["cause"].isin(relevant_causes)].copy()
 
@@ -312,22 +310,22 @@ def _compute_baseline_health_metrics(
 
 
 def _process_health_clusters(
-    cluster_to_countries: Dict[int, List[str]],
+    cluster_to_countries: dict[int, list[str]],
     pop_total: pd.Series,
     combo: pd.DataFrame,
-    risk_factors: List[str],
+    risk_factors: list[str],
     intake_by_country: pd.DataFrame,
-    max_exposure_g_per_day: Dict[str, float],
+    max_exposure_g_per_day: dict[str, float],
     rr_lookup: RelativeRiskTable,
-    risk_to_causes: Dict[str, List[str]],
-    relevant_causes: List[str],
-    tmrel_g_per_day: Dict[str, float],
+    risk_to_causes: dict[str, list[str]],
+    relevant_causes: list[str],
+    tmrel_g_per_day: dict[str, float],
 ) -> tuple:
     """Process each health cluster to compute baseline metrics and intakes."""
     cluster_summary_rows = []
     cluster_cause_rows = []
     cluster_risk_baseline_rows = []
-    baseline_intake_registry: Dict[str, set] = {risk: set() for risk in risk_factors}
+    baseline_intake_registry: dict[str, set] = {risk: set() for risk in risk_factors}
 
     for cluster_id, members in cluster_to_countries.items():
         pop_weights = pop_total.reindex(members).fillna(0.0)
@@ -346,7 +344,7 @@ def _process_health_clusters(
             }
         )
 
-        log_rr_ref_totals: Dict[str, float] = {cause: 0.0 for cause in relevant_causes}
+        log_rr_ref_totals: dict[str, float] = dict.fromkeys(relevant_causes, 0.0)
 
         for risk in risk_factors:
             if risk not in intake_by_country.columns:
@@ -413,20 +411,20 @@ def _process_health_clusters(
 
 
 def _generate_breakpoint_tables(
-    risk_factors: List[str],
-    max_exposure_g_per_day: Dict[str, float],
-    baseline_intake_registry: Dict[str, set],
+    risk_factors: list[str],
+    max_exposure_g_per_day: dict[str, float],
+    baseline_intake_registry: dict[str, set],
     intake_step: float,
     rr_lookup: RelativeRiskTable,
-    risk_to_causes: Dict[str, List[str]],
-    relevant_causes: List[str],
+    risk_to_causes: dict[str, list[str]],
+    relevant_causes: list[str],
     log_rr_points: int,
-    tmrel_g_per_day: Dict[str, float],
+    tmrel_g_per_day: dict[str, float],
 ) -> tuple:
     """Generate SOS2 linearization breakpoint tables for risks and causes."""
     risk_breakpoint_rows = []
-    cause_log_min: Dict[str, float] = {cause: 0.0 for cause in relevant_causes}
-    cause_log_max: Dict[str, float] = {cause: 0.0 for cause in relevant_causes}
+    cause_log_min: dict[str, float] = dict.fromkeys(relevant_causes, 0.0)
+    cause_log_max: dict[str, float] = dict.fromkeys(relevant_causes, 0.0)
 
     for risk in risk_factors:
         max_exposure = float(max_exposure_g_per_day.get(risk, 0.0))
@@ -451,7 +449,7 @@ def _generate_breakpoint_tables(
             key = (risk, cause)
             if key not in rr_lookup:
                 continue
-            log_values: List[float] = []
+            log_values: list[float] = []
             for intake in grid:
                 rr_val = _evaluate_rr(rr_lookup, risk, cause, intake)
                 log_rr = math.log(rr_val)
@@ -502,17 +500,17 @@ def _generate_breakpoint_tables(
 
 def main() -> None:
     """Main entry point for health cost preparation."""
-    cfg_countries: List[str] = list(snakemake.params["countries"])
+    cfg_countries: list[str] = list(snakemake.params["countries"])
     health_cfg = snakemake.params["health"]
-    risk_factors: List[str] = list(health_cfg["risk_factors"])
+    risk_factors: list[str] = list(health_cfg["risk_factors"])
     reference_year = int(health_cfg["reference_year"])
     intake_step = float(health_cfg["intake_grid_step"])
     log_rr_points = int(health_cfg["log_rr_points"])
-    tmrel_g_per_day: Dict[str, float] = dict(health_cfg.get("tmrel_g_per_day", {}))
+    tmrel_g_per_day: dict[str, float] = dict(health_cfg.get("tmrel_g_per_day", {}))
 
     # Load input data
     (
-        cluster_series,
+        _cluster_series,
         cluster_to_countries,
         cluster_map,
         diet,

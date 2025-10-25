@@ -14,15 +14,14 @@ Output:
  - PDF map at snakemake.output.pdf
 
 Notes:
- - Computes gap = actual − potential. Negative values (actual < potential)
+ - Computes gap = actual - potential. Negative values (actual < potential)
    indicate a yield gap and are shown in blue; positive values in red.
  - Reprojects data to an Equal Earth projection for display.
- - Uses a blue–red divergent colormap ("RdBu").
+ - Uses a blue-red divergent colormap ("RdBu").
 """
 
 import logging
 from pathlib import Path
-from typing import Tuple
 
 import matplotlib
 
@@ -37,7 +36,7 @@ from rasterio.warp import calculate_default_transform, reproject
 logger = logging.getLogger(__name__)
 
 
-def _read_raster(path: str) -> Tuple[np.ndarray, Affine, str, float | None]:
+def _read_raster(path: str) -> tuple[np.ndarray, Affine, str, float | None]:
     with rasterio.open(path) as src:
         arr = src.read(1).astype("float32", copy=False)
         nodata = src.nodata
@@ -57,7 +56,7 @@ def _reproject_like(
     src_crs: str,
     dst_transform: Affine,
     dst_crs: str,
-    dst_shape: Tuple[int, int],
+    dst_shape: tuple[int, int],
     resampling: Resampling = Resampling.average,
 ) -> np.ndarray:
     dst = np.full(dst_shape, np.nan, dtype="float32")
@@ -76,7 +75,7 @@ def _reproject_like(
 
 def _bounds_from_transform(
     transform: Affine, width: int, height: int
-) -> Tuple[float, float, float, float]:
+) -> tuple[float, float, float, float]:
     # Returns (left, bottom, right, top)
     xmin, ymin, xmax, ymax = array_bounds(height, width, transform)
     return float(xmin), float(ymin), float(xmax), float(ymax)
@@ -112,7 +111,7 @@ def plot_yield_gap(
         )
         act = act_on_pot
 
-    # Compute gap = actual − potential
+    # Compute gap = actual - potential
     gap = act - pot
 
     # Reproject gap to Equal Earth for display
@@ -167,7 +166,7 @@ def plot_yield_gap(
     )
     ax.set_axis_off()
 
-    title = "Yield gap (actual − potential)"
+    title = "Yield gap (actual - potential)"
     if crop:
         title += f" — {crop}"
     ax.set_title(title)

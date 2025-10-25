@@ -5,11 +5,12 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 from pathlib import Path
-import numpy as np
-import geopandas as gpd
-import rasterio
+
 from exactextract import exact_extract
 from exactextract.raster import NumPyRasterSource
+import geopandas as gpd
+import numpy as np
+import rasterio
 import xarray as xr
 
 try:

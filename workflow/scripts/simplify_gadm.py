@@ -19,7 +19,7 @@ def _remove_small_islands(
 
     Expects geometries in projected meters CRS (e.g., EPSG:6933).
     """
-    from shapely.geometry import Polygon, MultiPolygon
+    from shapely.geometry import MultiPolygon, Polygon
 
     def _filter_geom(geom):
         if geom is None or geom.is_empty:

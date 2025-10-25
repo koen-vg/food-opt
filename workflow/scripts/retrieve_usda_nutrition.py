@@ -58,12 +58,11 @@ corresponding entries in data/usda_food_mapping.csv. The script will fail if any
 foods are missing from the mapping file.
 """
 
-import time
 from pathlib import Path
+import time
 
 import pandas as pd
 import requests
-
 
 BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 
@@ -103,11 +102,11 @@ def get_food_nutrients(fdc_id: int, api_key: str) -> dict[str, tuple[float, str]
 
 def main():
     # Get inputs from Snakemake
-    mapping_path = snakemake.input.mapping  # noqa: F821
-    food_groups_path = snakemake.input.food_groups  # noqa: F821
-    output_path = snakemake.output[0]  # noqa: F821
-    api_key = snakemake.config["data"]["usda"]["api_key"]  # noqa: F821
-    nutrient_name_map = snakemake.config["data"]["usda"]["nutrients"]  # noqa: F821
+    mapping_path = snakemake.input.mapping
+    food_groups_path = snakemake.input.food_groups
+    output_path = snakemake.output[0]
+    api_key = snakemake.config["data"]["usda"]["api_key"]
+    nutrient_name_map = snakemake.config["data"]["usda"]["nutrients"]
 
     # Read food groups file to get list of foods requiring nutrition data
     food_groups_df = pd.read_csv(food_groups_path, comment="#")

@@ -20,17 +20,16 @@ match the model's yield units:
 """
 
 import csv
-import logging
 from dataclasses import dataclass
+import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 from openpyxl import load_workbook
 
-
 logger = logging.getLogger(__name__)
 
-ALTERNATE_ITEM_NAMES: Dict[str, str] = {
+ALTERNATE_ITEM_NAMES: dict[str, str] = {
     "rape or colza seed": "rapeseed or colza seed",
     "oil palm fruit": "palm oil",
 }
@@ -85,14 +84,14 @@ def _coerce_int(value) -> Optional[int]:
         return None
 
 
-def _load_component_values(xlsx_path: Path) -> Dict[str, ComponentRow]:
+def _load_component_values(xlsx_path: Path) -> dict[str, ComponentRow]:
     wb = load_workbook(filename=xlsx_path, read_only=True, data_only=True)
     try:
         ws = wb["03"]
     except KeyError as exc:
         raise ValueError("Worksheet '03' with component values not found") from exc
 
-    records: Dict[str, ComponentRow] = {}
+    records: dict[str, ComponentRow] = {}
     for row in ws.iter_rows(min_row=6, values_only=True):
         code = row[0]
         description = row[1]
@@ -116,8 +115,8 @@ def _load_component_values(xlsx_path: Path) -> Dict[str, ComponentRow]:
     return records
 
 
-def _read_crop_mapping(path: Path) -> Dict[str, Optional[str]]:
-    mapping: Dict[str, Optional[str]] = {}
+def _read_crop_mapping(path: Path) -> dict[str, Optional[str]]:
+    mapping: dict[str, Optional[str]] = {}
     with path.open(newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
@@ -131,7 +130,7 @@ def _read_crop_mapping(path: Path) -> Dict[str, Optional[str]]:
 
 
 def main() -> None:
-    crops: List[str] = list(snakemake.params.crops)  # type: ignore[name-defined]
+    crops: list[str] = list(snakemake.params.crops)  # type: ignore[name-defined]
     xlsx_path = Path(snakemake.input.table)  # type: ignore[name-defined]
     mapping_path = Path(snakemake.input.mapping)  # type: ignore[name-defined]
     output_path = Path(snakemake.output.edible_portion)  # type: ignore[name-defined]
@@ -141,8 +140,8 @@ def main() -> None:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    missing_items: List[str] = []
-    missing_components: List[str] = []
+    missing_items: list[str] = []
+    missing_components: list[str] = []
 
     with output_path.open("w", newline="") as handle:
         writer = csv.DictWriter(

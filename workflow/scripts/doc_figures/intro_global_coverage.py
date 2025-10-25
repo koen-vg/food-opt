@@ -9,15 +9,16 @@ Shows all modeled regions with country boundaries to illustrate
 the global scope and spatial resolution of the model.
 """
 
-import cartopy.crs as ccrs
-import geopandas as gpd
-import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
 
+import cartopy.crs as ccrs
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import apply_doc_style, COLORS, FIGURE_SIZES, save_doc_figure
+from doc_figures_config import COLORS, FIGURE_SIZES, apply_doc_style, save_doc_figure
 
 
 def main(regions_path: str, svg_output_path: str, png_output_path: str):
@@ -83,9 +84,12 @@ def main(regions_path: str, svg_output_path: str, png_output_path: str):
         transform=ax.transAxes,
         fontsize=9,
         verticalalignment="top",
-        bbox=dict(
-            boxstyle="round,pad=0.5", facecolor="white", alpha=0.8, edgecolor="none"
-        ),
+        bbox={
+            "boxstyle": "round,pad=0.5",
+            "facecolor": "white",
+            "alpha": 0.8,
+            "edgecolor": "none",
+        },
     )
 
     # Save SVG and PNG

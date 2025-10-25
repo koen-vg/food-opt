@@ -11,9 +11,9 @@ Reads a DOT format graph and applies documentation-consistent styling:
 - Clean, minimal design
 """
 
+from pathlib import Path
 import sys
 import textwrap
-from pathlib import Path
 
 import pydot
 

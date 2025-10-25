@@ -5,19 +5,17 @@
 
 """Plot baseline (GDD) food consumption by health cluster using pie charts."""
 
+from collections.abc import Mapping
 import logging
 from pathlib import Path
-from typing import Dict, Mapping
 
 import matplotlib
 
 matplotlib.use("pdf")
+from color_utils import categorical_colors
 import numpy as np
 import pandas as pd
-
 from plot_food_consumption_map import _plot_cluster_pies, _prepare_cluster_geodata
-
-from color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +54,12 @@ def _load_baseline_diet(
 def _cluster_population_weights(
     population_path: str,
     iso_to_cluster: Mapping[str, int],
-) -> tuple[Dict[int, float], Dict[str, float]]:
+) -> tuple[dict[int, float], dict[str, float]]:
     pop_df = pd.read_csv(population_path)
     pop_df["iso3"] = pop_df["iso3"].str.upper()
     pop_df = pop_df[pop_df["iso3"].isin(iso_to_cluster.keys())]
     grouped = pop_df.groupby("iso3")["population"].sum()
-    cluster_weights: Dict[int, float] = {}
+    cluster_weights: dict[int, float] = {}
     per_country = {iso: float(val) for iso, val in grouped.items() if float(val) > 0.0}
     for iso, value in grouped.items():
         cluster = iso_to_cluster.get(iso)
@@ -90,7 +88,7 @@ def _aggregate_cluster_diet(
 ) -> pd.DataFrame:
     if pivot.empty:
         return pd.DataFrame()
-    data: Dict[tuple[int, str], float] = {}
+    data: dict[tuple[int, str], float] = {}
     for iso, row in pivot.iterrows():
         iso_code = str(iso).upper()
         cluster = iso_to_cluster.get(iso_code)

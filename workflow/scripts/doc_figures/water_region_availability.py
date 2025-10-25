@@ -8,8 +8,8 @@
 Shows growing season water availability by optimization region.
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import cartopy.crs as ccrs
 import geopandas as gpd
@@ -18,7 +18,7 @@ import pandas as pd
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import apply_doc_style, COLORMAPS, FIGURE_SIZES, save_doc_figure
+from doc_figures_config import COLORMAPS, FIGURE_SIZES, apply_doc_style, save_doc_figure
 
 
 def main(
@@ -122,9 +122,12 @@ def main(
         transform=ax.transAxes,
         fontsize=8,
         verticalalignment="bottom",
-        bbox=dict(
-            boxstyle="round,pad=0.3", facecolor="white", alpha=0.7, edgecolor="none"
-        ),
+        bbox={
+            "boxstyle": "round,pad=0.3",
+            "facecolor": "white",
+            "alpha": 0.7,
+            "edgecolor": "none",
+        },
     )
 
     plt.tight_layout()

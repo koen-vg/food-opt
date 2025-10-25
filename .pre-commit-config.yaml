@@ -11,6 +11,10 @@ repos:
         args: [--fix]
       - id: ruff-format
         name: ruff (formatter)
+  - repo: https://github.com/snakemake/snakefmt
+    rev: v0.11.2
+    hooks:
+      - id: snakefmt
   - repo: https://github.com/fsfe/reuse-tool
     rev: v4.0.3
     hooks:

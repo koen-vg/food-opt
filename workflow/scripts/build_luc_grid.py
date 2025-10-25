@@ -7,8 +7,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
 from pathlib import Path
 
 import numpy as np
-import xarray as xr
 import rasterio
+import xarray as xr
 
 
 def _extract_grid(yield_raster_path: str) -> xr.Dataset:

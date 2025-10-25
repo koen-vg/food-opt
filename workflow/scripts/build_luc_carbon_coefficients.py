@@ -6,13 +6,12 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 from pathlib import Path
 
+from affine import Affine
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import xarray as xr
-from affine import Affine
 from pyproj import Geod
-
+import xarray as xr
 
 CO2_PER_C = 44.0 / 12.0
 ZONE_ORDER = ["tropical", "temperate", "boreal"]

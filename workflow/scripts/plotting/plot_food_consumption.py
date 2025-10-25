@@ -6,7 +6,6 @@
 
 import logging
 from pathlib import Path
-from typing import Dict
 
 import matplotlib
 import numpy as np
@@ -89,7 +88,7 @@ def _aggregate_group_mass(network: pypsa.Network, snapshot) -> pd.Series:
     if not dispatch_lookup:
         return pd.Series(dtype=float)
 
-    totals: Dict[str, float] = {}
+    totals: dict[str, float] = {}
     for link_name, row in consume_links[bus_columns].iterrows():
         for column, bus_value in row.items():
             if not isinstance(bus_value, str) or not bus_value.startswith("group_"):
@@ -185,7 +184,7 @@ def _aggregate_group_calories(network: pypsa.Network, snapshot) -> pd.Series:
 
 
 def _assign_colors(
-    groups: list[str], overrides: Dict[str, str] | None = None
+    groups: list[str], overrides: dict[str, str] | None = None
 ) -> dict[str, str]:
     return categorical_colors(groups, overrides)
 

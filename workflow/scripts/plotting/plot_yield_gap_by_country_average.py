@@ -21,8 +21,8 @@ import geopandas as gpd
 import matplotlib
 
 matplotlib.use("pdf")
-import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 

@@ -5,13 +5,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 from pathlib import Path
-import numpy as np
-import xarray as xr
-import rasterio
+
 from affine import Affine
+import numpy as np
+import rasterio
 from rasterio.crs import CRS
 from rasterio.warp import Resampling, reproject
-
+import xarray as xr
 
 NO_DATA = -9999.0
 
@@ -102,10 +102,7 @@ def _load_agb(
     if crs is None:
         raise ValueError("AGB dataset missing CRS information for reprojection")
 
-    if data.ndim == 3:
-        arr = data[-1].astype(np.float32)
-    else:
-        arr = data.astype(np.float32)
+    arr = data[-1].astype(np.float32) if data.ndim == 3 else data.astype(np.float32)
 
     fill_candidates = [fill_value, nodata]
     for candidate in fill_candidates:

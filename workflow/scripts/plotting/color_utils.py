@@ -4,7 +4,7 @@
 
 """Utility helpers for consistent categorical color assignment."""
 
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors

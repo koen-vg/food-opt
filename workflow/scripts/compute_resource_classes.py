@@ -5,8 +5,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 from pathlib import Path
-import numpy as np
+
 import geopandas as gpd
+import numpy as np
 import rasterio
 import rasterio.features as rfeatures
 import xarray as xr
@@ -25,9 +26,11 @@ if __name__ == "__main__":
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
     # Yield rasters as a list of paths
     yield_paths: list[str] = list(snakemake.input.yields)  # type: ignore[attr-defined]
-    quantiles: list[float] = (
-        [0.0] + list(snakemake.params.resource_class_quantiles) + [1.0]
-    )  # type: ignore[name-defined]
+    quantiles: list[float] = [
+        0.0,
+        *list(snakemake.params.resource_class_quantiles),
+        1.0,
+    ]  # type: ignore[name-defined]
 
     # Read regions and use first raster as reference for grid/CRS
     regions_gdf = gpd.read_file(regions_path)

@@ -30,8 +30,9 @@ Example:
         wheat,120.0
 """
 
-import pandas as pd
 import logging
+
+import pandas as pd
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

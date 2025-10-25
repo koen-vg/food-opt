@@ -10,7 +10,6 @@ import numpy as np
 import rasterio
 import xarray as xr
 
-
 COARSEN_FACTOR = 30
 ROW_CHUNK_SIZE = COARSEN_FACTOR * 30
 NODATA_VALUE = 0

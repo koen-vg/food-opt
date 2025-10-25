@@ -34,6 +34,11 @@ ignore = [
 [lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__.py files
 "workflow/scripts/*.py" = ["F821"]  # Undefined name 'snakemake' (injected by Snakemake)
+"workflow/scripts/plotting/*.py" = ["B018"]  # Snakemake variable check is intentional
+"workflow/scripts/build_model.py" = ["N806"]  # Mathematical variables (X, C, H, D) use conventional uppercase
+"workflow/scripts/doc_figures/trade_network_map.py" = ["N806"]  # Mathematical variables use conventional uppercase
+"workflow/scripts/prepare_*.py" = ["N806"]  # Constants use uppercase by convention
+"workflow/scripts/solve_model.py" = ["N801"]  # linopy stub class for type checking
 
 [lint.isort]
 known-first-party = ["workflow"]

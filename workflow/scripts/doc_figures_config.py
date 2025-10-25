@@ -12,10 +12,9 @@ with domain-specific configuration.
 import logging
 from pathlib import Path
 
-import numpy as np
-
 from matplotlib import cm
 from matplotlib import colors as mcolors
+import numpy as np
 
 # Color palette (matching Furo theme from docs/conf.py)
 COLORS = {

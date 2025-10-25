@@ -18,7 +18,6 @@ from pathlib import Path
 import pandas as pd
 import pycountry
 
-
 # Manual overrides for country names that pycountry can't match
 COUNTRY_NAME_OVERRIDES = {
     "Bolivia (Plurinational State of)": "BOL",
@@ -281,7 +280,7 @@ def main() -> None:
     if missing_countries:
         raise ValueError(
             f"[prepare_gbd_mortality] ERROR: Mortality data is missing {len(missing_countries)} required countries: "
-            f"{sorted(list(missing_countries))[:20]}{'...' if len(missing_countries) > 20 else ''}. "
+            f"{sorted(missing_countries)[:20]}{'...' if len(missing_countries) > 20 else ''}. "
             f"Please ensure the IHME GBD download includes all countries listed in config."
         )
 

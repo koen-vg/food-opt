@@ -25,8 +25,9 @@ Output:
 Data source: Report 9 covers the 2017-18 period with data for 64 countries and 32 crops.
 """
 
-import pandas as pd
 import logging
+
+import pandas as pd
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

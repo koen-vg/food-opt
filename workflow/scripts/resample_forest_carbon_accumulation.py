@@ -6,13 +6,12 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 from pathlib import Path
 
-import numpy as np
-import xarray as xr
 from affine import Affine
+import numpy as np
+import rasterio
 from rasterio.crs import CRS
 from rasterio.warp import Resampling, reproject
-import rasterio
-
+import xarray as xr
 
 NO_DATA = -9999.0
 

@@ -31,13 +31,13 @@ Notes:
   not capacity.
 - Total land area per (region, resource class) pair comes from
   land_area_by_class.csv, filtered to the requested water supply when
-  specified, matching the model’s land availability basis.
+  specified, matching the model's land availability basis.
 - Each pixel inherits the cropland fraction of its (region, resource class)
   combination, so within-region spatial patterns remain visible.
 """
 
-from pathlib import Path
 import logging
+from pathlib import Path
 import re
 
 import cartopy.crs as ccrs
@@ -46,15 +46,14 @@ import geopandas as gpd
 import matplotlib
 
 matplotlib.use("pdf")
+from affine import Affine
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import pypsa
-import xarray as xr
-from affine import Affine
 from rasterio.transform import array_bounds
-
+import xarray as xr
 
 _LAND_GEN_RE = re.compile(
     r"^land_(?P<region>.+?)_class(?P<resource_class>\d+)_?(?P<water_supply>[a-z]*)$"

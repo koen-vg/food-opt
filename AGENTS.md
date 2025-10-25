@@ -45,7 +45,7 @@ Provide clear expectations and a safe, efficient workflow so agents can make sma
 ## Environment & Tooling
 
 - Dependency manager: `pixi` (see `pixi.toml`).
-- Lint/format: `ruff` (auto-enforced via hooks; no manual action usually needed).
+- Lint/format: `ruff` for Python, `snakefmt` for Snakemake files (auto-enforced via hooks; no manual action usually needed).
 - Workflow engine: `snakemake` (run via `tools/smk` wrapper by default).
 
 ### Available Environments

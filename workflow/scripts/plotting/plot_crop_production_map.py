@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Iterable, Mapping
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, Mapping, Tuple
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -14,8 +14,8 @@ import matplotlib
 
 matplotlib.use("pdf")
 import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
@@ -29,7 +29,7 @@ def _region_from_bus0(bus0: str) -> str:
     return parts[1] if len(parts) >= 2 else "unknown"
 
 
-def _dict_to_df(data: Dict[Tuple[str, str], float]) -> pd.DataFrame:
+def _dict_to_df(data: dict[tuple[str, str], float]) -> pd.DataFrame:
     if not data:
         return pd.DataFrame()
     series = pd.Series(data).sort_index()
@@ -39,7 +39,7 @@ def _dict_to_df(data: Dict[Tuple[str, str], float]) -> pd.DataFrame:
 
 
 def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFrame:
-    data: Dict[Tuple[str, str], float] = {}
+    data: dict[tuple[str, str], float] = {}
 
     def add(region: str, crop: str, value: float) -> None:
         if not np.isfinite(value) or value <= 0:
@@ -75,7 +75,7 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
 
     Returns land area in hectares.
     """
-    data: Dict[Tuple[str, str], float] = {}
+    data: dict[tuple[str, str], float] = {}
 
     def add(region: str, crop: str, value: float) -> None:
         if not np.isfinite(value) or value <= 0:
@@ -106,7 +106,7 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
     return df
 
 
-def _setup_regions(regions_path: str) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+def _setup_regions(regions_path: str) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     gdf = gpd.read_file(regions_path)
     if gdf.crs is None:
         logger.warning("Regions GeoDataFrame missing CRS; assuming EPSG:4326")
@@ -127,7 +127,7 @@ def _plot_pie_map(
     by_region: pd.DataFrame,
     gdf: gpd.GeoDataFrame,
     gdf_eq: gpd.GeoDataFrame,
-    colors: Dict[str, str],
+    colors: dict[str, str],
     output_path: str,
     title: str,
     legend_title: str,
@@ -352,7 +352,7 @@ def _build_color_mapping(
     crops: Iterable[str],
     overrides: Mapping[str, str],
     fallback_cmap_name: str,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Return color per crop, falling back to a named matplotlib colormap."""
 
     try:
@@ -365,7 +365,7 @@ def _build_color_mapping(
         cmap = plt.get_cmap("Set3")
 
     listed_colors = list(getattr(cmap, "colors", []))
-    colors: Dict[str, str] = {}
+    colors: dict[str, str] = {}
     fallback_idx = 0
 
     for crop in crops:

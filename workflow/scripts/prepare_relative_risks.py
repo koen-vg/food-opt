@@ -9,9 +9,8 @@ consumption. The conversion uses: g_fish = (100 / omega3_per_100g_fish) * g_omeg
 """
 
 import logging
-import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+import re
 
 import pandas as pd
 
@@ -73,7 +72,7 @@ CAUSE_MAP = {
 VALUE_REGEX = re.compile(r"[-+]?(?:\d+\.\d+|\d+)")
 
 
-def _parse_rr_value(cell: object) -> Tuple[float, float | None, float | None]:
+def _parse_rr_value(cell: object) -> tuple[float, float | None, float | None]:
     """Return (mean, low, high) RR floats parsed from a string cell."""
 
     if isinstance(cell, (int, float)):
@@ -119,13 +118,13 @@ def _normalize_exposure(raw: str, conversion: float | None) -> float:
     return value * conversion
 
 
-def _extract_risk_blocks(df: pd.DataFrame) -> Dict[str, Tuple[int, int]]:
+def _extract_risk_blocks(df: pd.DataFrame) -> dict[str, tuple[int, int]]:
     """Return mapping from IHME risk name row index to slice bounds."""
 
     risk_rows = [
         idx for idx, val in df[0].items() if isinstance(val, str) and val in RISK_CONFIG
     ]
-    bounds: Dict[str, Tuple[int, int]] = {}
+    bounds: dict[str, tuple[int, int]] = {}
     for i, idx in enumerate(risk_rows):
         next_idx = risk_rows[i + 1] if i + 1 < len(risk_rows) else len(df)
         bounds[df.at[idx, 0]] = (idx + 1, next_idx)
@@ -138,8 +137,8 @@ def _parse_relative_risks(
 ) -> pd.DataFrame:
     """Parse the Excel sheet into tidy RR records."""
 
-    records: List[Dict[str, float | str]] = []
-    skipped_causes: Dict[str, set[str]] = {}
+    records: list[dict[str, float | str]] = []
+    skipped_causes: dict[str, set[str]] = {}
     skipped_units: set[str] = set()
     blocks = _extract_risk_blocks(df)
 

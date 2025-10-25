@@ -5,15 +5,15 @@
 
 """Visualise land-use change carbon input datasets for documentation."""
 
-import sys
 from pathlib import Path
+import sys
 
 import cartopy.crs as ccrs
 import geopandas as gpd
+from matplotlib import colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from matplotlib import colors as mcolors
 
 # Allow relative imports of shared plotting helpers
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -165,7 +165,7 @@ def main(
         (
             soc_tc,
             COLORMAPS["soil"],
-            "Soil organic carbon 0–30 cm (SoilGrids)",
+            "Soil organic carbon 0-30 cm (SoilGrids)",
             "tC per ha",
             0.0,
             _nanmax_safe(soc_tc, default=10.0),

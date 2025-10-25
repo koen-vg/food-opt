@@ -4,8 +4,8 @@ SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
 SPDX-License-Identifier: GPL-3.0-or-later
 """
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import geopandas as gpd
 import numpy as np
@@ -219,7 +219,7 @@ def compute_region_growing_water(
     region_month_demand = {
         region: np.zeros(12) for region in crop_seasons["region"].unique()
     }
-    region_total_area = {region: 0.0 for region in crop_seasons["region"].unique()}
+    region_total_area = dict.fromkeys(crop_seasons["region"].unique(), 0.0)
 
     for _, row in irrigated.iterrows():
         region = row["region"]

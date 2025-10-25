@@ -5,9 +5,9 @@
 
 """Plot food consumption by health cluster using pie charts on a map."""
 
+from collections.abc import Iterable, Mapping, Sequence
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -15,15 +15,13 @@ import geopandas as gpd
 import matplotlib
 
 matplotlib.use("pdf")
-import matplotlib.pyplot as plt
+from color_utils import categorical_colors
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import pypsa
-
-from color_utils import categorical_colors
-
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +38,7 @@ def _select_snapshot(network: pypsa.Network) -> pd.Index | str:
     raise ValueError("Expected snapshot 'now' or single snapshot in solved network")
 
 
-def _parse_group_and_iso(bus: str) -> Tuple[str, str] | None:
+def _parse_group_and_iso(bus: str) -> tuple[str, str] | None:
     if not bus.startswith("group_"):
         return None
     remainder = bus[len("group_") :]
@@ -82,7 +80,7 @@ def _link_dispatch_at_snapshot(
 
 def _aggregate_consume_link_totals(
     network: pypsa.Network, snapshot
-) -> Dict[Tuple[str, str], float]:
+) -> dict[tuple[str, str], float]:
     links = network.links
     if links.empty:
         return {}
@@ -98,7 +96,7 @@ def _aggregate_consume_link_totals(
     if not dispatch_lookup:
         return {}
 
-    totals: Dict[Tuple[str, str], float] = {}
+    totals: dict[tuple[str, str], float] = {}
     bus_values = consume_links[bus_columns]
     for link_name, row in bus_values.iterrows():
         for column, bus_value in row.items():
@@ -144,7 +142,7 @@ def _aggregate_cluster_group_mass(
     if country_group.empty:
         return pd.DataFrame()
 
-    data: Dict[Tuple[int, str], float] = {}
+    data: dict[tuple[int, str], float] = {}
     for iso, row in country_group.iterrows():
         cluster = iso_to_cluster.get(str(iso).upper())
         if cluster is None:
@@ -167,7 +165,7 @@ def _aggregate_cluster_group_mass(
 def _cluster_population(
     population_df: pd.DataFrame,
     iso_to_cluster: Mapping[str, int],
-) -> Dict[int, float]:
+) -> dict[int, float]:
     if population_df.empty:
         return {}
     pop_df = population_df.copy()
@@ -178,7 +176,7 @@ def _cluster_population(
     pop_df = pop_df.dropna(subset=["population"])
     pop_df["population"] = pop_df["population"].astype(float)
 
-    result: Dict[int, float] = {}
+    result: dict[int, float] = {}
     for iso, group_df in pop_df.groupby("iso3"):
         cluster = iso_to_cluster.get(iso)
         if cluster is None:
@@ -192,7 +190,7 @@ def _cluster_population(
 
 def _colors_for_groups(
     groups: Sequence[str], overrides: Mapping[str, str] | None = None
-) -> Dict[str, str]:
+) -> dict[str, str]:
     return categorical_colors(groups, overrides)
 
 

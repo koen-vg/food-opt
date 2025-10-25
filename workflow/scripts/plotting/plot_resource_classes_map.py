@@ -5,22 +5,22 @@
 
 """Plot a Plate Carrée map of resource classes by grid cell."""
 
+from collections.abc import Iterable, Sequence
 import logging
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 import matplotlib
 
 matplotlib.use("pdf")
+import geopandas as gpd
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
-import xarray as xr
-import geopandas as gpd
 from rasterio.transform import Affine, array_bounds
+import xarray as xr
 
 logger = logging.getLogger(__name__)
 

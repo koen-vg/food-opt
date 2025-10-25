@@ -5,8 +5,8 @@
 
 """Visualise annualised land-use change emission factors (LEFs)."""
 
-import sys
 from pathlib import Path
+import sys
 
 import cartopy.crs as ccrs
 import geopandas as gpd

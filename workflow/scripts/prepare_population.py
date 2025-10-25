@@ -5,10 +5,9 @@
 """Process UN WPP population data for total and age-specific counts."""
 
 from collections import defaultdict
-from typing import Dict, Iterable, Tuple
+from collections.abc import Iterable
 
 import pandas as pd
-
 
 TARGET_AGE_ORDER = [
     "<1",
@@ -34,7 +33,7 @@ TARGET_AGE_ORDER = [
     "95+",
 ]
 
-AGE_OUTPUT_ORDER = TARGET_AGE_ORDER + ["all-a"]
+AGE_OUTPUT_ORDER = [*TARGET_AGE_ORDER, "all-a"]
 
 
 def _assign_age_bucket(
@@ -54,11 +53,11 @@ def _assign_age_bucket(
     if normalized in {"under age 1", "under 1", "<1", "0"}:
         return "<1"
 
-    if normalized in {"1-4", "1 – 4", "1 to 4", "01-04", "01–04"}:
+    if normalized in {"1-4", "1 - 4", "1 to 4", "01-04"}:
         return "1-4"
 
     # Avoid double-counting if both granular and 0-4 buckets are present
-    if normalized in {"0-4", "0 – 4", "0 to 4", "00-04", "00–04"}:
+    if normalized in {"0-4", "0 - 4", "0 to 4", "00-04"}:
         if has_under_one or has_one_to_four:
             return None
         return "0-4"
@@ -91,7 +90,7 @@ def _assign_age_bucket(
         if start_val >= 100:
             return "95+"
 
-    if normalized in {"95-99", "95 – 99", "95 to 99"}:
+    if normalized in {"95-99", "95 - 99", "95 to 99"}:
         return "95+"
     if normalized in {"100+", "100 plus", "100+ years"}:
         return "95+"
@@ -105,7 +104,7 @@ def _process_population(
     df: pd.DataFrame,
     countries: Iterable[str],
     year: int,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (population_totals, population_by_age) DataFrames."""
 
     if "Variant" in df.columns:
@@ -156,17 +155,15 @@ def _process_population(
     else:
         df["AgeGrpSpan"] = pd.NA
 
-    totals_records: Dict[str, Dict[str, float]] = defaultdict(
+    totals_records: dict[str, dict[str, float]] = defaultdict(
         lambda: defaultdict(float)
     )
-    country_names: Dict[str, str] = {}
+    country_names: dict[str, str] = {}
 
     for (iso3, location), group in df.groupby(["ISO3_code", "Location"]):
         labels = group["AgeGrp"].str.strip().str.lower()
         has_under_one = labels.isin({"under age 1", "under 1", "<1", "0"}).any()
-        has_one_to_four = labels.isin(
-            {"1-4", "1 – 4", "1 to 4", "01-04", "01–04"}
-        ).any()
+        has_one_to_four = labels.isin({"1-4", "1 - 4", "1 to 4", "01-04"}).any()
 
         for _, row in group.iterrows():
             bucket = _assign_age_bucket(
@@ -188,7 +185,7 @@ def _process_population(
             + ", ".join(missing_countries)
         )
 
-    missing_buckets: Dict[str, set[str]] = {}
+    missing_buckets: dict[str, set[str]] = {}
     age_records = []
     totals_records_final = []
 
@@ -216,10 +213,7 @@ def _process_population(
                 one_to_four = remainder
             elif remainder > 0.0:
                 denom = under_one + one_to_four
-                if denom > 0:
-                    share_under = under_one / denom
-                else:
-                    share_under = 0.2
+                share_under = under_one / denom if denom > 0 else 0.2
                 under_one += remainder * share_under
                 one_to_four += remainder * (1 - share_under)
 
@@ -263,7 +257,7 @@ def _process_population(
 
     if missing_buckets:
         details = ", ".join(
-            f"{iso3}: {sorted(list(buckets))}"
+            f"{iso3}: {sorted(buckets)}"
             for iso3, buckets in sorted(missing_buckets.items())
         )
         raise ValueError(
