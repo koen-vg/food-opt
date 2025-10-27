@@ -31,21 +31,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          python-version: "3.12"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v1
-        with:
-          enable-cache: true
-
-      - name: Sync dependencies
-        run: uv sync --extra dev
+          pixi-version: v0.40.2
+          cache: true
+          environments: dev
 
       - name: Build HTML docs
-        run: uv run python -m sphinx -b html docs docs/_build/html
+        run: pixi run --environment dev sphinx-build -b html docs docs/_build/html
 
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v3
