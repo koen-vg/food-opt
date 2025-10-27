@@ -9,7 +9,6 @@ notebooks
 data/downloads/*
 **/__pycache__
 gurobi.log
-/pixi.lock
 /.pixi/
 vendor
 /.codex/
