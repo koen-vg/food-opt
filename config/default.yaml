@@ -106,6 +106,15 @@ animal_products:
   - chicken meat
   - dairy
   - eggs
+  # Regional feed conversion efficiencies from Wirsenius (2000)
+  # If wirsenius_regions is specified, average over those regions
+  # If null or empty, use global average across all regions
+  # Available regions: East Asia, East Europe, Latin America & Caribbean,
+  #   North Africa & West Asia, North America & Oceania, South & Central Asia,
+  #   Sub-Saharan Africa, West Europe
+  wirsenius_regions:
+  - North America & Oceania
+  - West Europe
   residue_crops:
   - banana
   - barley

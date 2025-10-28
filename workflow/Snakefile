@@ -181,6 +181,19 @@ rule categorize_feeds:
         "scripts/categorize_feeds.py"
 
 
+rule build_feed_to_animal_products:
+    input:
+        wirsenius="data/wirsenius_feed_energy_requirements.csv",
+        ruminant_categories="processing/{name}/ruminant_feed_categories.csv",
+        monogastric_categories="processing/{name}/monogastric_feed_categories.csv",
+    output:
+        "processing/{name}/feed_to_animal_products.csv",
+    params:
+        wirsenius_regions=config["animal_products"]["wirsenius_regions"],
+    script:
+        "scripts/build_feed_to_animal_products.py"
+
+
 rule calculate_manure_emissions:
     input:
         ruminant_feed_categories="processing/{name}/ruminant_feed_categories.csv",
@@ -497,7 +510,7 @@ rule build_model:
         ruminant_feed_mapping=f"processing/{name}/ruminant_feed_mapping.csv",
         monogastric_feed_categories=f"processing/{name}/monogastric_feed_categories.csv",
         monogastric_feed_mapping=f"processing/{name}/monogastric_feed_mapping.csv",
-        feed_to_products="data/feed_to_animal_products.csv",
+        feed_to_products="processing/{name}/feed_to_animal_products.csv",
         manure_ch4_emissions="processing/{name}/manure_ch4_emission_factors.csv",
         food_groups="data/food_groups.csv",
         nutrition="data/nutrition.csv",

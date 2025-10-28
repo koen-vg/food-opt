@@ -148,23 +148,105 @@ These properties are extracted from the GLEAM 3.0 supplement using ``data/gleam_
 
 Byproducts from food processing (with ``source_type=food``) are automatically excluded from human consumption and can only be used as animal feed.
 
-data/feed_to_animal_products.csv
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Feed Conversion Efficiencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maps feed pool requirements to animal product yields. Columns:
+Feed conversion efficiencies (tonnes product per tonne feed DM) are generated automatically from **Wirsenius (2000)** regional feed energy requirements combined with GLEAM 3.0 feed category energy values.
+
+**Data source**: Wirsenius, S. (2000). *Human Use of Land and Organic Materials: Modeling the Turnover of Biomass in the Global Food System*. Table 3.9. https://publications.lib.chalmers.se/records/fulltext/827.pdf
+
+**Generation workflow**:
+
+1. **Regional feed energy requirements** from Wirsenius (2000) provide MJ per kg product output for eight world regions
+2. **Energy conversion for ruminants**: Net energy (NE) requirements converted to metabolizable energy (ME) using NRC (2000) efficiency factors:
+
+   * k_m = 0.60 (maintenance)
+   * k_g = 0.40 (growth)
+   * k_l = 0.60 (lactation)
+
+3. **Feed category energy content** from GLEAM 3.0 provides ME (MJ per kg DM) for each feed quality category
+4. **Efficiency calculation**: efficiency = ME_feed / ME_requirement (tonnes product per tonne feed DM)
+
+**Output**: ``processing/{name}/feed_to_animal_products.csv`` with columns:
 
 * ``product``: Product name (e.g., "cattle meat", "dairy")
-* ``feed_category``: Specific feed pool (e.g., ``ruminant_forage``, ``ruminant_concentrate``)
-* ``efficiency``: Feed conversion efficiency (tonnes product per tonne feed DM)
-* ``notes``: Description and source information
+* ``feed_category``: Feed pool (e.g., ``ruminant_forage``, ``ruminant_grain``, ``monogastric_grain``)
+* ``efficiency``: Feed conversion efficiency (t product / t feed DM)
+* ``region``: Region label (averaged over configured regions)
+* ``notes``: Description with inverse feed requirement
 
-This structure allows modeling different production systems for the same product:
-  * Grass-fed beef: ``cattle meat`` from ``ruminant_forage``
-  * Grain-finished beef: ``cattle meat`` from ``ruminant_concentrate``
-  * Pasture dairy: ``dairy`` from ``ruminant_forage``
-  * Intensive dairy: ``dairy`` from ``ruminant_concentrate``
+**Configuration**: Specify which Wirsenius regions to average in ``config/default.yaml``:
 
-.. Note:: Current values are mock data; to be replaced by actual feed conversion ratios.
+.. code-block:: yaml
+
+   animal_products:
+     wirsenius_regions:
+     - North America & Oceania
+     - West Europe
+
+Available regions: East Asia, East Europe, Latin America & Caribbean, North Africa & West Asia, North America & Oceania, South & Central Asia, Sub-Saharan Africa, West Europe
+
+If ``wirsenius_regions`` is null or empty, a global average across all eight regions is used.
+
+**Example efficiencies** (North America & Oceania + West Europe average):
+
+* Cattle meat from forage: 0.039 t/t (25.8 t DM feed per tonne meat)
+* Cattle meat from grain: 0.053 t/t (18.9 t DM feed per tonne meat)
+* Dairy from forage: 0.570 t/t (1.8 t DM feed per tonne milk equivalent)
+* Pig meat from grain: 0.142 t/t (7.0 t DM feed per tonne meat)
+* Chicken meat from grain: 0.348 t/t (2.9 t DM feed per tonne meat)
+
+This structure allows modeling different production systems for the same product (grass-fed vs. grain-finished beef, pasture vs. intensive dairy, etc.).
+
+Regional Feed Energy Requirements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Feed requirements vary significantly by region due to differences in production systems, genetics, and environmental conditions. Wirsenius (2000) [#wirsenius2000]_ provides estimated feed energy requirements per unit of commodity output:
+
+.. table:: Feed energy requirements per unit of animal product output (Wirsenius 2000, Table 3.9)
+   :widths: auto
+
+   +-------------------------------+--------+----------+----------+-----------+-----------+-----------+-----------+-----------+-----------+
+   | Commodity                     | Unit   | East     | East     | Latin     | North     | North     | South &   | Sub-      | West      |
+   |                               |        | Asia     | Europe   | America   | Africa &  | America   | Central   | Saharan   | Europe    |
+   |                               |        |          |          | & Carib.  | W. Asia   | & Oc.     | Asia      | Africa    |           |
+   +===============================+========+==========+==========+===========+===========+===========+===========+===========+===========+
+   | Cattle milk & cow carcass     | NE_l   | 8.2      | 8.2      | 11        | 12        | 5.3       | 11        | 23        | 5.6       |
+   | (MJ per kg whole milk &       | NE_m   | 2.3      | 1.3      | 1.9       | 2.0       | 1.1       | 2.5       | 5.4       | 1.3       |
+   | carcass as-is)                | NE_g   | 0.46     | 0.45     | 0.30      | 0.32      | 0.50      | 0.32      | 0.70      | 0.52      |
+   +-------------------------------+--------+----------+----------+-----------+-----------+-----------+-----------+-----------+-----------+
+   | Dairy bulls & heifers carcass | NE_m   | 187      | 47       | 143       | 130       | 53        | 344       | 211       | 41        |
+   | (MJ per kg carcass as-is)     | NE_g   | 22       | 14       | 24        | 21        | 16        | 19        | 20        | 16        |
+   +-------------------------------+--------+----------+----------+-----------+-----------+-----------+-----------+-----------+-----------+
+   | Beef carcass                  | NE_m   | 288      | 141      | 236       | 262       | 109       | 479       | 352       | 103       |
+   | (MJ per kg carcass as-is)     | NE_g   | 25       | 19       | 28        | 23        | 23        | 20        | 21        | 23        |
+   +-------------------------------+--------+----------+----------+-----------+-----------+-----------+-----------+-----------+-----------+
+   | Pig carcass                   | ME     | 86       | 84       | 131       | 86        | 65        | 115       | 123       | 64        |
+   | (MJ per kg carcass-side       |        |          |          |           |           |           |           |           |           |
+   | as-is)                        |        |          |          |           |           |           |           |           |           |
+   +-------------------------------+--------+----------+----------+-----------+-----------+-----------+-----------+-----------+-----------+
+   | Eggs & hen carcass            | ME     | 43       | 42       | 39        | 43        | 32        | 53        | 56        | 30        |
+   | (MJ per kg whole egg &        |        |          |          |           |           |           |           |           |           |
+   | carcass as-is)                |        |          |          |           |           |           |           |           |           |
+   +-------------------------------+--------+----------+----------+-----------+-----------+-----------+-----------+-----------+-----------+
+   | Meat-type chicken carcass     | ME     | 60       | 56       | 51        | 61        | 42        | 72        | 77        | 38        |
+   | (MJ per kg eviscerated        |        |          |          |           |           |           |           |           |           |
+   | carcass as-is)                |        |          |          |           |           |           |           |           |           |
+   +-------------------------------+--------+----------+----------+-----------+-----------+-----------+-----------+-----------+-----------+
+
+**Energy types**:
+  * **NE_l**: Net energy for lactation (dairy production)
+  * **NE_m**: Net energy for maintenance (basic metabolism)
+  * **NE_g**: Net energy for growth (body mass gain)
+  * **ME**: Metabolizable energy (for monogastrics)
+
+**Notes**:
+  * Values calculated from productivity estimates in Wirsenius (2000) Table 3.8
+  * Regional variation reflects differences in production systems, breed genetics, climate, and management practices
+  * Sub-Saharan Africa shows significantly higher requirements due to less intensive production systems
+  * North America and Western Europe have lowest requirements, reflecting highly optimized industrial systems
+
+.. [#wirsenius2000] Wirsenius, S. (2000). *Human Use of Land and Organic Materials: Modeling the Turnover of Biomass in the Global Food System*. Chalmers University of Technology and Göteborg University, Sweden. ISBN 91-7197-886-0. https://publications.lib.chalmers.se/records/fulltext/827.pdf
 
 Model Implementation
 --------------------
