@@ -18,6 +18,7 @@ DOC_FIG_NAME = "doc_figures"
 DOC_FIGURES = [
     # Introduction figures
     "intro_global_coverage",
+    "model_topology",
     # Land use figures
     "land_resource_classes",
     "environment_luc_inputs",
@@ -49,6 +50,17 @@ rule doc_fig_intro_global_coverage:
         png="docs/_static/figures/intro_global_coverage.png",
     script:
         "../scripts/doc_figures/intro_global_coverage.py"
+
+
+rule doc_fig_model_topology:
+    """Generate high-level model topology diagram showing material flows."""
+    input:
+        model=f"results/{DOC_FIG_NAME}/build/model.nc",
+    output:
+        svg="docs/_static/figures/model_topology.svg",
+        png="docs/_static/figures/model_topology.png",
+    script:
+        "../scripts/visualize_model_topology.py"
 
 
 rule doc_fig_land_resource_classes:

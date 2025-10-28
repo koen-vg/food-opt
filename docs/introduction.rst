@@ -20,6 +20,17 @@ The model balances multiple objectives:
 
 These objectives are co-optimized for while operating within biophysical limits on crop yields, land availability, and irrigation capacity as well as satisfying constraints on nutritional adequacy in terms of macronutrients.
 
+Model Structure
+~~~~~~~~~~~~~~~
+
+The model represents material flows through the global food system, from primary inputs (land, water, synthetic fertilizer) through crop production, animal feed systems, and food processing to final consumption and environmental outputs.
+
+.. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/model_topology.png
+   :width: 100%
+   :alt: Model topology showing high-level material flows
+
+   High-level topology of the food systems model, showing aggregated material flows between major system components. Node colors indicate functional categories: blue-gray for inputs, green for food products, brown for manure, dark green for nutrients, and gray for emissions.
+
 Key Features
 ------------
 
