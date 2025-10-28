@@ -115,6 +115,14 @@ animal_products:
   wirsenius_regions:
   - North America & Oceania
   - West Europe
+  # Ruminant net-to-metabolizable energy conversion efficiency factors
+  # Used to convert net energy (NE) requirements to metabolizable energy (ME) requirements
+  # Based on NRC (2000) typical values for mixed diets
+  # ME_required = NE_m/k_m + NE_g/k_g (+ NE_l/k_l for dairy)
+  net_to_metabolizable_energy_conversion:
+    k_m: 0.60  # Maintenance efficiency
+    k_g: 0.40  # Growth efficiency
+    k_l: 0.60  # Lactation efficiency (dairy)
   residue_crops:
   - banana
   - barley

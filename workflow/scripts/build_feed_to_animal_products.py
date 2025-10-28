@@ -44,21 +44,31 @@ import pandas as pd
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# NRC (2000) efficiency factors for converting NE to ME
-# These are typical values for mixed diets
-K_M = 0.60  # Maintenance
-K_G = 0.40  # Growth
-K_L = 0.60  # Lactation
 
-
-def calculate_ruminant_me_requirements(wirsenius_data: pd.DataFrame) -> pd.DataFrame:
+def calculate_ruminant_me_requirements(
+    wirsenius_data: pd.DataFrame, k_m: float, k_g: float, k_l: float
+) -> pd.DataFrame:
     """
     Convert Wirsenius NE requirements to ME requirements for ruminants.
 
     For beef cattle: ME = NE_m / k_m + NE_g / k_g
     For dairy cattle: ME = NE_l / k_l + NE_m / k_m + NE_g / k_g
 
-    Returns DataFrame with columns: animal_product, region, ME_MJ_per_kg
+    Parameters
+    ----------
+    wirsenius_data : pd.DataFrame
+        Wirsenius energy requirements
+    k_m : float
+        Maintenance efficiency factor
+    k_g : float
+        Growth efficiency factor
+    k_l : float
+        Lactation efficiency factor
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns: animal_product, region, ME_MJ_per_kg
     """
     results = []
 
@@ -77,13 +87,13 @@ def calculate_ruminant_me_requirements(wirsenius_data: pd.DataFrame) -> pd.DataF
             if product == "dairy":
                 # Dairy: NE_l + NE_m + NE_g
                 me_req = (
-                    ne_values.get("NE_l", 0) / K_L
-                    + ne_values.get("NE_m", 0) / K_M
-                    + ne_values.get("NE_g", 0) / K_G
+                    ne_values.get("NE_l", 0) / k_l
+                    + ne_values.get("NE_m", 0) / k_m
+                    + ne_values.get("NE_g", 0) / k_g
                 )
             elif product == "cattle meat":
                 # Beef: NE_m + NE_g
-                me_req = ne_values.get("NE_m", 0) / K_M + ne_values.get("NE_g", 0) / K_G
+                me_req = ne_values.get("NE_m", 0) / k_m + ne_values.get("NE_g", 0) / k_g
             else:
                 # Skip non-ruminants
                 continue
@@ -221,6 +231,9 @@ def build_feed_to_animal_products(
     monogastric_categories_file: str,
     output_file: str,
     regions_to_average: list[str] | None = None,
+    k_m: float = 0.60,
+    k_g: float = 0.40,
+    k_l: float = 0.60,
 ) -> None:
     """
     Generate feed-to-animal-product conversion table from Wirsenius data.
@@ -237,6 +250,12 @@ def build_feed_to_animal_products(
         Path to output feed_to_animal_products.csv
     regions_to_average : list[str] | None
         List of Wirsenius regions to average. If None or empty, use all regions.
+    k_m : float
+        NRC maintenance efficiency factor (default 0.60)
+    k_g : float
+        NRC growth efficiency factor (default 0.40)
+    k_l : float
+        NRC lactation efficiency factor (default 0.60)
     """
     # Load data
     wirsenius = pd.read_csv(wirsenius_file, comment="#")
@@ -246,9 +265,10 @@ def build_feed_to_animal_products(
     logger.info("Loaded Wirsenius data: %d rows", len(wirsenius))
     logger.info("Loaded ruminant categories: %d", len(ruminant_cats))
     logger.info("Loaded monogastric categories: %d", len(monogastric_cats))
+    logger.info("NRC efficiency factors: k_m=%.2f, k_g=%.2f, k_l=%.2f", k_m, k_g, k_l)
 
     # Calculate ME requirements
-    ruminant_me = calculate_ruminant_me_requirements(wirsenius)
+    ruminant_me = calculate_ruminant_me_requirements(wirsenius, k_m, k_g, k_l)
     monogastric_me = get_monogastric_me_requirements(wirsenius)
 
     # Calculate feed conversion efficiencies
@@ -340,7 +360,13 @@ def build_feed_to_animal_products(
 
 if __name__ == "__main__":
     # Get regions to average from config
-    regions = snakemake.params.get("wirsenius_regions", None)
+    regions = snakemake.params.wirsenius_regions
+
+    # Get net-to-ME conversion efficiency factors from config
+    conversion_factors = snakemake.params.net_to_me_conversion
+    k_m = conversion_factors["k_m"]
+    k_g = conversion_factors["k_g"]
+    k_l = conversion_factors["k_l"]
 
     build_feed_to_animal_products(
         wirsenius_file=snakemake.input.wirsenius,
@@ -348,4 +374,7 @@ if __name__ == "__main__":
         monogastric_categories_file=snakemake.input.monogastric_categories,
         output_file=snakemake.output[0],
         regions_to_average=regions,
+        k_m=k_m,
+        k_g=k_g,
+        k_l=k_l,
     )

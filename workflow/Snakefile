@@ -190,6 +190,9 @@ rule build_feed_to_animal_products:
         "processing/{name}/feed_to_animal_products.csv",
     params:
         wirsenius_regions=config["animal_products"]["wirsenius_regions"],
+        net_to_me_conversion=config["animal_products"][
+            "net_to_metabolizable_energy_conversion"
+        ],
     script:
         "scripts/build_feed_to_animal_products.py"
 
