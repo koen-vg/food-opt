@@ -216,45 +216,151 @@ def _build_luc_lef_lookup(
 logger = logging.getLogger(__name__)
 
 
-def _calculate_ch4_per_product(
-    feed_pool: str, efficiency: float, my_lookup: dict[str, float]
-) -> float | None:
-    """Calculate CH4 emissions (tCH4/t product) for ruminant feed.
+def _calculate_manure_n_outputs(
+    product: str,
+    feed_category: str,
+    efficiency: float,
+    ruminant_categories: pd.DataFrame,
+    monogastric_categories: pd.DataFrame,
+    nutrition: pd.DataFrame,
+    manure_n_to_fertilizer: float,
+    manure_n2o_factor: float,
+) -> tuple[float, float]:
+    """Calculate manure N fertilizer and N₂O outputs per tonne feed intake.
 
     Parameters
     ----------
-    feed_pool : str
-        Feed category name (e.g., "ruminant_roughage", "monogastric_grain")
+    product : str
+        Animal product name
+    feed_category : str
+        Feed category (e.g., "ruminant_forage", "monogastric_grain")
     efficiency : float
         Feed conversion efficiency (t product / t feed DM)
-    my_lookup : dict[str, float]
-        Methane yields by feed category (g CH4 / kg DMI)
+    ruminant_categories : pd.DataFrame
+        Ruminant feed categories with N_g_per_kg_DM
+    monogastric_categories : pd.DataFrame
+        Monogastric feed categories with N_g_per_kg_DM
+    nutrition : pd.DataFrame
+        Nutrition data indexed by (food, nutrient)
+    manure_n_to_fertilizer : float
+        Fraction of excreted N available as fertilizer
+    manure_n2o_factor : float
+        kg N2O-N per kg manure N applied
 
     Returns
     -------
-    float | None
-        CH4 emissions in tCH4/t product, or None for non-ruminant feeds
+    tuple[float, float]
+        (N fertilizer t/t feed, N2O emissions t/t feed)
     """
-    if not feed_pool.startswith("ruminant_"):
-        return None
+    # Get feed N content (g N/kg DM)
+    category_name = feed_category.split("_", 1)[
+        1
+    ]  # Extract category from "ruminant_forage" etc.
 
-    # Extract category (roughage/forage/grain/protein)
-    category = feed_pool.split("_", 1)[1]
+    if feed_category.startswith("ruminant_"):
+        feed_n_g_per_kg = ruminant_categories.loc[
+            ruminant_categories["category"] == category_name, "N_g_per_kg_DM"
+        ].values[0]
+    else:
+        feed_n_g_per_kg = monogastric_categories.loc[
+            monogastric_categories["category"] == category_name, "N_g_per_kg_DM"
+        ].values[0]
 
-    # Look up methane yield for this category
-    if category not in my_lookup:
-        logger.warning(
-            "No CH4 yield for ruminant feed category '%s', assuming 0", category
-        )
-        return None
+    # Get product protein content (g protein/100g product)
+    try:
+        protein_g_per_100g = nutrition.loc[(product, "protein"), "value"]
+    except KeyError:
+        logger.warning(f"No protein data for {product}, assuming 0 N in product")
+        protein_g_per_100g = 0.0
 
-    # DMI = dry matter intake per tonne product
-    dmi = 1.0 / efficiency  # t DM / t product
+    # Convert protein to N using factor 6.25 (protein = N * 6.25)
+    # N (g/kg product) = protein (g/100g) * 10 / 6.25
+    product_n_g_per_kg = (protein_g_per_100g * 10) / 6.25
 
-    # Convert methane yield from g CH4/kg DM to t CH4/t DM
-    my_t_per_t = my_lookup[category] / 1000.0
+    # Calculate N flows per tonne feed
+    feed_n_t_per_t_feed = feed_n_g_per_kg / 1000  # t N/t feed
+    product_output_t_per_t_feed = efficiency  # t product/t feed
+    product_n_t_per_t_feed = (product_n_g_per_kg / 1000) * product_output_t_per_t_feed
 
-    return dmi * my_t_per_t  # t CH4 / t product
+    # N excreted = N in feed - N in product
+    n_excreted_t_per_t_feed = feed_n_t_per_t_feed - product_n_t_per_t_feed
+
+    # Special handling for grassland: manure deposited on pasture, not collected
+    if feed_category.endswith("_grassland"):
+        # No N available as fertilizer (deposited on pasture)
+        n_fertilizer_t_per_t_feed = 0.0
+        # But still produce N2O from pasture deposition
+        # Use the same N2O factor as for applied manure
+        n2o_n_t_per_t_feed = n_excreted_t_per_t_feed * manure_n2o_factor
+        n2o_t_per_t_feed = n2o_n_t_per_t_feed * (44.0 / 28.0)
+    else:
+        # N available as fertilizer (after collection losses)
+        n_fertilizer_t_per_t_feed = n_excreted_t_per_t_feed * manure_n_to_fertilizer
+
+        # N2O emissions from applied manure N
+        # N2O-N = manure_n * n2o_factor
+        # N2O = N2O-N * 44/28 (molecular weight conversion)
+        n2o_n_t_per_t_feed = n_fertilizer_t_per_t_feed * manure_n2o_factor
+        n2o_t_per_t_feed = n2o_n_t_per_t_feed * (44.0 / 28.0)
+
+    return n_fertilizer_t_per_t_feed, n2o_t_per_t_feed
+
+
+def _calculate_ch4_per_feed_intake(
+    product: str,
+    feed_category: str,
+    country: str,
+    enteric_my_lookup: dict[str, float],
+    manure_emissions: pd.DataFrame,
+) -> float:
+    """Calculate total CH4 emissions (tCH4/t feed DM) from enteric + manure sources.
+
+    Note: This is calculated per tonne of feed intake (bus0), not per product output.
+
+    Parameters
+    ----------
+    product : str
+        Animal product name (e.g., "cattle meat", "dairy", "pig meat")
+    feed_category : str
+        Feed category name (e.g., "ruminant_roughage", "monogastric_grain")
+    country : str
+        Country code (ISO3)
+    enteric_my_lookup : dict[str, float]
+        Enteric methane yields by ruminant feed category (g CH4 / kg DMI)
+    manure_emissions : pd.DataFrame
+        Manure CH4 emission factors with columns: country, product, feed_category,
+        manure_ch4_kg_per_kg_DMI
+
+    Returns
+    -------
+    float
+        Total CH4 emissions in tCH4/t feed DM (enteric + manure)
+    """
+    # Initialize total CH4 per tonne feed
+    total_ch4_per_t_feed = 0.0
+
+    # Add enteric fermentation CH4 (ruminants only)
+    if feed_category.startswith("ruminant_"):
+        category = feed_category.split("_", 1)[1]
+        if category in enteric_my_lookup:
+            # Convert from g CH4/kg DM to t CH4/t DM
+            enteric_t_per_t = enteric_my_lookup[category] / 1000.0
+            total_ch4_per_t_feed += enteric_t_per_t
+
+    # Add manure CH4 (all animal products)
+    manure_row = manure_emissions[
+        (manure_emissions["country"] == country)
+        & (manure_emissions["product"] == product)
+        & (manure_emissions["feed_category"] == feed_category)
+    ]
+
+    if not manure_row.empty:
+        # Convert from kg CH4/kg DM to t CH4/t DM
+        manure_kg_per_kg = manure_row["manure_ch4_kg_per_kg_DMI"].values[0]
+        manure_t_per_t = manure_kg_per_kg / 1000.0
+        total_ch4_per_t_feed += manure_t_per_t
+
+    return total_ch4_per_t_feed  # t CH4 / t feed DM
 
 
 def add_carriers_and_buses(
@@ -783,7 +889,7 @@ def add_grassland_feed_links(
     merged["bus0"] = merged.apply(
         lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_r", axis=1
     )
-    merged["bus1"] = merged["country"].apply(lambda c: f"feed_ruminant_forage_{c}")
+    merged["bus1"] = merged["country"].apply(lambda c: f"feed_ruminant_grassland_{c}")
 
     luc_emissions = (
         np.array(
@@ -800,7 +906,7 @@ def add_grassland_feed_links(
     )  # tCO2/ha/yr → MtCO2/Mha/yr
 
     params = {
-        "carrier": "feed_ruminant_forage",
+        "carrier": "feed_ruminant_grassland",
         "bus0": merged["bus0"].tolist(),
         "bus1": merged["bus1"].tolist(),
         "efficiency": merged["yield"].to_numpy() * 1e6,  # t/ha → t/Mha
@@ -1243,9 +1349,19 @@ def add_feed_to_animal_product_links(
     animal_products: list,
     feed_requirements: pd.DataFrame,
     ruminant_feed_categories: pd.DataFrame,
+    monogastric_feed_categories: pd.DataFrame,
+    manure_emissions: pd.DataFrame,
+    nutrition: pd.DataFrame,
+    fertilizer_config: dict,
     countries: list,
 ) -> None:
-    """Add links that convert feed pools into animal products with CH4 emissions.
+    """Add links that convert feed pools into animal products with emissions and manure N.
+
+    Outputs per link:
+    - bus1: Animal product
+    - bus2: CH₄ emissions (enteric + manure)
+    - bus3: Manure N available as fertilizer
+    - bus4: N₂O emissions from manure N application
 
     Parameters
     ----------
@@ -1256,7 +1372,15 @@ def add_feed_to_animal_product_links(
     feed_requirements : pd.DataFrame
         Feed requirements with columns: product, feed_category, efficiency
     ruminant_feed_categories : pd.DataFrame
-        Ruminant feed categories with CH4 yields (columns: category, MY_g_CH4_per_kg_DMI)
+        Ruminant feed categories with enteric CH4 yields and N content
+    monogastric_feed_categories : pd.DataFrame
+        Monogastric feed categories with N content
+    manure_emissions : pd.DataFrame
+        Manure CH4 emission factors by country, product, and feed_category
+    nutrition : pd.DataFrame
+        Nutrition data (indexed by food, nutrient) with protein content
+    fertilizer_config : dict
+        Fertilizer configuration with manure_n_to_fertilizer and manure_n2o_factor
     countries : list
         List of country codes
     """
@@ -1265,8 +1389,8 @@ def add_feed_to_animal_product_links(
         logger.info("No animal products configured; skipping feed→animal links")
         return
 
-    # Build methane yield lookup from ruminant feed categories; "my" = "methane yield"
-    my_lookup = (
+    # Build enteric methane yield lookup from ruminant feed categories
+    enteric_my_lookup = (
         ruminant_feed_categories.set_index("category")["MY_g_CH4_per_kg_DMI"]
         .astype(float)
         .to_dict()
@@ -1278,14 +1402,11 @@ def add_feed_to_animal_product_links(
     if df.empty:
         return
 
-    # Calculate CH4 emissions for each row
     df["efficiency"] = df["efficiency"].astype(float)
-    df["ch4_emissions"] = df.apply(
-        lambda r: _calculate_ch4_per_product(
-            r["feed_category"], r["efficiency"], my_lookup
-        ),
-        axis=1,
-    )
+
+    # Get config parameters
+    manure_n_to_fert = fertilizer_config.get("manure_n_to_fertilizer", 0.75)
+    manure_n2o_factor = fertilizer_config.get("manure_n2o_factor", 0.01)
 
     # Build all link names and buses (expand each row for all countries)
     all_names = []
@@ -1294,9 +1415,33 @@ def add_feed_to_animal_product_links(
     all_carrier = []
     all_efficiency = []
     all_ch4 = []
+    all_n_fert = []
+    all_n2o = []
 
     for _, row in df.iterrows():
         for country in countries:
+            # Calculate total CH4 (enteric + manure) per tonne feed intake
+            # This is relative to bus0 (feed), so it can be used directly as efficiency2
+            ch4_per_t_feed = _calculate_ch4_per_feed_intake(
+                product=row["product"],
+                feed_category=row["feed_category"],
+                country=country,
+                enteric_my_lookup=enteric_my_lookup,
+                manure_emissions=manure_emissions,
+            )
+
+            # Calculate manure N fertilizer and N2O outputs per tonne feed intake
+            n_fert_per_t_feed, n2o_per_t_feed = _calculate_manure_n_outputs(
+                product=row["product"],
+                feed_category=row["feed_category"],
+                efficiency=row["efficiency"],
+                ruminant_categories=ruminant_feed_categories,
+                monogastric_categories=monogastric_feed_categories,
+                nutrition=nutrition,
+                manure_n_to_fertilizer=manure_n_to_fert,
+                manure_n2o_factor=manure_n2o_factor,
+            )
+
             all_names.append(
                 f"produce_{row['product']}_from_{row['feed_category']}_{country}"
             )
@@ -1304,39 +1449,33 @@ def add_feed_to_animal_product_links(
             all_bus1.append(f"food_{row['product']}_{country}")
             all_carrier.append(f"produce_{row['product']}")
             all_efficiency.append(row["efficiency"])
-            ch4_val = row["ch4_emissions"]
-            all_ch4.append(None if ch4_val is None else ch4_val * TONNE_TO_MEGATONNE)
+            all_ch4.append(ch4_per_t_feed * TONNE_TO_MEGATONNE)
+            all_n_fert.append(n_fert_per_t_feed * TONNE_TO_MEGATONNE)
+            all_n2o.append(n2o_per_t_feed * TONNE_TO_MEGATONNE)
 
-    # Split into links with and without CH4 emissions
-    has_ch4 = [ch4 is not None for ch4 in all_ch4]
+    # All animal production links now have multiple outputs:
+    # bus1: animal product, bus2: CH4, bus3: manure N fertilizer, bus4: N2O
+    n.add(
+        "Link",
+        all_names,
+        bus0=all_bus0,
+        bus1=all_bus1,
+        carrier=all_carrier,
+        efficiency=all_efficiency,
+        marginal_cost=0.0,
+        p_nom_extendable=True,
+        bus2="ch4",
+        efficiency2=all_ch4,
+        bus3="n_fertilizer",
+        efficiency3=all_n_fert,
+        bus4="n2o",
+        efficiency4=all_n2o,
+    )
 
-    if any(has_ch4):
-        ch4_indices = [i for i, has in enumerate(has_ch4) if has]
-        n.add(
-            "Link",
-            [all_names[i] for i in ch4_indices],
-            bus0=[all_bus0[i] for i in ch4_indices],
-            bus1=[all_bus1[i] for i in ch4_indices],
-            carrier=[all_carrier[i] for i in ch4_indices],
-            efficiency=[all_efficiency[i] for i in ch4_indices],
-            marginal_cost=0.0,
-            p_nom_extendable=True,
-            bus2="ch4",
-            efficiency2=[all_ch4[i] for i in ch4_indices],
-        )
-
-    if not all(has_ch4):
-        no_ch4_indices = [i for i, has in enumerate(has_ch4) if not has]
-        n.add(
-            "Link",
-            [all_names[i] for i in no_ch4_indices],
-            bus0=[all_bus0[i] for i in no_ch4_indices],
-            bus1=[all_bus1[i] for i in no_ch4_indices],
-            carrier=[all_carrier[i] for i in no_ch4_indices],
-            efficiency=[all_efficiency[i] for i in no_ch4_indices],
-            marginal_cost=0.0,
-            p_nom_extendable=True,
-        )
+    logger.info(
+        "Added %d feed→animal product links with outputs: product, CH4 (enteric+manure), manure N fertilizer, N2O",
+        len(all_names),
+    )
 
 
 def add_food_group_buses_and_loads(
@@ -1956,6 +2095,9 @@ if __name__ == "__main__":
     # Read feed requirements for animal products (feed pools -> foods)
     feed_to_products = read_csv(snakemake.input.feed_to_products)
 
+    # Read manure CH4 emission factors
+    manure_ch4_emissions = read_csv(snakemake.input.manure_ch4_emissions)
+
     # Read food loss & waste fractions per country and food group
     food_loss_waste = read_csv(snakemake.input.food_loss_waste)
     if not food_loss_waste.empty:
@@ -2315,6 +2457,10 @@ if __name__ == "__main__":
         animal_product_list,
         feed_to_products,
         ruminant_feed_categories,
+        monogastric_feed_categories,
+        manure_ch4_emissions,
+        nutrition,
+        snakemake.params.primary["fertilizer"],
         cfg_countries,
     )
     add_food_group_buses_and_loads(

@@ -1,0 +1,100 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+#
+# Methane conversion factors (MCF) for manure management systems
+# Based on the 2019 Refinement to the 2006 IPCC Guidelines for
+# National Greenhouse Gas Inventories, Table 10.17.
+# GLEAM manure management systems mapped to IPCC systems.
+manure management system,climate zone,methane conversion factor
+aerobic lagoon,cool temp. moist,0.60
+aerobic lagoon,cool temp. dry,0.67
+aerobic lagoon,boreal moist,0.50
+aerobic lagoon,boreal dry,0.49
+aerobic lagoon,warm temp. moist,0.73
+aerobic lagoon,warm temp. dry,0.76
+aerobic lagoon,tropical montane,0.76
+aerobic lagoon,tropical wet,0.80
+aerobic lagoon,tropical moist,0.80
+aerobic lagoon,tropical dry,0.80
+aerobic processing,any,0.00
+biogas,any,0.010
+burned,any,0.10
+compost,any,0.005
+confinement,any,0.015
+daily spread,cool,0.001
+daily spread,temperate,0.005
+daily spread,warm,0.010
+deep litter 1,cool,0.0275
+deep litter 1,temperate,0.065
+deep litter 1,warm,0.18
+drylot,cool,0.010
+drylot,temperate,0.015
+drylot,warm,0.020
+lagoon,cool temp. moist,0.60
+lagoon,cool temp. dry,0.67
+lagoon,boreal moist,0.50
+lagoon,boreal dry,0.49
+lagoon,warm temp. moist,0.73
+lagoon,warm temp. dry,0.76
+lagoon,tropical montane,0.76
+lagoon,tropical wet,0.80
+lagoon,tropical moist,0.80
+lagoon,tropical dry,0.80
+liquid,cool temp. moist,0.12
+liquid,cool temp. dry,0.16
+liquid,boreal moist,0.08
+liquid,boreal dry,0.08
+liquid,warm temp. moist,0.24
+liquid,warm temp. dry,0.28
+liquid,tropical montane,0.43
+liquid,tropical wet,0.61
+liquid,tropical moist,0.57
+liquid,tropical dry,0.62
+liquid crust,cool temp. moist,0.12
+liquid crust,cool temp. dry,0.16
+liquid crust,boreal moist,0.08
+liquid crust,boreal dry,0.08
+liquid crust,warm temp. moist,0.24
+liquid crust,warm temp. dry,0.28
+liquid crust,tropical montane,0.43
+liquid crust,tropical wet,0.61
+liquid crust,tropical moist,0.57
+liquid crust,tropical dry,0.62
+liquid other,cool temp. moist,0.12
+liquid other,cool temp. dry,0.16
+liquid other,boreal moist,0.08
+liquid other,boreal dry,0.08
+liquid other,warm temp. moist,0.24
+liquid other,warm temp. dry,0.28
+liquid other,tropical montane,0.43
+liquid other,tropical wet,0.61
+liquid other,tropical moist,0.57
+liquid other,tropical dry,0.62
+litter,any,0.015
+manure without litter,any,0.015
+pasture & paddock,any,0.0047
+pit 1 (<2 months),cool temp. moist,0.12
+pit 1 (<2 months),cool temp. dry,0.16
+pit 1 (<2 months),boreal moist,0.08
+pit 1 (<2 months),boreal dry,0.08
+pit 1 (<2 months),warm temp. moist,0.24
+pit 1 (<2 months),warm temp. dry,0.28
+pit 1 (<2 months),tropical montane,0.43
+pit 1 (<2 months),tropical wet,0.61
+pit 1 (<2 months),tropical moist,0.57
+pit 1 (<2 months),tropical dry,0.62
+pit 2 (>2months),cool temp. moist,0.31
+pit 2 (>2months),cool temp. dry,0.42
+pit 2 (>2months),boreal moist,0.21
+pit 2 (>2months),boreal dry,0.20
+pit 2 (>2months),warm temp. moist,0.55
+pit 2 (>2months),warm temp. dry,0.64
+pit 2 (>2months),tropical montane,0.73
+pit 2 (>2months),tropical wet,0.80
+pit 2 (>2months),tropical moist,0.80
+pit 2 (>2months),tropical dry,0.80
+solid,cool,0.020
+solid,temperate,0.040
+solid,warm,0.050
+thermal drying,any,0.0

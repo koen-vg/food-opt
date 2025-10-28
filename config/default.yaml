@@ -19,6 +19,9 @@ primary:
     # High-input agriculture N application rates (percentile of global FUBC data)
     n_percentile: 80  # Use 80th percentile for high-input systems (range: 0-100)
     synthetic_n2o_factor: 0.010 # kg N2O-N per kg N input (IPCC 2019 Refinement, Table 11.1 aggregated default)
+    # Manure nitrogen management
+    manure_n_to_fertilizer: 0.75 # Fraction of excreted N available as fertilizer (accounting for losses during storage/handling)
+    manure_n2o_factor: 0.010 # kg N2O-N per kg manure N applied (IPCC 2019 Refinement, Table 11.1 aggregated default)
 
 # --- section: emissions ---
 emissions:

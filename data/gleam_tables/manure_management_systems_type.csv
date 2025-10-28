@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: 2025 FAO
+#
+# SPDX-License-Identifier: CC-BY-4.0
+#
+# Classification of manure management systems by animal product and type (solid/liquid)
+# Based on the GLEAM 3.0 Documentation, Tables 4.4 and 4.5
+manure management system,animal product,type
+aerobic lagoon,cattle meat,liquid
+aerobic lagoon,pig meat,liquid
+aerobic lagoon,dairy,liquid
+aerobic processing,cattle meat,liquid
+aerobic processing,pig meat,liquid
+aerobic processing,dairy,liquid
+biogas,cattle meat,liquid
+biogas,pig meat,liquid
+biogas,chicken meat,liquid
+biogas,dairy,liquid
+burned,cattle meat,solid
+burned,pig meat,solid
+burned,chicken meat,solid
+burned,dairy,solid
+compost,cattle meat,solid
+compost,pig meat,solid
+compost,chicken meat,solid
+compost,dairy,solid
+confinement,cattle meat,liquid
+confinement,cattle meat,solid
+confinement,pig meat,solid
+confinement,chicken meat,solid
+confinement,dairy,solid
+daily spread,cattle meat,solid
+daily spread,pig meat,liquid
+daily spread,chicken meat,solid
+daily spread,dairy,liquid
+daily spread,eggs,solid
+deep litter,cattle meat,solid
+deep litter,pig meat,solid
+deep litter,chicken meat,solid
+deep litter,dairy,solid
+digester,cattle meat,liquid
+digester,pig meat,liquid
+digester,chicken meat,liquid
+digester,dairy,liquid
+drylot,cattle meat,solid
+drylot,pig meat,solid
+drylot,chicken meat,solid
+drylot,dairy,solid
+lagoon,cattle meat,liquid
+lagoon,pig meat,liquid
+lagoon,chicken meat,liquid
+lagoon,dairy,liquid
+liquid,cattle meat,liquid
+liquid,pig meat,liquid
+liquid,chicken meat,liquid
+liquid,dairy,liquid
+liquid crust,cattle meat,liquid
+liquid crust,pig meat,liquid
+liquid crust,chicken meat,liquid
+liquid crust,dairy,liquid
+liquid other,cattle meat,liquid
+liquid other,pig meat,liquid
+liquid other,dairy,liquid
+litter,chicken meat,solid
+litter,eggs,solid
+manure without litter,chicken meat,solid
+manure without litter,eggs,solid
+pasture & paddock,cattle meat,solid
+pasture & paddock,pig meat,solid
+pasture & paddock,chicken meat,solid
+pasture & paddock,dairy,solid
+pit 1 (<2 months),cattle meat,liquid
+pit 1 (<2 months),pig meat,liquid
+pit 1 (<2 months),chicken meat,solid
+pit 1 (<2 months),dairy,liquid
+pit 2 (>2months),cattle meat,liquid
+pit 2 (>2months),pig meat,liquid
+pit 2 (>2months),chicken meat,solid
+pit 2 (>2months),dairy,liquid
+solid,cattle meat,solid
+solid,pig meat,solid
+solid,chicken meat,solid
+solid,dairy,solid
+thermal drying,cattle meat,solid
+thermal drying,pig meat,solid
+thermal drying,chicken meat,solid
+thermal drying,dairy,solid

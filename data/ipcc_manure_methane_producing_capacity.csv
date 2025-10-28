@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+#
+# Maximum methane producing capacity (B₀) in m³ CH₄ kg⁻¹ VS
+# Based on 2019 Refinement to the 2006 IPCC Guidelines for
+# National Greenhouse Gas Inventories, Table 10.16.
+# Values from "Other Regions - High productivity systems" column
+animal product,B0
+dairy,0.24
+cattle meat,0.18
+pig meat,0.45
+chicken meat,0.36
+eggs,0.39

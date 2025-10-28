@@ -170,7 +170,8 @@ rule categorize_feeds:
     input:
         ruminant_feed_properties="processing/{name}/ruminant_feed_properties.csv",
         monogastric_feed_properties="processing/{name}/monogastric_feed_properties.csv",
-        enteric_methane_yields="data/enteric_methane_yields.csv",
+        enteric_methane_yields="data/ipcc_enteric_methane_yields.csv",
+        ash_content="data/feed_ash_content.csv",
     output:
         ruminant_categories="processing/{name}/ruminant_feed_categories.csv",
         monogastric_categories="processing/{name}/monogastric_feed_categories.csv",
@@ -178,6 +179,19 @@ rule categorize_feeds:
         monogastric_mapping="processing/{name}/monogastric_feed_mapping.csv",
     script:
         "scripts/categorize_feeds.py"
+
+
+rule calculate_manure_emissions:
+    input:
+        ruminant_feed_categories="processing/{name}/ruminant_feed_categories.csv",
+        monogastric_feed_categories="processing/{name}/monogastric_feed_categories.csv",
+        b0_data="data/ipcc_manure_methane_producing_capacity.csv",
+        mcf_data="data/ipcc_manure_methane_conversion_factors.csv",
+        mms_fractions="data/gleam_tables/manure_management_systems_fraction.csv",
+    output:
+        "processing/{name}/manure_ch4_emission_factors.csv",
+    script:
+        "scripts/calculate_manure_emissions.py"
 
 
 rule build_regions:
@@ -484,6 +498,7 @@ rule build_model:
         monogastric_feed_categories=f"processing/{name}/monogastric_feed_categories.csv",
         monogastric_feed_mapping=f"processing/{name}/monogastric_feed_mapping.csv",
         feed_to_products="data/feed_to_animal_products.csv",
+        manure_ch4_emissions="processing/{name}/manure_ch4_emission_factors.csv",
         food_groups="data/food_groups.csv",
         nutrition="data/nutrition.csv",
         regions="processing/{name}/regions.geojson",

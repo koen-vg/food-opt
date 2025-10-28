@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 def categorize_ruminant_feeds(
     feed_properties: pd.DataFrame,
+    ash_content: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Categorize ruminant feeds based on digestibility.
 
@@ -27,6 +28,7 @@ def categorize_ruminant_feeds(
     - forage: medium digestibility (0.55-0.70), medium CH4
     - grain: high digestibility (0.70-0.90), low CH4
     - protein: very high digestibility (> 0.90), low CH4
+    - grassland: managed pasture grazing (treated separately for N management)
 
     Returns
     -------
@@ -36,23 +38,31 @@ def categorize_ruminant_feeds(
         Mapping from individual feeds to categories
     """
     # Deduplicate by averaging (same feed may have multiple GLEAM codes)
+    agg_dict = {
+        "GE_MJ_per_kg_DM": "mean",
+        "N_g_per_kg_DM": "mean",
+        "digestibility": "mean",
+    }
+
+    # Merge with ash content data if available
+    if "ash_content_pct_dm" in feed_properties.columns:
+        agg_dict["ash_content_pct_dm"] = "mean"
+
     df = (
         feed_properties.groupby(["feed_item", "source_type"])
-        .agg(
-            {
-                "GE_MJ_per_kg_DM": "mean",
-                "N_g_per_kg_DM": "mean",
-                "digestibility": "mean",
-            }
-        )
+        .agg(agg_dict)
         .reset_index()
     )
 
     # Calculate ME from GE * digestibility * 0.82 (standard conversion)
     df["ME_MJ_per_kg_DM"] = df["GE_MJ_per_kg_DM"] * df["digestibility"] * 0.82
 
-    # Assign categories based on digestibility
-    def assign_category(di):
+    # Assign categories based on feed item and digestibility
+    # Grassland gets its own category for special N management
+    def assign_category(row):
+        if row["feed_item"] == "grassland":
+            return "grassland"
+        di = row["digestibility"]
         if di < 0.55:
             return "roughage"
         elif di < 0.70:
@@ -62,37 +72,42 @@ def categorize_ruminant_feeds(
         else:
             return "protein"
 
-    df["category"] = df["digestibility"].apply(assign_category)
+    df["category"] = df.apply(assign_category, axis=1)
 
     # Create feed mapping table
     feed_mapping = df[["feed_item", "source_type", "category"]].copy()
 
     # Compute category-level averages
-    categories = (
-        df.groupby("category")
-        .agg(
-            {
-                "ME_MJ_per_kg_DM": "mean",
-                "GE_MJ_per_kg_DM": "mean",
-                "N_g_per_kg_DM": "mean",
-                "digestibility": "mean",
-            }
-        )
-        .reset_index()
-    )
+    agg_dict_cat = {
+        "ME_MJ_per_kg_DM": "mean",
+        "GE_MJ_per_kg_DM": "mean",
+        "N_g_per_kg_DM": "mean",
+        "digestibility": "mean",
+    }
+
+    if "ash_content_pct_dm" in df.columns:
+        agg_dict_cat["ash_content_pct_dm"] = "mean"
+
+    categories = df.groupby("category").agg(agg_dict_cat).reset_index()
 
     # Count feeds per category
     categories["n_feeds"] = df.groupby("category").size().values
 
     logger.info("Ruminant feed categories:")
     for _, row in categories.iterrows():
+        ash_info = (
+            f", Ash={row['ash_content_pct_dm']:.1f}%"
+            if "ash_content_pct_dm" in row.index
+            else ""
+        )
         logger.info(
-            "  %s: %d feeds, ME=%.1f MJ/kg, N=%.1f g/kg, DI=%.2f",
+            "  %s: %d feeds, ME=%.1f MJ/kg, N=%.1f g/kg, DI=%.2f%s",
             row["category"],
             row["n_feeds"],
             row["ME_MJ_per_kg_DM"],
             row["N_g_per_kg_DM"],
             row["digestibility"],
+            ash_info,
         )
 
     return categories, feed_mapping
@@ -100,6 +115,7 @@ def categorize_ruminant_feeds(
 
 def categorize_monogastric_feeds(
     feed_properties: pd.DataFrame,
+    ash_content: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Categorize monogastric feeds based on ME content and protein level.
 
@@ -117,16 +133,19 @@ def categorize_monogastric_feeds(
         Mapping from individual feeds to categories
     """
     # Deduplicate by averaging
+    agg_dict = {
+        "GE_MJ_per_kg_DM": "mean",
+        "ME_MJ_per_kg_DM": "mean",
+        "N_g_per_kg_DM": "mean",
+        "digestibility": "mean",
+    }
+
+    if "ash_content_pct_dm" in feed_properties.columns:
+        agg_dict["ash_content_pct_dm"] = "mean"
+
     df = (
         feed_properties.groupby(["feed_item", "source_type"])
-        .agg(
-            {
-                "GE_MJ_per_kg_DM": "mean",
-                "ME_MJ_per_kg_DM": "mean",
-                "N_g_per_kg_DM": "mean",
-                "digestibility": "mean",
-            }
-        )
+        .agg(agg_dict)
         .reset_index()
     )
 
@@ -151,31 +170,36 @@ def categorize_monogastric_feeds(
     feed_mapping = df[["feed_item", "source_type", "category"]].copy()
 
     # Compute category-level averages
-    categories = (
-        df.groupby("category")
-        .agg(
-            {
-                "ME_MJ_per_kg_DM": "mean",
-                "GE_MJ_per_kg_DM": "mean",
-                "N_g_per_kg_DM": "mean",
-                "digestibility": "mean",
-            }
-        )
-        .reset_index()
-    )
+    agg_dict_cat = {
+        "ME_MJ_per_kg_DM": "mean",
+        "GE_MJ_per_kg_DM": "mean",
+        "N_g_per_kg_DM": "mean",
+        "digestibility": "mean",
+    }
+
+    if "ash_content_pct_dm" in df.columns:
+        agg_dict_cat["ash_content_pct_dm"] = "mean"
+
+    categories = df.groupby("category").agg(agg_dict_cat).reset_index()
 
     # Count feeds per category
     categories["n_feeds"] = df.groupby("category").size().values
 
     logger.info("Monogastric feed categories:")
     for _, row in categories.iterrows():
+        ash_info = (
+            f", Ash={row['ash_content_pct_dm']:.1f}%"
+            if "ash_content_pct_dm" in row.index
+            else ""
+        )
         logger.info(
-            "  %s: %d feeds, ME=%.1f MJ/kg, N=%.1f g/kg, DI=%.2f",
+            "  %s: %d feeds, ME=%.1f MJ/kg, N=%.1f g/kg, DI=%.2f%s",
             row["category"],
             row["n_feeds"],
             row["ME_MJ_per_kg_DM"],
             row["N_g_per_kg_DM"],
             row["digestibility"],
+            ash_info,
         )
 
     return categories, feed_mapping
@@ -187,7 +211,7 @@ def add_methane_yields(
 ) -> pd.DataFrame:
     """Add CH4 emission factors to ruminant categories.
 
-    Maps category names to IPCC-based CH4 yields from enteric_methane_yields.csv.
+    Maps category names to IPCC-based CH4 yields from ipcc_enteric_methane_yields.csv.
     """
     # Create mapping from our categories to methane yield categories
     category_mapping = {
@@ -195,6 +219,7 @@ def add_methane_yields(
         "forage": "forage",
         "grain": "concentrate",
         "protein": "concentrate",
+        "grassland": "forage",  # Grassland treated as forage quality for CH4
     }
 
     # Merge with methane yields
@@ -224,11 +249,29 @@ if __name__ == "__main__":
         snakemake.input.monogastric_feed_properties, comment="#"
     )
     methane_yields = pd.read_csv(snakemake.input.enteric_methane_yields, comment="#")
+    ash_content = pd.read_csv(snakemake.input.ash_content, comment="#")
+
+    # Merge ash content data with feed properties
+    ruminant_props = ruminant_props.merge(
+        ash_content[["feed", "ash_content_pct_dm"]],
+        left_on="feed_item",
+        right_on="feed",
+        how="left",
+    ).drop(columns=["feed"])
+
+    monogastric_props = monogastric_props.merge(
+        ash_content[["feed", "ash_content_pct_dm"]],
+        left_on="feed_item",
+        right_on="feed",
+        how="left",
+    ).drop(columns=["feed"])
 
     # Categorize feeds
-    ruminant_categories, ruminant_mapping = categorize_ruminant_feeds(ruminant_props)
+    ruminant_categories, ruminant_mapping = categorize_ruminant_feeds(
+        ruminant_props, ash_content
+    )
     monogastric_categories, monogastric_mapping = categorize_monogastric_feeds(
-        monogastric_props
+        monogastric_props, ash_content
     )
 
     # Add CH4 yields to ruminant categories
