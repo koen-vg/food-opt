@@ -1023,11 +1023,13 @@ def add_food_conversion_links(
     exception_crops: set[str],
     food_to_group: dict[str, str],
     loss_waste: pd.DataFrame,
+    crop_list: list,
 ) -> None:
     """Add links for converting crops to foods via processing pathways.
 
     Pathways can have multiple outputs (e.g., wheat → white flour + bran).
     Each pathway creates one multi-output Link per country.
+    Only processes crops that are in the configured crop_list.
     """
 
     # Validate that foods.csv has the new pathway column
@@ -1036,6 +1038,9 @@ def add_food_conversion_links(
             "foods.csv must contain a 'pathway' column. "
             "See data/foods.csv for the expected format with pathway-based structure."
         )
+
+    # Filter foods DataFrame to only include configured crops
+    foods = foods[foods["crop"].isin(crop_list)].copy()
 
     loss_waste_pairs: dict[tuple[str, str], tuple[float, float]] = {}
     if not loss_waste.empty:
@@ -2440,6 +2445,7 @@ if __name__ == "__main__":
         exception_crops,
         food_to_group,
         food_loss_waste,
+        snakemake.params.crops,
     )
     add_feed_supply_links(
         n,
