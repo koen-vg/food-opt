@@ -151,21 +151,39 @@ Byproducts from food processing (with ``source_type=food``) are automatically ex
 Feed Conversion Efficiencies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Feed conversion efficiencies (tonnes product per tonne feed DM) are generated automatically from **Wirsenius (2000)** regional feed energy requirements combined with GLEAM 3.0 feed category energy values.
+Feed conversion efficiencies (tonnes **retail product** per tonne feed DM) are generated automatically from Wirsenius (2000) regional feed energy requirements combined with GLEAM 3.0 feed category energy values.
 
-**Data source**: Wirsenius, S. (2000). *Human Use of Land and Organic Materials: Modeling the Turnover of Biomass in the Global Food System*. Table 3.9. https://publications.lib.chalmers.se/records/fulltext/827.pdf
+In this calculation, we have to account for the following units:
+* **Feed inputs**: Dry matter (tonnes DM)
+* **Animal product outputs**: Fresh weight, retail meat (tonnes fresh weight)
+
+  * For meats: **retail/edible meat** weight (boneless, trimmed) - NOT carcass weight
+  * For dairy: whole milk (fresh weight)
+  * For eggs: whole eggs (fresh weight)
+
+Wirsenius (2000) [1]_ provides feed requirements per kg **carcass weight** (dressed, bone-in). We apply carcass-to-retail conversion factors to obtain feed requirements per kg **retail meat**, from OECD-FAO Agricultural Outlook 2023-2032, Box 6.1 [2]_:
+
+* Cattle meat: 0.67 kg boneless retail per kg carcass
+* Pig meat: 0.73 kg boneless retail per kg carcass
+* Chicken meat: 0.60 kg boneless retail per kg carcass
+* Eggs & dairy: 1.00 (no conversion, already retail products)
 
 **Generation workflow**:
 
-1. **Regional feed energy requirements** from Wirsenius (2000) provide MJ per kg product output for eight world regions
-2. **Energy conversion for ruminants**: Net energy (NE) requirements converted to metabolizable energy (ME) using NRC (2000) efficiency factors:
+1. **Regional feed energy requirements** from Wirsenius (2000) provide MJ per kg **carcass** output for eight world regions
+2. **Carcass-to-retail conversion**: Convert MJ per kg carcass → MJ per kg retail meat
+
+   * For meats: ME_retail = ME_carcass / carcass_to_retail_factor
+   * For dairy/eggs: No conversion (already retail products)
+
+3. **Energy conversion for ruminants**: Net energy (NE) requirements converted to metabolizable energy (ME) using NRC (2000) efficiency factors:
 
    * k_m = 0.60 (maintenance)
    * k_g = 0.40 (growth)
    * k_l = 0.60 (lactation)
 
-3. **Feed category energy content** from GLEAM 3.0 provides ME (MJ per kg DM) for each feed quality category
-4. **Efficiency calculation**: efficiency = ME_feed / ME_requirement (tonnes product per tonne feed DM)
+4. **Feed category energy content** from GLEAM 3.0 provides ME (MJ per kg DM) for each feed quality category
+5. **Efficiency calculation**: efficiency = ME_feed / ME_retail (tonnes **retail product** per tonne feed DM)
 
 **Output**: ``processing/{name}/feed_to_animal_products.csv`` with columns:
 
@@ -188,20 +206,22 @@ Available regions: East Asia, East Europe, Latin America & Caribbean, North Afri
 
 If ``wirsenius_regions`` is null or empty, a global average across all eight regions is used.
 
-**Example efficiencies** (North America & Oceania + West Europe average):
+**Example efficiencies** (North America & Oceania + West Europe average, with carcass-to-retail conversion):
 
-* Cattle meat from forage: 0.039 t/t (25.8 t DM feed per tonne meat)
-* Cattle meat from grain: 0.053 t/t (18.9 t DM feed per tonne meat)
-* Dairy from forage: 0.570 t/t (1.8 t DM feed per tonne milk equivalent)
-* Pig meat from grain: 0.142 t/t (7.0 t DM feed per tonne meat)
-* Chicken meat from grain: 0.348 t/t (2.9 t DM feed per tonne meat)
+* Cattle meat from forage: ~0.026 t/t (~38 t DM feed per tonne retail beef)
+* Cattle meat from grain: ~0.035 t/t (~28 t DM feed per tonne retail beef)
+* Dairy from forage: ~0.480 t/t (~2.1 t DM feed per tonne milk)
+* Pig meat from grain: ~0.110 t/t (~9.1 t DM feed per tonne retail pork)
+* Chicken meat from grain: ~0.226 t/t (~4.4 t DM feed per tonne retail chicken)
+
+Note: Carcass-to-retail conversion increases feed requirements per kg retail meat by ~33-50% compared to per kg carcass, reflecting bone removal and trimming losses.
 
 This structure allows modeling different production systems for the same product (grass-fed vs. grain-finished beef, pasture vs. intensive dairy, etc.).
 
 Regional Feed Energy Requirements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Feed requirements vary significantly by region due to differences in production systems, genetics, and environmental conditions. Wirsenius (2000) [#wirsenius2000]_ provides estimated feed energy requirements per unit of commodity output:
+Feed requirements vary significantly by region due to differences in production systems, genetics, and environmental conditions. Wirsenius (2000) [1]_ provides estimated feed energy requirements per unit of commodity output:
 
 .. table:: Feed energy requirements per unit of animal product output (Wirsenius 2000, Table 3.9)
    :widths: auto
@@ -245,8 +265,6 @@ Feed requirements vary significantly by region due to differences in production 
   * Regional variation reflects differences in production systems, breed genetics, climate, and management practices
   * Sub-Saharan Africa shows significantly higher requirements due to less intensive production systems
   * North America and Western Europe have lowest requirements, reflecting highly optimized industrial systems
-
-.. [#wirsenius2000] Wirsenius, S. (2000). *Human Use of Land and Organic Materials: Modeling the Turnover of Biomass in the Global Food System*. Chalmers University of Technology and Göteborg University, Sweden. ISBN 91-7197-886-0. https://publications.lib.chalmers.se/records/fulltext/827.pdf
 
 Model Implementation
 --------------------
@@ -385,3 +403,10 @@ Workflow Rules
   * **Script**: ``workflow/scripts/build_grassland_yields.py``
 
 Livestock production is then integrated into the ``build_model`` rule using the grassland yields and feed conversion CSVs.
+
+References
+----------
+
+.. [1] Wirsenius, S. (2000). *Human Use of Land and Organic Materials: Modeling the Turnover of Biomass in the Global Food System*. Chalmers University of Technology and Göteborg University, Sweden. ISBN 91-7197-886-0. https://publications.lib.chalmers.se/records/fulltext/827.pdf
+
+.. [2] Organisation for Economic Co-operation and Development / Food and Agriculture Organization of the United Nations (2023). *OECD-FAO Agricultural Outlook 2023-2032*, Box 6.1: Meat. https://www.oecd.org/en/publications/oecd-fao-agricultural-outlook-2023-2032_08801ab7-en/full-report/meat_7b036d52.html#title-a5a1984180

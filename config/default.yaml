@@ -123,6 +123,13 @@ animal_products:
     k_m: 0.60  # Maintenance efficiency
     k_g: 0.40  # Growth efficiency
     k_l: 0.60  # Lactation efficiency (dairy)
+  # Carcass-to-retail meat conversion factors
+  carcass_to_retail_meat:
+    cattle meat: 0.67  # kg boneless retail beef per kg carcass (OECD-FAO 2023)
+    pig meat: 0.73     # kg boneless retail pork per kg carcass (OECD-FAO 2023)
+    chicken meat: 0.60 # kg boneless retail chicken per kg carcass (OECD-FAO 2023)
+    eggs: 1.00         # No conversion needed (whole egg = retail product)
+    dairy: 1.00        # No conversion needed (whole milk = retail product)
   residue_crops:
   - banana
   - barley

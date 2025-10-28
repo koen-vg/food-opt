@@ -8,33 +8,42 @@ Generate feed-to-animal-product conversion efficiencies from Wirsenius (2000) da
 Uses regional feed energy requirements combined with feed category energy values
 to calculate feed conversion efficiencies (tonnes product per tonne feed DM).
 
+UNIT CONVERSIONS:
+1. Feed inputs: DRY MATTER (tonnes DM)
+2. Animal product outputs: FRESH WEIGHT, RETAIL MEAT (tonnes fresh weight)
+3. Wirsenius (2000) provides requirements per kg CARCASS WEIGHT (dressed, bone-in)
+4. We apply carcass-to-retail conversion to get retail meat weight
+
 The approach:
 1. For each animal product * region * feed category combination:
-2. Get energy requirement from Wirsenius (MJ per kg product)
-3. Get energy content of feed category from GLEAM (MJ per kg DM)
-4. Calculate: efficiency = feed_energy / product_energy_requirement
-   (in tonnes product per tonne feed DM)
+2. Get energy requirement from Wirsenius (MJ per kg CARCASS)
+3. Convert to retail meat using carcass_to_retail factors (MJ per kg RETAIL MEAT)
+4. Get energy content of feed category from GLEAM (MJ per kg DM)
+5. Calculate: efficiency = feed_energy / product_energy_requirement
+   (in tonnes RETAIL MEAT per tonne FEED DM)
 
 For ruminants:
-- Wirsenius provides NE_m (maintenance) and NE_g (growth) requirements
-- We use NE = ME * efficiency factors from NRC (2000):
+- Wirsenius provides NE_m (maintenance) and NE_g (growth) requirements per kg carcass
+- Convert NE to ME using NRC (2000) efficiency factors:
   - For maintenance: k_m ~ 0.60 (typical for mixed diets)
   - For growth: k_g ~ 0.40 (typical for mixed diets)
-- Therefore: ME_required = NE_m/k_m + NE_g/k_g
+- ME_required_carcass = NE_m/k_m + NE_g/k_g
+- ME_required_retail = ME_required_carcass / carcass_to_retail_factor
 
 For dairy:
-- Wirsenius provides NE_l (lactation), NE_m, and NE_g
-- We use: ME_required = NE_l/k_l + NE_m/k_m + NE_g/k_g
-- Where k_l ~ 0.60 (typical)
+- Wirsenius provides NE_l (lactation), NE_m, and NE_g per kg whole milk
+- ME_required = NE_l/k_l + NE_m/k_m + NE_g/k_g
+- No carcass conversion (milk is already retail product)
 
 For monogastrics:
-- Wirsenius directly provides ME requirements
-- No conversion needed
+- Wirsenius directly provides ME requirements per kg carcass
+- Apply carcass-to-retail conversion to get ME per kg retail meat
 
 References:
-- Wirsenius (2000): Feed energy requirements by region
-- NRC (2000): Nutrient Requirements of Beef Cattle (k factors)
+- Wirsenius (2000): Feed energy requirements by region (Table 3.9)
+- NRC (2000): Nutrient Requirements of Beef Cattle (NE to ME conversion factors)
 - GLEAM (2022): Feed energy content values
+- USDA/FAO: Carcass-to-retail conversion factors
 """
 
 import logging
@@ -46,29 +55,37 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_ruminant_me_requirements(
-    wirsenius_data: pd.DataFrame, k_m: float, k_g: float, k_l: float
+    wirsenius_data: pd.DataFrame,
+    k_m: float,
+    k_g: float,
+    k_l: float,
+    carcass_to_retail: dict[str, float],
 ) -> pd.DataFrame:
     """
     Convert Wirsenius NE requirements to ME requirements for ruminants.
 
-    For beef cattle: ME = NE_m / k_m + NE_g / k_g
+    For beef cattle: ME_carcass = NE_m / k_m + NE_g / k_g
+                     ME_retail = ME_carcass / carcass_to_retail_factor
     For dairy cattle: ME = NE_l / k_l + NE_m / k_m + NE_g / k_g
+                      (no carcass conversion, milk is already retail product)
 
     Parameters
     ----------
     wirsenius_data : pd.DataFrame
-        Wirsenius energy requirements
+        Wirsenius energy requirements (per kg CARCASS for meat, per kg PRODUCT for milk/eggs)
     k_m : float
-        Maintenance efficiency factor
+        Maintenance efficiency factor (NE to ME conversion)
     k_g : float
-        Growth efficiency factor
+        Growth efficiency factor (NE to ME conversion)
     k_l : float
-        Lactation efficiency factor
+        Lactation efficiency factor (NE to ME conversion)
+    carcass_to_retail : dict[str, float]
+        Carcass-to-retail conversion factors by product
 
     Returns
     -------
     pd.DataFrame
-        DataFrame with columns: animal_product, region, ME_MJ_per_kg
+        DataFrame with columns: animal_product, region, ME_MJ_per_kg_RETAIL
     """
     results = []
 
@@ -85,15 +102,22 @@ def calculate_ruminant_me_requirements(
 
             # Calculate ME requirement based on product type
             if product == "dairy":
-                # Dairy: NE_l + NE_m + NE_g
-                me_req = (
+                # Dairy: NE_l + NE_m + NE_g (per kg whole milk, already retail product)
+                me_req_carcass = (
                     ne_values.get("NE_l", 0) / k_l
                     + ne_values.get("NE_m", 0) / k_m
                     + ne_values.get("NE_g", 0) / k_g
                 )
+                # No carcass conversion for dairy
+                me_req_retail = me_req_carcass
             elif product == "cattle meat":
-                # Beef: NE_m + NE_g
-                me_req = ne_values.get("NE_m", 0) / k_m + ne_values.get("NE_g", 0) / k_g
+                # Beef: NE_m + NE_g (per kg CARCASS)
+                me_req_carcass = (
+                    ne_values.get("NE_m", 0) / k_m + ne_values.get("NE_g", 0) / k_g
+                )
+                # Convert from per kg carcass to per kg retail meat
+                conversion_factor = carcass_to_retail[product]
+                me_req_retail = me_req_carcass / conversion_factor
             else:
                 # Skip non-ruminants
                 continue
@@ -102,7 +126,7 @@ def calculate_ruminant_me_requirements(
                 {
                     "animal_product": product,
                     "region": region,
-                    "ME_MJ_per_kg": me_req,
+                    "ME_MJ_per_kg": me_req_retail,
                 }
             )
 
@@ -115,11 +139,27 @@ def calculate_ruminant_me_requirements(
     return df
 
 
-def get_monogastric_me_requirements(wirsenius_data: pd.DataFrame) -> pd.DataFrame:
+def get_monogastric_me_requirements(
+    wirsenius_data: pd.DataFrame, carcass_to_retail: dict[str, float]
+) -> pd.DataFrame:
     """
     Extract ME requirements for monogastrics (already in ME units).
 
-    Returns DataFrame with columns: animal_product, region, ME_MJ_per_kg
+    Wirsenius provides ME per kg CARCASS for meat products.
+    We convert to ME per kg RETAIL MEAT using carcass_to_retail factors.
+    Eggs are already retail product (no conversion).
+
+    Parameters
+    ----------
+    wirsenius_data : pd.DataFrame
+        Wirsenius energy requirements
+    carcass_to_retail : dict[str, float]
+        Carcass-to-retail conversion factors by product
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns: animal_product, region, ME_MJ_per_kg_RETAIL
     """
     # Filter to monogastric products
     monogastric_products = ["pig meat", "chicken meat", "eggs"]
@@ -127,7 +167,12 @@ def get_monogastric_me_requirements(wirsenius_data: pd.DataFrame) -> pd.DataFram
 
     # Should only have ME unit
     df = df[df["unit"] == "ME"].copy()
-    df = df.rename(columns={"value": "ME_MJ_per_kg"})
+    df = df.rename(columns={"value": "ME_MJ_per_kg_carcass"})
+
+    # Apply carcass-to-retail conversion
+    df["conversion_factor"] = df["animal_product"].map(carcass_to_retail)
+    df["ME_MJ_per_kg"] = df["ME_MJ_per_kg_carcass"] / df["conversion_factor"]
+
     df = df[["animal_product", "region", "ME_MJ_per_kg"]]
 
     logger.info(
@@ -234,9 +279,13 @@ def build_feed_to_animal_products(
     k_m: float = 0.60,
     k_g: float = 0.40,
     k_l: float = 0.60,
+    carcass_to_retail: dict[str, float] | None = None,
 ) -> None:
     """
     Generate feed-to-animal-product conversion table from Wirsenius data.
+
+    Converts Wirsenius carcass-weight-based feed requirements to retail-meat-based
+    feed conversion efficiencies.
 
     Parameters
     ----------
@@ -256,7 +305,17 @@ def build_feed_to_animal_products(
         NRC growth efficiency factor (default 0.40)
     k_l : float
         NRC lactation efficiency factor (default 0.60)
+    carcass_to_retail : dict[str, float] | None
+        Carcass-to-retail conversion factors by product
     """
+    if carcass_to_retail is None:
+        carcass_to_retail = {
+            "cattle meat": 0.67,
+            "pig meat": 0.70,
+            "chicken meat": 0.65,
+            "eggs": 1.00,
+            "dairy": 1.00,
+        }
     # Load data
     wirsenius = pd.read_csv(wirsenius_file, comment="#")
     ruminant_cats = pd.read_csv(ruminant_categories_file)
@@ -266,10 +325,15 @@ def build_feed_to_animal_products(
     logger.info("Loaded ruminant categories: %d", len(ruminant_cats))
     logger.info("Loaded monogastric categories: %d", len(monogastric_cats))
     logger.info("NRC efficiency factors: k_m=%.2f, k_g=%.2f, k_l=%.2f", k_m, k_g, k_l)
+    logger.info("Carcass-to-retail conversion factors:")
+    for product, factor in carcass_to_retail.items():
+        logger.info("  %s: %.2f", product, factor)
 
-    # Calculate ME requirements
-    ruminant_me = calculate_ruminant_me_requirements(wirsenius, k_m, k_g, k_l)
-    monogastric_me = get_monogastric_me_requirements(wirsenius)
+    # Calculate ME requirements (converted to per kg RETAIL product)
+    ruminant_me = calculate_ruminant_me_requirements(
+        wirsenius, k_m, k_g, k_l, carcass_to_retail
+    )
+    monogastric_me = get_monogastric_me_requirements(wirsenius, carcass_to_retail)
 
     # Calculate feed conversion efficiencies
     ruminant_eff = calculate_feed_efficiencies(ruminant_me, ruminant_cats, "ruminant")
@@ -368,6 +432,9 @@ if __name__ == "__main__":
     k_g = conversion_factors["k_g"]
     k_l = conversion_factors["k_l"]
 
+    # Get carcass-to-retail conversion factors from config
+    carcass_to_retail = snakemake.params.carcass_to_retail
+
     build_feed_to_animal_products(
         wirsenius_file=snakemake.input.wirsenius,
         ruminant_categories_file=snakemake.input.ruminant_categories,
@@ -377,4 +444,5 @@ if __name__ == "__main__":
         k_m=k_m,
         k_g=k_g,
         k_l=k_l,
+        carcass_to_retail=carcass_to_retail,
     )

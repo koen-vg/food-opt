@@ -1362,8 +1362,23 @@ def add_feed_to_animal_product_links(
 ) -> None:
     """Add links that convert feed pools into animal products with emissions and manure N.
 
+    UNITS:
+
+    - Input (bus0): Feed in DRY MATTER (tonnes DM)
+    - Output (bus1): Animal products in FRESH WEIGHT, RETAIL MEAT (tonnes fresh)
+
+      - For meats: retail/edible meat weight (boneless, trimmed)
+      - For dairy: whole milk (fresh weight)
+      - For eggs: whole eggs (fresh weight)
+
+    - Efficiency: tonnes retail product per tonne feed DM
+
+      - Incorporates carcass-to-retail conversion for meat products
+      - Generated from Wirsenius (2000) + GLEAM feed energy values
+
     Outputs per link:
-    - bus1: Animal product
+
+    - bus1: Animal product (fresh weight, retail meat)
     - bus2: CH₄ emissions (enteric + manure)
     - bus3: Manure N available as fertilizer
     - bus4: N₂O emissions from manure N application
@@ -1376,6 +1391,7 @@ def add_feed_to_animal_product_links(
         List of animal product names
     feed_requirements : pd.DataFrame
         Feed requirements with columns: product, feed_category, efficiency
+        Efficiency in tonnes RETAIL PRODUCT per tonne FEED DM
     ruminant_feed_categories : pd.DataFrame
         Ruminant feed categories with enteric CH4 yields and N content
     monogastric_feed_categories : pd.DataFrame
