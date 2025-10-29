@@ -98,6 +98,18 @@ macronutrients:
   kcal:
     equal: 2400  # kcal/person/day (source: EAT/Lancet 2025)
 
+# --- section: byproducts ---
+# Foods that are not for direct human consumption (excluded from food group tracking)
+byproducts:
+- wheat bran
+- wheat germ
+- rice bran
+- barley bran
+- oat bran
+- buckwheat hulls
+- sunflower meal
+- rapeseed meal
+
 # --- section: animal_products ---
 animal_products:
   include:

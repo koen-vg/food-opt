@@ -1690,16 +1690,17 @@ def add_food_nutrition_links(
     nutrition: pd.DataFrame,
     nutrient_units: dict[str, str],
     countries: list,
+    byproduct_list: list,
 ) -> None:
     """Add multilinks per country for converting foods to groups and macronutrients.
 
-    Byproduct foods (those with group='byproduct') are excluded from human consumption.
+    Byproduct foods (from config) are excluded from human consumption.
     """
     # Pre-index food_groups for lookup
     food_to_group = food_groups.set_index("food")["group"].to_dict()
 
-    # Filter out byproducts from human consumption
-    byproduct_foods = set(food_groups.loc[food_groups["group"] == "byproduct", "food"])
+    # Filter out byproducts from human consumption (using config list)
+    byproduct_foods = set(byproduct_list)
     consumable_foods = [f for f in food_list if f not in byproduct_foods]
 
     if byproduct_foods:
@@ -2472,6 +2473,7 @@ if __name__ == "__main__":
         nutrition,
         nutrient_units,
         cfg_countries,
+        snakemake.params.byproducts,
     )
 
     # Add crop trading hubs and links (hierarchical trade network)

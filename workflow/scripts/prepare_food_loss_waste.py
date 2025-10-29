@@ -767,29 +767,6 @@ def main():
     result["loss_fraction"] = result["loss_fraction"].fillna(0.0)
     result["waste_fraction"] = result["waste_fraction"].fillna(0.0)
 
-    # Add explicit zero entries for special food groups not covered by UN data
-    # These groups don't have UN SDG equivalents and should have zero loss/waste
-    special_groups = {"byproduct", "sugar"}
-    existing_groups = set(result["food_group"].unique())
-    missing_special = special_groups & set(food_groups) - existing_groups
-
-    if missing_special:
-        logger.info(
-            "Adding zero loss/waste for special food groups: %s",
-            ", ".join(sorted(missing_special)),
-        )
-        special_rows = [
-            {
-                "country": country,
-                "food_group": group,
-                "loss_fraction": 0.0,
-                "waste_fraction": 0.0,
-            }
-            for country in countries
-            for group in missing_special
-        ]
-        result = pd.concat([result, pd.DataFrame(special_rows)], ignore_index=True)
-
     # Sort for readability
     result = result.sort_values(["country", "food_group"]).reset_index(drop=True)
 

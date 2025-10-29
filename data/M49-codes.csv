@@ -1,4 +1,7 @@
 ﻿# Retrieved from https://unstats.un.org/unsd/methodology/m49/overview/
+#
+# Manual additions (not in official UN M49):
+# - Taiwan (TWN): Added as Eastern Asia
 Global Code;Global Name;Region Code;Region Name;Sub-region Code;Sub-region Name;Intermediate Region Code;Intermediate Region Name;Country or Area;M49 Code;ISO-alpha2 Code;ISO-alpha3 Code;Least Developed Countries (LDC);Land Locked Developing Countries (LLDC);Small Island Developing States (SIDS)
 001;World;002;Africa;015;Northern Africa;;;Algeria;012;DZ;DZA;;;
 001;World;002;Africa;015;Northern Africa;;;Egypt;818;EG;EGY;;;
@@ -126,6 +129,7 @@ Global Code;Global Name;Region Code;Region Name;Sub-region Code;Sub-region Name;
 001;World;142;Asia;030;Eastern Asia;;;China;156;CN;CHN;;;
 001;World;142;Asia;030;Eastern Asia;;;China, Hong Kong Special Administrative Region;344;HK;HKG;;;
 001;World;142;Asia;030;Eastern Asia;;;China, Macao Special Administrative Region;446;MO;MAC;;;
+001;World;142;Asia;030;Eastern Asia;;;Taiwan;158;TW;TWN;;;
 001;World;142;Asia;030;Eastern Asia;;;Democratic People's Republic of Korea;408;KP;PRK;;;
 001;World;142;Asia;030;Eastern Asia;;;Japan;392;JP;JPN;;;
 001;World;142;Asia;030;Eastern Asia;;;Mongolia;496;MN;MNG;;x;
