@@ -123,23 +123,6 @@ def _gaez_code_to_crop_map(mapping_df: pd.DataFrame) -> dict[str, str]:
     return mapping
 
 
-def _exception_crops_from_unit_table(
-    unit_df: pd.DataFrame, code_map: dict[str, str]
-) -> set[str]:
-    if "code" not in unit_df.columns:
-        raise ValueError(
-            "yield_unit_conversions.csv must contain a 'code' column listing GAEZ crop codes"
-        )
-    codes = unit_df["code"].dropna().astype(str).str.strip().str.lower()
-    missing_codes = sorted(code for code in codes if code and code not in code_map)
-    if missing_codes:
-        logging.getLogger(__name__).warning(
-            "yield_unit_conversions.csv references GAEZ codes with no crop mapping: %s",
-            ", ".join(missing_codes),
-        )
-    return {code_map[code] for code in codes if code in code_map}
-
-
 def _fresh_mass_conversion_factors(
     edible_portion_df: pd.DataFrame,
     crops: set[str],
@@ -463,8 +446,9 @@ def add_carriers_and_buses(
         ):
             scale_meta["macronutrient_kcal_to_Mcal"] = KCAL_TO_MCAL
 
-    # Feed carriers per country (8 pools: 4 ruminant + 4 monogastric quality classes)
+    # Feed carriers per country (9 pools: 5 ruminant + 4 monogastric quality classes)
     feed_categories = [
+        "ruminant_grassland",
         "ruminant_roughage",
         "ruminant_forage",
         "ruminant_grain",
@@ -690,10 +674,10 @@ def add_regional_crop_production_links(
             if df.empty:
                 continue
 
-            # Price for this crop (USD/tonne); if missing, warn and use 0
+            # Price for this crop (USD/tonne); if missing, use 0 (expected for forage crops)
             price = float(crop_prices_usd_per_t.get(crop, float("nan")))
             if not np.isfinite(price):
-                logger.warning(
+                logger.info(
                     "No FAOSTAT price for crop '%s'; defaulting marginal_cost to 0",
                     crop,
                 )
@@ -1042,27 +1026,15 @@ def add_food_conversion_links(
     # Filter foods DataFrame to only include configured crops
     foods = foods[foods["crop"].isin(crop_list)].copy()
 
+    # Load loss/waste data (already validated by prepare_food_loss_waste.py)
     loss_waste_pairs: dict[tuple[str, str], tuple[float, float]] = {}
-    if not loss_waste.empty:
-        required_cols = {"country", "food_group", "loss_fraction", "waste_fraction"}
-        missing_cols = required_cols - set(loss_waste.columns)
-        if missing_cols:
-            raise ValueError(
-                "food_loss_waste data missing columns: "
-                + ", ".join(sorted(missing_cols))
-            )
-        for column in ["loss_fraction", "waste_fraction"]:
-            loss_waste[column] = pd.to_numeric(
-                loss_waste[column], errors="coerce"
-            ).fillna(0)
-        for _, row in loss_waste.iterrows():
-            key = (str(row["country"]), str(row["food_group"]))
-            loss_waste_pairs[key] = (
-                float(row["loss_fraction"]),
-                float(row["waste_fraction"]),
-            )
+    for _, row in loss_waste.iterrows():
+        key = (str(row["country"]), str(row["food_group"]))
+        loss_waste_pairs[key] = (
+            float(row["loss_fraction"]),
+            float(row["waste_fraction"]),
+        )
 
-    missing_loss_waste: set[tuple[str, str]] = set()
     missing_group_foods: set[str] = set()
     excessive_losses: set[tuple[str, str]] = set()
     invalid_pathways: list[str] = []
@@ -1141,31 +1113,22 @@ def add_food_conversion_links(
             for country in normalized_countries:
                 multiplier = 1.0
                 if group is None:
+                    # Food has no group mapping - no loss/waste adjustment
                     missing_group_foods.add(food)
                 else:
-                    fractions = loss_waste_pairs.get((country, group))
-                    if fractions is None:
-                        missing_loss_waste.add((country, group))
-                    else:
-                        raw_loss, raw_waste = fractions
-                        loss_fraction = max(0.0, float(raw_loss))
-                        waste_fraction = max(0.0, float(raw_waste))
-                        loss_clamped = False
-                        waste_clamped = False
-                        if loss_fraction > 1.0:
-                            loss_fraction = 1.0
-                            loss_clamped = True
-                        if waste_fraction > 1.0:
-                            waste_fraction = 1.0
-                            waste_clamped = True
-                        if loss_clamped or waste_clamped:
-                            excessive_losses.add((country, group))
-                        multiplier = (1.0 - loss_fraction) * (1.0 - waste_fraction)
-                        if multiplier <= 0.0:
-                            excessive_losses.add((country, group))
-                            multiplier = 0.0
-                        else:
-                            multiplier = min(1.0, multiplier)
+                    # Look up loss/waste fractions (guaranteed to exist by preprocessing)
+                    raw_loss, raw_waste = loss_waste_pairs[(country, group)]
+                    loss_fraction = max(0.0, min(1.0, float(raw_loss)))
+                    waste_fraction = max(0.0, min(1.0, float(raw_waste)))
+
+                    if loss_fraction > 0.99 or waste_fraction > 0.99:
+                        excessive_losses.add((country, group))
+
+                    multiplier = (1.0 - loss_fraction) * (1.0 - waste_fraction)
+                    if multiplier <= 0.0:
+                        excessive_losses.add((country, group))
+                        multiplier = 0.01  # Small positive to avoid division issues
+
                 efficiencies.append(factor * conversion_factor * multiplier)
 
             link_params[eff_key] = efficiencies
@@ -1183,21 +1146,6 @@ def add_food_conversion_links(
         logger.warning(
             "Food items without food-group mapping (loss/waste ignored): %s",
             ", ".join(sorted(missing_group_foods)),
-        )
-
-    unresolved = {
-        (country, group)
-        for (country, group) in missing_loss_waste
-        if (country, group) not in loss_waste_pairs
-    }
-    if unresolved:
-        sample = ", ".join(
-            f"{country}:{group}" for country, group in sorted(unresolved)[:10]
-        )
-        logger.warning(
-            "Missing food loss/waste data for %d country-group pairs; defaulting to no loss. Examples: %s",
-            len(unresolved),
-            sample,
         )
 
     if excessive_losses:
@@ -1433,14 +1381,23 @@ def add_feed_to_animal_product_links(
     all_names = []
     all_bus0 = []
     all_bus1 = []
+    all_bus3 = []
     all_carrier = []
     all_efficiency = []
     all_ch4 = []
     all_n_fert = []
     all_n2o = []
 
+    skipped_count = 0
     for _, row in df.iterrows():
         for country in countries:
+            # Check if required buses exist
+            feed_bus = f"feed_{row['feed_category']}_{country}"
+            food_bus = f"food_{row['product']}_{country}"
+            if feed_bus not in n.buses.index or food_bus not in n.buses.index:
+                skipped_count += 1
+                continue
+
             # Calculate total CH4 (enteric + manure) per tonne feed intake
             # This is relative to bus0 (feed), so it can be used directly as efficiency2
             ch4_per_t_feed = _calculate_ch4_per_feed_intake(
@@ -1466,8 +1423,9 @@ def add_feed_to_animal_product_links(
             all_names.append(
                 f"produce_{row['product']}_from_{row['feed_category']}_{country}"
             )
-            all_bus0.append(f"feed_{row['feed_category']}_{country}")
-            all_bus1.append(f"food_{row['product']}_{country}")
+            all_bus0.append(feed_bus)
+            all_bus1.append(food_bus)
+            all_bus3.append(f"fertilizer_{country}")
             all_carrier.append(f"produce_{row['product']}")
             all_efficiency.append(row["efficiency"])
             all_ch4.append(ch4_per_t_feed * TONNE_TO_MEGATONNE)
@@ -1475,7 +1433,7 @@ def add_feed_to_animal_product_links(
             all_n2o.append(n2o_per_t_feed * TONNE_TO_MEGATONNE)
 
     # All animal production links now have multiple outputs:
-    # bus1: animal product, bus2: CH4, bus3: manure N fertilizer, bus4: N2O
+    # bus1: animal product, bus2: CH4, bus3: manure N fertilizer (country-specific), bus4: N2O
     n.add(
         "Link",
         all_names,
@@ -1487,7 +1445,7 @@ def add_feed_to_animal_product_links(
         p_nom_extendable=True,
         bus2="ch4",
         efficiency2=all_ch4,
-        bus3="n_fertilizer",
+        bus3=all_bus3,
         efficiency3=all_n_fert,
         bus4="n2o",
         efficiency4=all_n2o,
@@ -1497,6 +1455,8 @@ def add_feed_to_animal_product_links(
         "Added %d feed→animal product links with outputs: product, CH4 (enteric+manure), manure N fertilizer, N2O",
         len(all_names),
     )
+    if skipped_count > 0:
+        logger.info("Skipped %d links due to missing buses", skipped_count)
 
 
 def add_food_group_buses_and_loads(
@@ -2331,9 +2291,12 @@ if __name__ == "__main__":
     n.name = "food-opt"
 
     crop_list = snakemake.params.crops
-    exception_crops = _exception_crops_from_unit_table(
-        yield_unit_conversion_df, gaez_code_map
-    ).intersection(set(crop_list))
+    # Exception crops use fresh mass rather than dry mass (from yield_unit_conversions.csv)
+    exception_crops = {
+        gaez_code_map[code]
+        for code in yield_unit_conversion_df["code"]
+        if code in gaez_code_map and gaez_code_map[code] in crop_list
+    }
     animal_products_cfg = snakemake.params.animal_products
     animal_product_list = list(animal_products_cfg["include"])
 

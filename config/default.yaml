@@ -175,6 +175,8 @@ food_groups:
     min: 0
   dairy:
     min: 0
+  sugar:
+    min: 0
 
 # --- section: diet ---
 diet:

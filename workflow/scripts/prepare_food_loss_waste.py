@@ -767,6 +767,29 @@ def main():
     result["loss_fraction"] = result["loss_fraction"].fillna(0.0)
     result["waste_fraction"] = result["waste_fraction"].fillna(0.0)
 
+    # Add explicit zero entries for special food groups not covered by UN data
+    # These groups don't have UN SDG equivalents and should have zero loss/waste
+    special_groups = {"byproduct", "sugar"}
+    existing_groups = set(result["food_group"].unique())
+    missing_special = special_groups & set(food_groups) - existing_groups
+
+    if missing_special:
+        logger.info(
+            "Adding zero loss/waste for special food groups: %s",
+            ", ".join(sorted(missing_special)),
+        )
+        special_rows = [
+            {
+                "country": country,
+                "food_group": group,
+                "loss_fraction": 0.0,
+                "waste_fraction": 0.0,
+            }
+            for country in countries
+            for group in missing_special
+        ]
+        result = pd.concat([result, pd.DataFrame(special_rows)], ignore_index=True)
+
     # Sort for readability
     result = result.sort_values(["country", "food_group"]).reset_index(drop=True)
 
@@ -774,6 +797,37 @@ def main():
     logger.info("Countries with data: %d", result["country"].nunique())
     logger.info("Mean loss fraction: %.3f", result["loss_fraction"].mean())
     logger.info("Mean waste fraction: %.3f", result["waste_fraction"].mean())
+
+    # Validate complete coverage: all country-food_group pairs must be present
+    expected_pairs = {(c, g) for c in countries for g in food_groups}
+    actual_pairs = {(row.country, row.food_group) for row in result.itertuples()}
+    missing_pairs = expected_pairs - actual_pairs
+
+    if missing_pairs:
+        # Group by food group to show systematic gaps
+        missing_by_group = {}
+        for country, group in missing_pairs:
+            missing_by_group.setdefault(group, []).append(country)
+
+        error_parts = []
+        for group in sorted(missing_by_group.keys()):
+            count = len(missing_by_group[group])
+            examples = ", ".join(sorted(missing_by_group[group])[:5])
+            if count > 5:
+                examples += f", ... ({count - 5} more)"
+            error_parts.append(f"  {group}: {examples}")
+
+        logger.error(
+            "Missing food loss/waste data for %d country-group pairs:\n%s",
+            len(missing_pairs),
+            "\n".join(error_parts),
+        )
+        sys.exit(1)
+
+    logger.info(
+        "Validation passed: complete coverage for all %d country-food_group pairs",
+        len(expected_pairs),
+    )
 
     # Write output
     result.to_csv(output_file, index=False)
