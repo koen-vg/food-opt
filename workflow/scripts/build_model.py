@@ -125,46 +125,58 @@ def _gaez_code_to_crop_map(mapping_df: pd.DataFrame) -> dict[str, str]:
 
 def _fresh_mass_conversion_factors(
     edible_portion_df: pd.DataFrame,
+    moisture_df: pd.DataFrame,
     crops: set[str],
 ) -> dict[str, float]:
-    """Compute fresh mass conversion factors from edible portion and water content.
-
-    For crops where yields are already in final product (oil/sugar), water_content
-    should be 0, giving a factor of 1.0.
-    """
+    """Compute fresh mass conversion factors from edible portion and moisture data."""
     df = edible_portion_df.copy()
     df["crop"] = df["crop"].astype(str).str.strip()
 
     df = df.set_index("crop")
-    for col in ["edible_portion_coefficient", "water_content_g_per_100g"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["edible_portion_coefficient"] = pd.to_numeric(
+        df["edible_portion_coefficient"], errors="coerce"
+    )
+
+    moisture = moisture_df.copy()
+    moisture["crop"] = moisture["crop"].astype(str).str.strip()
+    moisture = moisture.set_index("crop")
+    moisture["moisture_fraction"] = pd.to_numeric(
+        moisture["moisture_fraction"], errors="coerce"
+    )
 
     factors: dict[str, float] = {}
-    missing_data: list[str] = []
+    missing_edible: list[str] = []
+    missing_moisture: list[str] = []
     for crop in sorted(crops):
         if crop not in df.index:
-            missing_data.append(crop)
+            missing_edible.append(crop)
+            continue
+        if crop not in moisture.index:
+            missing_moisture.append(crop)
             continue
         edible_coeff = df.at[crop, "edible_portion_coefficient"]
-        water_pct = df.at[crop, "water_content_g_per_100g"]
-        if pd.isna(edible_coeff) or pd.isna(water_pct):
-            missing_data.append(crop)
+        moisture_fraction = moisture.at[crop, "moisture_fraction"]
+        if pd.isna(edible_coeff):
+            missing_edible.append(crop)
+            continue
+        if pd.isna(moisture_fraction):
+            missing_moisture.append(crop)
             continue
         if not (0 < edible_coeff <= 1):
             raise ValueError(
                 f"Invalid edible portion coefficient {edible_coeff} for crop '{crop}'"
             )
-        if water_pct < 0 or water_pct >= 100:
+        if moisture_fraction < 0 or moisture_fraction >= 1:
             raise ValueError(
-                f"Water content for crop '{crop}' must be in [0, 100); found {water_pct}"
+                f"Moisture fraction for crop '{crop}' must be in [0, 1); found {moisture_fraction}"
             )
 
-        # For crops with water_content=0 (final product crops), factor is simply edible_coeff
-        if water_pct == 0:
-            factor = edible_coeff
-        else:
-            water_fraction = water_pct / 100.0
-            factor = edible_coeff / (1 - water_fraction)
+        dry_fraction = 1 - moisture_fraction
+        if dry_fraction <= 0:
+            raise ValueError(
+                f"Dry matter fraction for crop '{crop}' must be positive; moisture={moisture_fraction}"
+            )
+        factor = edible_coeff / dry_fraction
 
         if not np.isfinite(factor) or factor <= 0:
             raise ValueError(
@@ -172,10 +184,15 @@ def _fresh_mass_conversion_factors(
             )
         factors[crop] = factor
 
-    if missing_data:
+    if missing_edible:
         raise ValueError(
-            "Missing edible portion or water content data for crops: "
-            + ", ".join(sorted(missing_data))
+            "Missing edible portion data for crops: "
+            + ", ".join(sorted(missing_edible))
+        )
+    if missing_moisture:
+        raise ValueError(
+            "Missing moisture fraction data for crops: "
+            + ", ".join(sorted(missing_moisture))
         )
 
     return factors
@@ -1244,7 +1261,6 @@ def add_food_conversion_links(
             invalid_pathways.append(f"{pathway} ({crop}): sum={total_factor:.3f}")
 
         # Get conversion factor (dry matter → fresh edible)
-        # For crops where yields are in final product (oil/sugar), this will be 1.0
         try:
             conversion_factor = crop_to_fresh_factor[crop]
         except KeyError as exc:
@@ -2184,6 +2200,7 @@ if __name__ == "__main__":
         foods["crop"] = foods["crop"].astype(str).str.strip()
         foods["factor"] = pd.to_numeric(foods["factor"], errors="coerce")
     edible_portion_df = read_csv(snakemake.input.edible_portion)
+    moisture_df = read_csv(snakemake.input.moisture_content)
 
     # Read food groups data
     food_groups = read_csv(snakemake.input.food_groups)
@@ -2469,7 +2486,9 @@ if __name__ == "__main__":
         )
 
     food_crops = set(foods.loc[foods["crop"].isin(crop_list), "crop"])
-    crop_to_fresh_factor = _fresh_mass_conversion_factors(edible_portion_df, food_crops)
+    crop_to_fresh_factor = _fresh_mass_conversion_factors(
+        edible_portion_df, moisture_df, food_crops
+    )
 
     base_food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique().tolist()
     food_list = sorted(set(base_food_list).union(animal_product_list))

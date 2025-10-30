@@ -576,6 +576,7 @@ rule build_model:
         unpack(residue_yield_inputs),
         fertilizer_n_rates="processing/{name}/global_fertilizer_n_rates.csv",
         foods="data/foods.csv",
+        moisture_content="data/crop_moisture_content.csv",
         ruminant_feed_categories=f"processing/{name}/ruminant_feed_categories.csv",
         ruminant_feed_mapping=f"processing/{name}/ruminant_feed_mapping.csv",
         monogastric_feed_categories=f"processing/{name}/monogastric_feed_categories.csv",

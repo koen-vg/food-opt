@@ -129,7 +129,7 @@ Aggregation Process
 3. **Unit conversions**: Apply crop-specific conversion factors
 
    * Default: 0.001 (kg/ha → t/ha)
-   * Custom factors in ``data/yield_unit_conversions.csv`` (e.g., sugarcane in GE/ha)
+   * Custom factors in ``data/yield_unit_conversions.csv`` (convert sugar and oil outputs back to dry-matter crop yields)
 
 4. **Mask by suitability**: Only aggregate over suitable land (SX1 > 0)
 
@@ -189,13 +189,12 @@ In the PyPSA model (``workflow/scripts/build_model.py``), crop production is rep
   * ``efficiency3`` (bus3, negative): Fertilizer requirement in kg/t
   * ``efficiency4`` (bus4, positive): Emissions in tCO₂-eq/t
 
-When crops are converted into foods, the model first rescales the dry-matter crop bus to fresh edible mass using FAO edible portion coefficients and moisture shares derived from ``processing/{name}/fao_edible_portion.csv``. The scaling factor ``edible_portion_coefficient / (1 - water_fraction)`` is applied before product-specific extraction factors in ``data/foods.csv``. Crops listed in ``data/yield_unit_conversions.csv`` are assumed to already represent processed outputs and therefore skip this rescaling step.
+When crops are converted into foods, the model first rescales the dry-matter crop bus to fresh edible mass using FAO edible portion coefficients and moisture shares drawn from ``data/crop_moisture_content.csv``. The scaling factor ``edible_portion_coefficient / (1 - moisture_fraction)`` is applied before product-specific extraction factors in ``data/foods.csv``. Crops listed in ``data/yield_unit_conversions.csv`` are the cases where GAEZ reports processed outputs (sugar or oil); the table converts those back to dry matter so that subsequent processing logic is uniform.
 
 **Crop-specific exceptions**: For certain crops, FAO's edible portion coefficients do not match the model's yield units, requiring special handling in ``workflow/scripts/prepare_fao_edible_portion.py``:
 
 * **Grains** (rice, barley, oat, buckwheat): FAO coefficients reflect milled/hulled conversion, but we track whole grain. Coefficient forced to 1.0; milling handled separately.
-* **Oil crops** (rapeseed, olive): GAEZ yields are already in kg oil/ha (see ``data/yield_unit_conversions.csv``), so no further conversion needed. Coefficient forced to 1.0.
-* **Sugar crops** (sugarcane, sugarbeet): GAEZ yields are already in kg sugar/ha (see ``data/yield_unit_conversions.csv``), so no further conversion needed. Coefficient forced to 1.0.
+* **Sugar crops** (sugarcane, sugarbeet) and **oil-palm**: GAEZ reports processed outputs (sugar or palm oil). Yields are converted back to whole-crop dry matter via ``data/yield_unit_conversions.csv``, and edible portion coefficients are forced to 1.0 so that extraction losses are handled in ``data/foods.csv``.
 
 The model constrains:
 
@@ -395,7 +394,10 @@ Crop-Specific Data Files
   Lookup table aligning food-opt crop identifiers with GAEZ resource codes. Columns: ``crop_name``, ``description``, and the RES02/RES05/RES06 codes used to locate raster layers.
 
 **data/yield_unit_conversions.csv**
-  Optional per-crop overrides for converting raw GAEZ yields to tonnes per hectare. Columns: ``code`` (GAEZ crop code used in filenames), ``factor_to_t_per_ha`` (multiplier applied to raster values), and ``note`` for context. Unlisted crops fall back to the default ``0.001`` factor.
+  Optional per-crop overrides for converting raw GAEZ yields to tonnes of dry matter per hectare. Columns: ``code`` (crop identifier), ``factor_to_t_per_ha`` (multiplier applied to raster values), and ``note`` for context. Only sugar crops and oil-palm currently require overrides; all other crops use the default ``0.001`` factor (kg → tonne).
+
+**data/crop_moisture_content.csv**
+  Moisture fractions (0-1) for each modelled crop, primarily sourced from the GAEZ v5 Module VII documentation with explicit notes where assumptions were required. Combined with edible portion coefficients to convert dry matter yields into fresh edible mass.
 
 Workflow Rules
 --------------

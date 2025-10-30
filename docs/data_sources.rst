@@ -516,7 +516,7 @@ FAO Nutrient Conversion Table for SUA (2024)
 
 **Workflow retrieval**: Automatically downloaded to ``data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx`` by the ``download_fao_nutrient_conversion_table`` rule in ``workflow/rules/retrieve.smk``.
 
-**Usage**: Contains data on edible portion of foods as well as water content. ``workflow/scripts/prepare_fao_edible_portion.py`` reads sheet ``03`` to export edible portion coefficients and water content (g/100g) for configured crops into ``processing/{name}/fao_edible_portion.csv``; ``workflow/scripts/build_model.py`` combines these with crop yields to rescale dry harvests to fresh edible food mass. Note that for certain crops (grains: rice, barley, oat, buckwheat; oil crops: rapeseed, olive; sugar crops: sugarcane, sugarbeet), the script overrides FAO's coefficients to 1.0 to match the model's yield units, with processing losses handled separately.
+**Usage**: Contains data on edible portion of foods. ``workflow/scripts/prepare_fao_edible_portion.py`` reads sheet ``03`` to export edible portion coefficients for configured crops into ``processing/{name}/fao_edible_portion.csv``. Moisture fractions required for fresh-mass scaling live in ``data/crop_moisture_content.csv`` (derived primarily from the GAEZ v5 Module VII documentation with a few documented assumptions) and are joined inside ``workflow/scripts/build_model.py``. Note that for certain crops (grains: rice, barley, oat, buckwheat; sugar crops: sugarcane, sugarbeet; oil crops: oil-palm), the script overrides FAO's coefficients to 1.0 so that downstream processing pathways manage the losses explicitly.
 
 Mock and Placeholder Data
 --------------------------

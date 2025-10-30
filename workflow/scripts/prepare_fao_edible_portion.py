@@ -9,14 +9,13 @@ pulls the *edible portion coefficient* for each FAOSTAT item mapped to the
 model's configured crops. The resulting CSV lists the coefficient alongside the
 FAOSTAT item code and edible portion type flag supplied by FAO.
 
-Special handling is applied to certain crops where FAO's coefficient does not
-match the model's yield units:
+Special handling is applied to certain crops where FAO's coefficient reflects
+processed products rather than whole-crop dry matter:
 - Grains (rice, barley, oat, buckwheat): FAO gives milled/hulled conversion;
   we force to 1.0 for whole grain, handling milling separately.
-- Oil crops (rapeseed, olive): GAEZ yields are already in kg oil/ha, so we
-  force to 1.0 (no further conversion needed).
-- Sugar crops (sugarcane, sugarbeet): GAEZ yields are already in kg sugar/ha,
-  so we force to 1.0 (no further conversion needed).
+- Sugar crops (sugarcane, sugarbeet) and oil-palm: we operate on whole-crop dry
+  matter, so the edible portion is forced to 1.0 and downstream processing is
+  handled in ``data/foods.csv``.
 """
 
 import csv
@@ -34,36 +33,24 @@ ALTERNATE_ITEM_NAMES: dict[str, str] = {
     "oil palm fruit": "palm-oil",
 }
 
-# Crops for which the edible portion coefficient should be set to 1.0
-# despite FAO listing a lower value. Reasons vary by crop type:
+# Crops for which the edible portion coefficient should be set to 1.0 despite
+# FAO listing a lower value. Reasons vary by crop type:
 # - Grains (rice, barley, oat, buckwheat): FAO coefficient represents milled/
 #   hulled grain; we track whole grain and handle milling separately.
-# - Oil crops (rapeseed, olive, oil-palm): FAO coefficient represents fruit/seed→oil
-#   extraction; GAEZ yields are already in kg oil/ha, so no further conversion.
-# - Sugar crops (sugarcane, sugarbeet): GAEZ yields are already in kg sugar
-#   per hectare, so no further conversion needed.
+# - Sugar crops (sugarcane, sugarbeet) and oil-palm: the model converts
+#   reported yields back to whole-crop dry matter prior to processing.
 EDIBLE_PORTION_EXCEPTIONS: set[str] = {
     "dryland-rice",
     "wetland-rice",
     "barley",
     "oat",
     "buckwheat",
-    "rapeseed",
-    "olive",
     "oil-palm",
     "sugarcane",
     "sugarbeet",
 }
 
-# Crops where GAEZ yields are already in final product (oil or sugar), not raw crop.
-# For these, we set water_content to 0 since no moisture conversion is needed.
-FINAL_PRODUCT_CROPS: set[str] = {
-    "rapeseed",
-    "olive",
-    "oil-palm",
-    "sugarcane",
-    "sugarbeet",
-}
+FALLBACK_FULL_EDIBLE: set[str] = {"oil-palm", "sugarcane", "sugarbeet"}
 
 
 @dataclass
@@ -72,7 +59,6 @@ class ComponentRow:
     description: str
     edible_coefficient: Optional[float]
     edible_type: Optional[int]
-    water_content_g_per_100g: Optional[float]
 
 
 def _coerce_float(value) -> Optional[float]:
@@ -111,8 +97,6 @@ def _load_component_values(xlsx_path: Path) -> dict[str, ComponentRow]:
 
         edible_coefficient = _coerce_float(row[4])
         edible_type = _coerce_int(row[5])
-        # Column index 8 corresponds to the WATER (g/100g) field in sheet "03".
-        water_content = _coerce_float(row[8])
 
         key = str(description).strip().lower()
         records[key] = ComponentRow(
@@ -120,7 +104,6 @@ def _load_component_values(xlsx_path: Path) -> dict[str, ComponentRow]:
             description=str(description).strip(),
             edible_coefficient=edible_coefficient,
             edible_type=edible_type,
-            water_content_g_per_100g=water_content,
         )
 
     return records
@@ -163,7 +146,6 @@ def main() -> None:
                 "fao_code",
                 "edible_portion_coefficient",
                 "edible_portion_type",
-                "water_content_g_per_100g",
             ],
         )
         writer.writeheader()
@@ -179,7 +161,6 @@ def main() -> None:
                         "fao_code": "",
                         "edible_portion_coefficient": "",
                         "edible_portion_type": "",
-                        "water_content_g_per_100g": "",
                     }
                 )
                 continue
@@ -189,8 +170,7 @@ def main() -> None:
             if record is None and key in ALTERNATE_ITEM_NAMES:
                 record = records_by_name.get(ALTERNATE_ITEM_NAMES[key])
             if record is None:
-                # For final product crops, we don't need FAO data
-                if crop in FINAL_PRODUCT_CROPS:
+                if crop in FALLBACK_FULL_EDIBLE:
                     writer.writerow(
                         {
                             "crop": crop,
@@ -198,11 +178,9 @@ def main() -> None:
                             "fao_code": "",
                             "edible_portion_coefficient": 1.0,
                             "edible_portion_type": "",
-                            "water_content_g_per_100g": 0.0,
                         }
                     )
                     continue
-
                 missing_components.append(item)
                 writer.writerow(
                     {
@@ -211,7 +189,6 @@ def main() -> None:
                         "fao_code": "",
                         "edible_portion_coefficient": "",
                         "edible_portion_type": "",
-                        "water_content_g_per_100g": "",
                     }
                 )
                 continue
@@ -227,17 +204,6 @@ def main() -> None:
                 )
             )
 
-            # For crops where yields are in final product (oil/sugar), set water to 0
-            water_content = (
-                0.0
-                if crop in FINAL_PRODUCT_CROPS
-                else (
-                    ""
-                    if record.water_content_g_per_100g is None
-                    else record.water_content_g_per_100g
-                )
-            )
-
             writer.writerow(
                 {
                     "crop": crop,
@@ -247,7 +213,6 @@ def main() -> None:
                     "edible_portion_type": (
                         "" if record.edible_type is None else record.edible_type
                     ),
-                    "water_content_g_per_100g": water_content,
                 }
             )
 

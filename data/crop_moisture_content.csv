@@ -1,0 +1,47 @@
+# Crop moisture fractions used when rescaling dry-matter yields to fresh mass.
+#
+# Column definitions:
+# - crop: crop identifier used in configuration files
+# - moisture_fraction: share of fresh mass that is water (0-1 range)
+# - source: short citation for the value
+# - note: optional clarification when a value was inferred
+crop,moisture_fraction,source,note
+wheat,0.13,GAEZ v5 Module VII table (WHE),
+dryland-rice,0.13,GAEZ v5 Module VII table (RCW),Aligned with milled rice moisture
+wetland-rice,0.13,GAEZ v5 Module VII table (RCW),Aligned with milled rice moisture
+maize,0.14,GAEZ v5 Module VII table (MZE),
+barley,0.13,GAEZ v5 Module VII table (BRL),
+oat,0.13,GAEZ v5 Module VII table (OCE),Shares minor cereal moisture value
+rye,0.13,GAEZ v5 Module VII table (OCE),Shares minor cereal moisture value
+sorghum,0.13,GAEZ v5 Module VII table (SRG),
+buckwheat,0.13,GAEZ v5 Module VII table (OCE),Shares minor cereal moisture value
+foxtail-millet,0.13,GAEZ v5 Module VII table (MLT),
+pearl-millet,0.13,GAEZ v5 Module VII table (MLT),
+soybean,0.09,GAEZ v5 Module VII table (SOY),
+dry-pea,0.10,GAEZ v5 Module VII table (PLS),
+chickpea,0.10,GAEZ v5 Module VII table (PLS),
+cowpea,0.10,GAEZ v5 Module VII table (PLS),
+gram,0.10,GAEZ v5 Module VII table (PLS),
+phaseolus-bean,0.10,GAEZ v5 Module VII table (PLS),
+pigeonpea,0.10,GAEZ v5 Module VII table (PLS),
+white-potato,0.77,GAEZ v5 Module VII table (POT),
+sweet-potato,0.77,GAEZ v5 Module VII table (POT),
+cassava,0.69,GAEZ v5 Module VII table (CSV),
+yam,0.69,GAEZ v5 Module VII table (ORT),
+tomato,0.925,GAEZ v5 Module VII table (TOM),
+carrot,0.90,GAEZ v5 Module VII table (OVG),Uses other-vegetables placeholder
+onion,0.90,GAEZ v5 Module VII table (OVG),Uses other-vegetables placeholder
+cabbage,0.90,GAEZ v5 Module VII table (OVG),Uses other-vegetables placeholder
+banana,0.75,GAEZ v5 Module VII table (BAN),
+citrus,0.85,GAEZ v5 Module VII table (FRT),Represents aggregated fruits and nuts entry
+coconut,0.47,Assumption (FAO food composition tables),Approximate moisture of fresh kernel
+sunflower,0.13,GAEZ v5 Module VII table (SFL),
+rapeseed,0.08,GAEZ v5 Module VII table (RSD),
+groundnut,0.05,GAEZ v5 Module VII table (GRD),Uses shelled kernel moisture
+sesame,0.05,GAEZ v5 Module VII table (SES),
+oil-palm,0.60,Assumption (MPOB fresh fruit bunch composition),Matches 24% oil share cited by GAEZ
+olive,0.50,Assumption (typical olive fruit analysis),Approximate moisture for fresh olives
+sugarcane,0.73,Assumption (aligned with 14% sugar extraction),Chooses 27% dry matter share
+sugarbeet,0.76,Assumption (aligned with 10% sugar extraction),Chooses 24% dry matter share
+alfalfa,0.70,GAEZ v5 Module VII table (FDD),
+biomass-sorghum,0.70,GAEZ v5 Module VII table (FDD),Assumed equal to generic fodder crops
