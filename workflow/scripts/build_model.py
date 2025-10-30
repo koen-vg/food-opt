@@ -2469,6 +2469,29 @@ if __name__ == "__main__":
     # Expect columns: crop, faostat_item, n_obs, price_usd_per_tonne
     crop_prices = prices_df.set_index("crop")["price_usd_per_tonne"].astype(float)
 
+    # Fill missing fodder crop prices with representative values from similar crops.
+    fodder_price_fallbacks = {
+        "alfalfa": "dry-pea",
+        "biomass-sorghum": "sorghum",
+    }
+    for fodder_crop, reference_crop in fodder_price_fallbacks.items():
+        if fodder_crop in crop_prices.index and not np.isfinite(
+            crop_prices.loc[fodder_crop]
+        ):
+            reference_price = crop_prices.get(reference_crop)
+            if reference_price is None or not np.isfinite(reference_price):
+                raise ValueError(
+                    f"Missing reference price for fodder crop '{fodder_crop}' "
+                    f"(fallback '{reference_crop}')"
+                )
+            logger.info(
+                "Using price %.2f USD/t from '%s' for fodder crop '%s'",
+                reference_price,
+                reference_crop,
+                fodder_crop,
+            )
+            crop_prices.loc[fodder_crop] = reference_price
+
     # Build the network (inlined)
     n = pypsa.Network()
     n.set_snapshots(["now"])
