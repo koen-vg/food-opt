@@ -110,7 +110,7 @@ def calculate_ruminant_me_requirements(
                 )
                 # No carcass conversion for dairy
                 me_req_retail = me_req_carcass
-            elif product == "cattle meat":
+            elif product == "meat-cattle":
                 # Beef: NE_m + NE_g (per kg CARCASS)
                 me_req_carcass = (
                     ne_values.get("NE_m", 0) / k_m + ne_values.get("NE_g", 0) / k_g
@@ -162,7 +162,7 @@ def get_monogastric_me_requirements(
         DataFrame with columns: animal_product, region, ME_MJ_per_kg_RETAIL
     """
     # Filter to monogastric products
-    monogastric_products = ["pig meat", "chicken meat", "eggs"]
+    monogastric_products = ["meat-pig", "meat-chicken", "eggs"]
     df = wirsenius_data[wirsenius_data["animal_product"].isin(monogastric_products)]
 
     # Should only have ME unit
@@ -275,11 +275,11 @@ def build_feed_to_animal_products(
     ruminant_categories_file: str,
     monogastric_categories_file: str,
     output_file: str,
-    regions_to_average: list[str] | None = None,
-    k_m: float = 0.60,
-    k_g: float = 0.40,
-    k_l: float = 0.60,
-    carcass_to_retail: dict[str, float] | None = None,
+    regions_to_average: list[str],
+    k_m: float,
+    k_g: float,
+    k_l: float,
+    carcass_to_retail: dict[str, float],
 ) -> None:
     """
     Generate feed-to-animal-product conversion table from Wirsenius data.
@@ -298,24 +298,16 @@ def build_feed_to_animal_products(
     output_file : str
         Path to output feed_to_animal_products.csv
     regions_to_average : list[str] | None
-        List of Wirsenius regions to average. If None or empty, use all regions.
+        List of Wirsenius regions to average.
     k_m : float
-        NRC maintenance efficiency factor (default 0.60)
+        NRC maintenance efficiency factor
     k_g : float
-        NRC growth efficiency factor (default 0.40)
+        NRC growth efficiency factor
     k_l : float
-        NRC lactation efficiency factor (default 0.60)
-    carcass_to_retail : dict[str, float] | None
+        NRC lactation efficiency factor
+    carcass_to_retail : dict[str, float]
         Carcass-to-retail conversion factors by product
     """
-    if carcass_to_retail is None:
-        carcass_to_retail = {
-            "cattle meat": 0.67,
-            "pig meat": 0.70,
-            "chicken meat": 0.65,
-            "eggs": 1.00,
-            "dairy": 1.00,
-        }
     # Load data
     wirsenius = pd.read_csv(wirsenius_file, comment="#")
     ruminant_cats = pd.read_csv(ruminant_categories_file)
@@ -370,42 +362,8 @@ def build_feed_to_animal_products(
     # Sort
     all_eff = all_eff.sort_values(["product", "feed_category"])
 
-    # Write output with header
-    header = """# SPDX-FileCopyrightText: 2000 Stefan Wirsenius
-# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
-#
-# SPDX-License-Identifier: CC-BY-4.0
-#
-# Feed-to-animal-product conversion efficiencies
-#
-# Generated from Wirsenius (2000) regional feed energy requirements combined with
-# GLEAM 3.0 feed category energy values.
-#
-# Source: Wirsenius, S. (2000). Human Use of Land and Organic Materials:
-# Modeling the Turnover of Biomass in the Global Food System.
-# Chalmers University of Technology and Göteborg University, Sweden.
-# Table 3.9, ISBN 91-7197-886-0.
-# https://publications.lib.chalmers.se/records/fulltext/827.pdf
-#
-# Methodology:
-# 1. Wirsenius provides regional energy requirements (NE or ME) per kg product
-# 2. For ruminants: Convert NE to ME using NRC (2000) efficiency factors
-#    - k_m = 0.60 (maintenance), k_g = 0.40 (growth), k_l = 0.60 (lactation)
-# 3. Feed categories provide ME content (MJ per kg DM) from GLEAM
-# 4. Efficiency = ME_feed / ME_requirement (tonnes product per tonne feed DM)
-#
-# Columns:
-#   product: Animal product name
-#   feed_category: Feed quality category (ruminant_* or monogastric_*)
-#   region: Geographic region from Wirsenius
-#   efficiency: Feed conversion efficiency (t product / t feed DM)
-#   notes: Descriptive text with feed requirement in inverse form
-#
-"""
-
-    with open(output_file, "w") as f:
-        f.write(header)
-        all_eff.to_csv(f, index=False)
+    # Write output
+    all_eff.to_csv(output_file, index=False)
 
     logger.info("Wrote %d feed conversion entries to %s", len(all_eff), output_file)
 

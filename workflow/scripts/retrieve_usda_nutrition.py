@@ -199,11 +199,8 @@ def main():
     # Ensure output directory exists
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    # Write with comment header
-    with open(output_path, "w", newline="") as f:
-        f.write("# Nutritional data retrieved from USDA FoodData Central\n")
-        f.write("# Source: https://fdc.nal.usda.gov/\n")
-        output_df.to_csv(f, index=False)
+    # Write output
+    output_df.to_csv(output_path, index=False)
 
     print(f"\nWrote {len(output_rows)} nutrient entries to {output_path}")
 

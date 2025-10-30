@@ -189,27 +189,7 @@ def create_feed_properties(
 
     # Sort and write
     ruminant_output = ruminant_output.sort_values(["source_type", "feed_item"])
-
-    ruminant_header = """# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
-#
-# SPDX-License-Identifier: CC0-1.0
-#
-# Ruminant feed properties from GLEAM 3.0 Supplement S1 Table S.3.3
-#
-# Source: FAO (2022). Global Livestock Environmental Assessment Model (GLEAM).
-#         Supplement S1, Table S.3.3 (Ruminant nutrition).
-#         https://www.fao.org/gleam/
-#
-# Units:
-#   GE_MJ_per_kg_DM: Gross energy in MJ per kg dry matter
-#   N_g_per_kg_DM: Nitrogen content in g per kg dry matter
-#   digestibility: Digestibility for ruminants (fraction 0-1)
-#
-"""
-
-    with open(output_ruminant, "w") as f:
-        f.write(ruminant_header)
-        ruminant_output.to_csv(f, index=False)
+    ruminant_output.to_csv(output_ruminant, index=False)
 
     logger.info(
         "Created ruminant feed properties with %d feeds, written to %s",
@@ -261,28 +241,7 @@ def create_feed_properties(
 
     # Sort and write
     monogastric_output = monogastric_output.sort_values(["source_type", "feed_item"])
-
-    monogastric_header = """# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
-#
-# SPDX-License-Identifier: CC0-1.0
-#
-# Monogastric feed properties from GLEAM 3.0 Supplement S1 Table S.3.4
-#
-# Source: FAO (2022). Global Livestock Environmental Assessment Model (GLEAM).
-#         Supplement S1, Table S.3.4 (Monogastric nutrition - pigs).
-#         https://www.fao.org/gleam/
-#
-# Units:
-#   GE_MJ_per_kg_DM: Gross energy in MJ per kg dry matter
-#   ME_MJ_per_kg_DM: Metabolizable energy for pigs in MJ per kg DM
-#   N_g_per_kg_DM: Nitrogen content in g per kg dry matter
-#   digestibility: Digestibility for monogastrics (fraction 0-1)
-#
-"""
-
-    with open(output_monogastric, "w") as f:
-        f.write(monogastric_header)
-        monogastric_output.to_csv(f, index=False)
+    monogastric_output.to_csv(output_monogastric, index=False)
 
     logger.info(
         "Created monogastric feed properties with %d feeds, written to %s",

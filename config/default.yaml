@@ -125,21 +125,21 @@ macronutrients:
 # --- section: byproducts ---
 # Foods that are not for direct human consumption (excluded from food group tracking)
 byproducts:
-- wheat bran
-- wheat germ
-- rice bran
-- barley bran
-- oat bran
-- buckwheat hulls
-- sunflower meal
-- rapeseed meal
+- wheat-bran
+- wheat-germ
+- rice-bran
+- barley-bran
+- oat-bran
+- buckwheat-hulls
+- sunflower-meal
+- rapeseed-meal
 
 # --- section: animal_products ---
 animal_products:
   include:
-  - cattle meat
-  - pig meat
-  - chicken meat
+  - meat-cattle
+  - meat-pig
+  - meat-chicken
   - dairy
   - eggs
   # Regional feed conversion efficiencies from Wirsenius (2000)
@@ -155,15 +155,16 @@ animal_products:
   # Used to convert net energy (NE) requirements to metabolizable energy (ME) requirements
   # Based on NRC (2000) typical values for mixed diets
   # ME_required = NE_m/k_m + NE_g/k_g (+ NE_l/k_l for dairy)
+  # TODO: Should check the reference for this.
   net_to_metabolizable_energy_conversion:
     k_m: 0.60  # Maintenance efficiency
     k_g: 0.40  # Growth efficiency
     k_l: 0.60  # Lactation efficiency (dairy)
   # Carcass-to-retail meat conversion factors
   carcass_to_retail_meat:
-    cattle meat: 0.67  # kg boneless retail beef per kg carcass (OECD-FAO 2023)
-    pig meat: 0.73     # kg boneless retail pork per kg carcass (OECD-FAO 2023)
-    chicken meat: 0.60 # kg boneless retail chicken per kg carcass (OECD-FAO 2023)
+    meat-cattle: 0.67  # kg boneless retail beef per kg carcass (OECD-FAO 2023)
+    meat-pig: 0.73     # kg boneless retail pork per kg carcass (OECD-FAO 2023)
+    meat-chicken: 0.60 # kg boneless retail chicken per kg carcass (OECD-FAO 2023)
     eggs: 1.00         # No conversion needed (whole egg = retail product)
     dairy: 1.00        # No conversion needed (whole milk = retail product)
   residue_crops:
@@ -265,8 +266,8 @@ trade:
     chilled_meat:
       cost_per_km: 2.8e-2
       products:
-      - cattle meat
-      - pig meat
+      - meat-cattle
+      - meat-pig
   non_tradable_crops:
     - alfalfa
     - biomass-sorghum

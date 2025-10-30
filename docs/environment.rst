@@ -453,7 +453,7 @@ Example Calculation
 
 **Parameters**:
   * Feed N: 19.5 g N/kg DM (from GLEAM)
-  * Product protein: 18.59 g/100g (cattle meat, from USDA FoodData Central)
+  * Product protein: 18.59 g/100g (meat-cattle, from USDA FoodData Central)
   * Product N: 18.59 ÷ 6.25 = 2.97 g N/100g = 29.7 g N/kg
   * Feed conversion efficiency: 0.15 (6.67 kg feed per kg product)
   * Recovery fraction: 0.75

@@ -18,15 +18,15 @@ GRASSH2,grassland,forage,ruminant,Hay from adjacent areas (same as GRASSF)
 GRASSLEGF,alfalfa,crop,ruminant,Fresh grass-legume mixture → alfalfa
 GRASSLEGH,alfalfa,crop,ruminant,Hay/silage from grass-legume → alfalfa
 FDDRSIL,silage-maize,crop,ruminant,Fodder crops silage → silage-maize
-RSTRAW,rice_straw,residue,ruminant,Rice straw and residues
-WSTRAW,wheat_straw,residue,ruminant,Wheat straw and residues
-BSTRAW,barley_straw,residue,ruminant,Barley/rye/oat straw
-ZSTOVER,maize_stover,residue,ruminant,Maize stover and residues
-MSTOVER,millet_stover,residue,ruminant,Millet stover and residues
-SSTOVER,sorghum_stover,residue,ruminant,Sorghum stover and residues
-TOPS,sugarcane_tops,residue,both,Sugarcane tops and leaves
-PSTRAW,pulse_straw,residue,monogastric,Legume crop residues
-BNSTEM,banana_stem,residue,monogastric,Banana stem residues
+RSTRAW,rice-straw,residue,ruminant,Rice straw and residues
+WSTRAW,wheat-straw,residue,ruminant,Wheat straw and residues
+BSTRAW,barley-straw,residue,ruminant,Barley/rye/oat straw
+ZSTOVER,maize-stover,residue,ruminant,Maize stover and residues
+MSTOVER,millet-stover,residue,ruminant,Millet stover and residues
+SSTOVER,sorghum-stover,residue,ruminant,Sorghum stover and residues
+TOPS,sugarcane-tops,residue,both,Sugarcane tops and leaves
+PSTRAW,pulse-straw,residue,monogastric,Legume crop residues
+BNSTEM,banana-stem,residue,monogastric,Banana stem residues
 LEAVES,,residue,both,Leaves from trees/forest (not modeled for now)
 FDDRBEET,sugarbeet,crop,ruminant,Fodder beet → sugar beet
 GRAINS,barley,crop,ruminant,Barley and other cereals (using barley as representative)
@@ -41,19 +41,19 @@ SOY,soybean,crop,monogastric,Soybean grain
 PULSES,dry-pea,crop,monogastric,Legume grains → dry pea as representative
 CASSAVA,cassava,crop,monogastric,Cassava roots/pellets
 BNFRUIT,banana,crop,monogastric,Banana fruit
-MLSOY,sunflower meal,food,both,Soybean meal → sunflower meal (model has this)
-MLRAPE,rapeseed meal,food,both,Rapeseed/canola meal
+MLSOY,sunflower-meal,food,both,Soybean meal → sunflower meal (model has this)
+MLRAPE,rapeseed-meal,food,both,Rapeseed/canola meal
 MLCTTN,,food,both,Cottonseed meal (not in model - skip for now)
-MLOILSDS,sunflower meal,food,monogastric,Other oilseed meals → sunflower meal
+MLOILSDS,sunflower-meal,food,monogastric,Other oilseed meals → sunflower meal
 PKEXP,,food,both,Palm kernel cake (not in model - skip for now)
-GRNBYDRY,wheat bran,food,both,"Dry grain byproducts (brans, middlings) → wheat bran"
+GRNBYDRY,wheat-bran,food,both,"Dry grain byproducts (brans, middlings) → wheat bran"
 GRNBYWET,,food,both,Wet grain byproducts (breweries) - not in model
 MZGLTM,,food,ruminant,Maize gluten meal (high protein) - not in model
 MZGLTF,,food,ruminant,Maize gluten feed (lower protein) - not in model
 BPULP,,food,ruminant,Sugar beet pulp - not in model
 MOLASSES,,food,monogastric,Sugarcane molasses - not in model
 RAPESEED,rapeseed,crop,monogastric,Rapeseed whole seeds
-SOYOIL,soybean_oil,food,monogastric,Soybean oil (processed)
+SOYOIL,soybean-oil,food,monogastric,Soybean oil (processed)
 FISHMEAL,,food,monogastric,Fish industry byproduct - not modeled
 SYNTHETIC,,food,monogastric,Synthetic additives - not modeled
 LIMESTONE,,food,monogastric,Calcium source for laying hens - not modeled

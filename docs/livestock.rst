@@ -119,7 +119,7 @@ Feed properties (digestibility, metabolizable energy, protein content) are autom
 
 Each file contains:
 
-* ``feed_item``: Item name (e.g., "maize", "wheat bran")
+* ``feed_item``: Item name (e.g., "maize", "wheat-bran")
 * ``source_type``: Either "crop" or "food" (byproduct)
 * ``digestibility``: Digestible fraction (0-1)
 * ``ME_MJ_per_kg_DM``: Metabolizable energy (MJ per kg dry matter)
@@ -187,7 +187,7 @@ Wirsenius (2000) [1]_ provides feed requirements per kg **carcass weight** (dres
 
 **Output**: ``processing/{name}/feed_to_animal_products.csv`` with columns:
 
-* ``product``: Product name (e.g., "cattle meat", "dairy")
+* ``product``: Product name (e.g., "meat-cattle", "dairy")
 * ``feed_category``: Feed pool (e.g., ``ruminant_forage``, ``ruminant_grain``, ``monogastric_grain``)
 * ``efficiency``: Feed conversion efficiency (t product / t feed DM)
 * ``region``: Region label (averaged over configured regions)

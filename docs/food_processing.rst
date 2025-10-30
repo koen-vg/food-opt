@@ -36,7 +36,7 @@ The two files below, created and distributed for internal food-opt use, define p
   * ``factor``: Conversion factor (mass of food output per unit mass of crop input)
   * ``description``: Explanation of the conversion and source reference
 
-  **Multi-output pathways**: Multiple rows with the same pathway name represent co-products from a single processing operation. For example, the ``white_flour`` pathway produces white flour (0.75), wheat bran (0.20), and wheat germ (0.03) from wheat, with factors summing to ≤ 1.0 to respect mass balance.
+  **Multi-output pathways**: Multiple rows with the same pathway name represent co-products from a single processing operation. For example, the ``white_flour`` pathway produces flour-white (0.75), wheat-bran (0.20), and wheat-germ (0.03) from wheat, with factors summing to ≤ 1.0 to respect mass balance.
 
   **Alternative pathways**: Different pathways for the same crop represent processing alternatives that the model can choose between based on demand and costs. For example, wheat can be processed via ``white_flour`` or ``wholemeal_flour`` pathways.
 
@@ -52,7 +52,7 @@ The two files below, created and distributed for internal food-opt use, define p
 
   **Food groups**: Standard groups include grains, whole_grains, legumes, nuts_seeds, oil, starchy_vegetable, fruits, vegetables, sugar, byproduct, red_meat, poultry, dairy, and eggs. Additional groups can be defined in the config file under ``food_groups``.
 
-  **Byproduct handling**: Foods assigned to the ``byproduct`` group (such as wheat bran, rice bran, oat bran, wheat germ, sunflower meal, rapeseed meal, and buckwheat hulls) are **excluded from direct human consumption**. Instead, these byproducts can be utilized as animal feed (see :ref:`byproduct-feed-conversion`), making them available for livestock production systems.
+  **Byproduct handling**: Foods assigned to the ``byproduct`` group (such as wheat-bran, rice-bran, oat-bran, wheat-germ, sunflower-meal, rapeseed-meal, and buckwheat-hulls) are **excluded from direct human consumption**. Instead, these byproducts can be utilized as animal feed (see :ref:`byproduct-feed-conversion`), making them available for livestock production systems.
 
 Food Loss & Waste Adjustments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

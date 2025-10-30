@@ -35,19 +35,19 @@ M3_CH4_TO_KG = 0.67
 
 # Map animal products to urinary fraction categories
 PRODUCT_TO_URINARY_CATEGORY = {
-    "cattle meat": "ruminant",
+    "meat-cattle": "ruminant",
     "dairy": "ruminant",
-    "pig meat": "pig",
-    "chicken meat": "chicken",
+    "meat-pig": "pig",
+    "meat-chicken": "chicken",
     "eggs": "chicken",
 }
 
 # Map GLEAM animal names to our animal products
 GLEAM_TO_PRODUCT = {
-    "Cattle": ["cattle meat", "dairy"],
-    "Buffalo": ["cattle meat", "dairy"],  # Treat buffalo like cattle
-    "Pigs": ["pig meat"],
-    "Chickens": ["chicken meat", "eggs"],
+    "Cattle": ["meat-cattle", "dairy"],
+    "Buffalo": ["meat-cattle", "dairy"],  # Treat buffalo like cattle
+    "Pigs": ["meat-pig"],
+    "Chickens": ["meat-chicken", "eggs"],
 }
 
 
@@ -65,7 +65,7 @@ def calculate_volatile_solids(
     feed_categories : pd.DataFrame
         Feed category properties including digestibility and ash_content_pct_dm
     product : str
-        Animal product name (e.g., "cattle meat", "pig meat")
+        Animal product name (e.g., "meat-cattle", "meat-pig")
 
     Returns
     -------
@@ -235,12 +235,8 @@ def calculate_manure_ch4_for_product(
 
 if __name__ == "__main__":
     # Read inputs
-    ruminant_categories = pd.read_csv(
-        snakemake.input.ruminant_feed_categories, comment="#"
-    )
-    monogastric_categories = pd.read_csv(
-        snakemake.input.monogastric_feed_categories, comment="#"
-    )
+    ruminant_categories = pd.read_csv(snakemake.input.ruminant_feed_categories)
+    monogastric_categories = pd.read_csv(snakemake.input.monogastric_feed_categories)
     b0_data = pd.read_csv(snakemake.input.b0_data, comment="#")
     mcf_data = pd.read_csv(snakemake.input.mcf_data, comment="#")
     mms_fractions = pd.read_csv(snakemake.input.mms_fractions, comment="#")
@@ -258,7 +254,7 @@ if __name__ == "__main__":
 
     for product in b0_data["animal product"].unique():
         # Determine if ruminant or monogastric
-        if product in ["cattle meat", "dairy"]:
+        if product in ["meat-cattle", "dairy"]:
             feed_categories = ruminant_categories
             category_prefix = "ruminant_"
         else:

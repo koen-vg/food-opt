@@ -1,45 +1,45 @@
 food,group
-flour (white),grain
-flour (wholemeal),whole_grains
-rice (white),grain
-rice (brown),whole_grains
+flour-white,grain
+flour-wholemeal,whole_grains
+rice-white,grain
+rice-brown,whole_grains
 maize,grain
 sorghum,whole_grains
 buckwheat,whole_grains
-foxtail millet,whole_grains
-pearl millet,whole_grains
+foxtail-millet,whole_grains
+pearl-millet,whole_grains
 soy,legumes
 cowpea,legumes
 gram,legumes
-phaseolus bean,legumes
-pigeon pea,legumes
-sesame seed,nuts_seeds
-palm oil,oil
-olive oil,oil
+phaseolus-bean,legumes
+pigeon-pea,legumes
+sesame-seed,nuts_seeds
+palm-oil,oil
+olive-oil,oil
 potato,starchy_vegetable
 apple,fruits
 citrus,fruits
 coconut,nuts_seeds
 tomato,vegetables
-barley (hulled),whole_grains
+barley-hulled,whole_grains
 oat,whole_grains
-sunflower oil,oil
-sunflower seed,nuts_seeds
+sunflower-oil,oil
+sunflower-seed,nuts_seeds
 carrot,vegetables
 onion,vegetables
 cabbage,vegetables
 banana,fruits
 cassava,starchy_vegetable
-sweet potato,starchy_vegetable
+sweet-potato,starchy_vegetable
 yam,starchy_vegetable
 rye,whole_grains
-rapeseed oil,oil
+rapeseed-oil,oil
 groundnut,nuts_seeds
-dry pea,legumes
+dry-pea,legumes
 chickpea,legumes
 sugar,sugar
-cattle meat,red_meat
-pig meat,red_meat
-chicken meat,poultry
+meat-cattle,red_meat
+meat-pig,red_meat
+meat-chicken,poultry
 dairy,dairy
 eggs,eggs

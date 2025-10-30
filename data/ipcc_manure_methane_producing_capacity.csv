@@ -8,7 +8,7 @@
 # Values from "Other Regions - High productivity systems" column
 animal product,B0
 dairy,0.24
-cattle meat,0.18
-pig meat,0.45
-chicken meat,0.36
+meat-cattle,0.18
+meat-pig,0.45
+meat-chicken,0.36
 eggs,0.39

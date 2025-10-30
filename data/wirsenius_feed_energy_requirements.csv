@@ -25,10 +25,10 @@
 #
 # Animal products mapped to model categories:
 # - "dairy" includes cattle milk production (with carcass as byproduct)
-# - "cattle meat" includes dedicated beef production from beef breeds
-# - "pig meat" is pig carcass (carcass-side as-is)
+# - "meat-cattle" includes dedicated beef production from beef breeds
+# - "meat-pig" is pig carcass (carcass-side as-is)
 # - "eggs" includes egg production (with hen carcass as byproduct)
-# - "chicken meat" is meat-type chicken (eviscerated carcass as-is)
+# - "meat-chicken" is meat-type chicken (eviscerated carcass as-is)
 #
 # Note: The original table included "Dairy bulls & heifers carcass" which is
 # excluded here as it represents a byproduct flow already captured in dairy systems.
@@ -58,30 +58,30 @@ dairy,Sub-Saharan Africa,NE_g,0.70
 dairy,West Europe,NE_l,5.6
 dairy,West Europe,NE_m,1.3
 dairy,West Europe,NE_g,0.52
-cattle meat,East Asia,NE_m,288
-cattle meat,East Asia,NE_g,25
-cattle meat,East Europe,NE_m,141
-cattle meat,East Europe,NE_g,19
-cattle meat,Latin America & Caribbean,NE_m,236
-cattle meat,Latin America & Caribbean,NE_g,28
-cattle meat,North Africa & West Asia,NE_m,262
-cattle meat,North Africa & West Asia,NE_g,23
-cattle meat,North America & Oceania,NE_m,109
-cattle meat,North America & Oceania,NE_g,23
-cattle meat,South & Central Asia,NE_m,479
-cattle meat,South & Central Asia,NE_g,20
-cattle meat,Sub-Saharan Africa,NE_m,352
-cattle meat,Sub-Saharan Africa,NE_g,21
-cattle meat,West Europe,NE_m,103
-cattle meat,West Europe,NE_g,23
-pig meat,East Asia,ME,86
-pig meat,East Europe,ME,84
-pig meat,Latin America & Caribbean,ME,131
-pig meat,North Africa & West Asia,ME,86
-pig meat,North America & Oceania,ME,65
-pig meat,South & Central Asia,ME,115
-pig meat,Sub-Saharan Africa,ME,123
-pig meat,West Europe,ME,64
+meat-cattle,East Asia,NE_m,288
+meat-cattle,East Asia,NE_g,25
+meat-cattle,East Europe,NE_m,141
+meat-cattle,East Europe,NE_g,19
+meat-cattle,Latin America & Caribbean,NE_m,236
+meat-cattle,Latin America & Caribbean,NE_g,28
+meat-cattle,North Africa & West Asia,NE_m,262
+meat-cattle,North Africa & West Asia,NE_g,23
+meat-cattle,North America & Oceania,NE_m,109
+meat-cattle,North America & Oceania,NE_g,23
+meat-cattle,South & Central Asia,NE_m,479
+meat-cattle,South & Central Asia,NE_g,20
+meat-cattle,Sub-Saharan Africa,NE_m,352
+meat-cattle,Sub-Saharan Africa,NE_g,21
+meat-cattle,West Europe,NE_m,103
+meat-cattle,West Europe,NE_g,23
+meat-pig,East Asia,ME,86
+meat-pig,East Europe,ME,84
+meat-pig,Latin America & Caribbean,ME,131
+meat-pig,North Africa & West Asia,ME,86
+meat-pig,North America & Oceania,ME,65
+meat-pig,South & Central Asia,ME,115
+meat-pig,Sub-Saharan Africa,ME,123
+meat-pig,West Europe,ME,64
 eggs,East Asia,ME,43
 eggs,East Europe,ME,42
 eggs,Latin America & Caribbean,ME,39
@@ -90,11 +90,11 @@ eggs,North America & Oceania,ME,32
 eggs,South & Central Asia,ME,53
 eggs,Sub-Saharan Africa,ME,56
 eggs,West Europe,ME,30
-chicken meat,East Asia,ME,60
-chicken meat,East Europe,ME,56
-chicken meat,Latin America & Caribbean,ME,51
-chicken meat,North Africa & West Asia,ME,61
-chicken meat,North America & Oceania,ME,42
-chicken meat,South & Central Asia,ME,72
-chicken meat,Sub-Saharan Africa,ME,77
-chicken meat,West Europe,ME,38
+meat-chicken,East Asia,ME,60
+meat-chicken,East Europe,ME,56
+meat-chicken,Latin America & Caribbean,ME,51
+meat-chicken,North Africa & West Asia,ME,61
+meat-chicken,North America & Oceania,ME,42
+meat-chicken,South & Central Asia,ME,72
+meat-chicken,Sub-Saharan Africa,ME,77
+meat-chicken,West Europe,ME,38

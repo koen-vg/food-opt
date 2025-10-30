@@ -15,29 +15,29 @@
 feed,ash_content_pct_dm,source_feed,notes
 alfalfa,12.0,"Alfalfa, dehydrated, protein 16-18% dry matter",Representative alfalfa hay/silage
 banana,4.6,"Bananas, immature, dried",Banana fruit
-banana_stem,4.6,"Bananas, immature, dried",No specific match - using banana fruit as proxy
+banana-stem,4.6,"Bananas, immature, dried",No specific match - using banana fruit as proxy
 barley,2.5,Barley,Barley grain
-barley_straw,6.6,Wheat straw,No barley straw in table - wheat straw as proxy for cereal straw
+barley-straw,6.6,Wheat straw,No barley straw in table - wheat straw as proxy for cereal straw
 cassava,4.0,Cassava pulp dried,Cassava roots
 dry-pea,3.5,Pea,Pea/legume grain
 grassland,8.6,"Grass, dehydrated",Grass hay/fresh grass
 maize,1.4,Maize,Maize grain
-maize_stover,6.6,Wheat straw,No maize stover - using wheat straw as cereal residue proxy
-millet_stover,6.6,Wheat straw,No millet stover - using wheat straw as cereal residue proxy
+maize-stover,6.6,Wheat straw,No maize stover - using wheat straw as cereal residue proxy
+millet-stover,6.6,Wheat straw,No millet stover - using wheat straw as cereal residue proxy
 pearl-millet,2.8,"Millet, pearl",Pearl millet grain
-pulse_straw,6.6,Wheat straw,No pulse straw - using wheat straw as general crop residue proxy
+pulse-straw,6.6,Wheat straw,No pulse straw - using wheat straw as general crop residue proxy
 rapeseed,4.3,"Rapeseed, whole",Rapeseed whole seeds
-rapeseed meal,7.6,"Rapeseed meal, oil < 5%",Rapeseed/canola meal
-rice_straw,6.6,Wheat straw,No rice straw - using wheat straw as cereal residue proxy
+rapeseed-meal,7.6,"Rapeseed meal, oil < 5%",Rapeseed/canola meal
+rice-straw,6.6,Wheat straw,No rice straw - using wheat straw as cereal residue proxy
 silage-maize,1.4,Maize,Using maize grain as proxy for whole plant silage
 sorghum,2.1,Sorghum,Sorghum grain
-sorghum_stover,6.6,Wheat straw,No sorghum stover - using wheat straw as cereal residue proxy
+sorghum-stover,6.6,Wheat straw,No sorghum stover - using wheat straw as cereal residue proxy
 soybean,5.7,"Soybean, whole, extruded",Soybean grain
-soybean_oil,0.0,Soybean oil,Soybean oil (processed)
+soybean-oil,0.0,Soybean oil,Soybean oil (processed)
 sugarbeet,10.6,"Fodder beet, raw",Sugar beet roots (on DM basis)
-sugarcane_tops,6.6,Wheat straw,No sugarcane tops - using wheat straw as general plant residue proxy
-sunflower meal,7.2,"Sunflower meal, oil < 5%, dehulled",Sunflower seed meal
+sugarcane-tops,6.6,Wheat straw,No sugarcane tops - using wheat straw as general plant residue proxy
+sunflower-meal,7.2,"Sunflower meal, oil < 5%, dehulled",Sunflower seed meal
 wetland-rice,1.0,"Rice, polished, broken",Polished rice grain
 wheat,1.8,"Wheat, soft",Wheat grain
-wheat bran,5.6,Wheat bran,Wheat bran
-wheat_straw,6.6,Wheat straw,Wheat straw
+wheat-bran,5.6,Wheat bran,Wheat bran
+wheat-straw,6.6,Wheat straw,Wheat straw

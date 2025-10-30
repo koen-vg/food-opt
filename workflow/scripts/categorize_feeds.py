@@ -244,10 +244,8 @@ def add_methane_yields(
 
 if __name__ == "__main__":
     # Read inputs
-    ruminant_props = pd.read_csv(snakemake.input.ruminant_feed_properties, comment="#")
-    monogastric_props = pd.read_csv(
-        snakemake.input.monogastric_feed_properties, comment="#"
-    )
+    ruminant_props = pd.read_csv(snakemake.input.ruminant_feed_properties)
+    monogastric_props = pd.read_csv(snakemake.input.monogastric_feed_properties)
     methane_yields = pd.read_csv(snakemake.input.enteric_methane_yields, comment="#")
     ash_content = pd.read_csv(snakemake.input.ash_content, comment="#")
 

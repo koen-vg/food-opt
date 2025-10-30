@@ -126,8 +126,12 @@ def _gaez_code_to_crop_map(mapping_df: pd.DataFrame) -> dict[str, str]:
 def _fresh_mass_conversion_factors(
     edible_portion_df: pd.DataFrame,
     crops: set[str],
-    exceptions: set[str],
 ) -> dict[str, float]:
+    """Compute fresh mass conversion factors from edible portion and water content.
+
+    For crops where yields are already in final product (oil/sugar), water_content
+    should be 0, giving a factor of 1.0.
+    """
     df = edible_portion_df.copy()
     df["crop"] = df["crop"].astype(str).str.strip()
 
@@ -138,8 +142,6 @@ def _fresh_mass_conversion_factors(
     factors: dict[str, float] = {}
     missing_data: list[str] = []
     for crop in sorted(crops):
-        if crop in exceptions:
-            continue
         if crop not in df.index:
             missing_data.append(crop)
             continue
@@ -156,8 +158,14 @@ def _fresh_mass_conversion_factors(
             raise ValueError(
                 f"Water content for crop '{crop}' must be in [0, 100); found {water_pct}"
             )
-        water_fraction = water_pct / 100.0
-        factor = edible_coeff / (1 - water_fraction)
+
+        # For crops with water_content=0 (final product crops), factor is simply edible_coeff
+        if water_pct == 0:
+            factor = edible_coeff
+        else:
+            water_fraction = water_pct / 100.0
+            factor = edible_coeff / (1 - water_fraction)
+
         if not np.isfinite(factor) or factor <= 0:
             raise ValueError(
                 f"Computed non-positive fresh mass factor {factor} for crop '{crop}'"
@@ -303,7 +311,7 @@ def _calculate_ch4_per_feed_intake(
     Parameters
     ----------
     product : str
-        Animal product name (e.g., "cattle meat", "dairy", "pig meat")
+        Animal product name (e.g., "meat-cattle", "dairy", "meat-pig")
     feed_category : str
         Feed category name (e.g., "ruminant_roughage", "monogastric_grain")
     country : str
@@ -1165,7 +1173,6 @@ def add_food_conversion_links(
     foods: pd.DataFrame,
     countries: list,
     crop_to_fresh_factor: dict[str, float],
-    exception_crops: set[str],
     food_to_group: dict[str, str],
     loss_waste: pd.DataFrame,
     crop_list: list,
@@ -1237,15 +1244,13 @@ def add_food_conversion_links(
             invalid_pathways.append(f"{pathway} ({crop}): sum={total_factor:.3f}")
 
         # Get conversion factor (dry matter → fresh edible)
-        if crop in exception_crops:
-            conversion_factor = 1.0
-        else:
-            try:
-                conversion_factor = crop_to_fresh_factor[crop]
-            except KeyError as exc:
-                raise ValueError(
-                    f"Missing moisture/edible conversion data for crop '{crop}' in pathway '{pathway}'"
-                ) from exc
+        # For crops where yields are in final product (oil/sugar), this will be 1.0
+        try:
+            conversion_factor = crop_to_fresh_factor[crop]
+        except KeyError as exc:
+            raise ValueError(
+                f"Missing moisture/edible conversion data for crop '{crop}' in pathway '{pathway}'"
+            ) from exc
 
         # Create multi-output link names (one per country)
         safe_pathway_name = pathway.replace(" ", "_").replace("(", "").replace(")", "")
@@ -2179,9 +2184,6 @@ if __name__ == "__main__":
         foods["crop"] = foods["crop"].astype(str).str.strip()
         foods["factor"] = pd.to_numeric(foods["factor"], errors="coerce")
     edible_portion_df = read_csv(snakemake.input.edible_portion)
-    yield_unit_conversion_df = read_csv(snakemake.input.yield_unit_conversions)
-    gaez_code_mapping_df = read_csv(snakemake.input.gaez_crop_mapping)
-    gaez_code_map = _gaez_code_to_crop_map(gaez_code_mapping_df)
 
     # Read food groups data
     food_groups = read_csv(snakemake.input.food_groups)
@@ -2456,12 +2458,6 @@ if __name__ == "__main__":
     n.name = "food-opt"
 
     crop_list = snakemake.params.crops
-    # Exception crops use fresh mass rather than dry mass (from yield_unit_conversions.csv)
-    exception_crops = {
-        gaez_code_map[code]
-        for code in yield_unit_conversion_df["code"]
-        if code in gaez_code_map and gaez_code_map[code] in crop_list
-    }
     animal_products_cfg = snakemake.params.animal_products
     animal_product_list = list(animal_products_cfg["include"])
 
@@ -2473,9 +2469,7 @@ if __name__ == "__main__":
         )
 
     food_crops = set(foods.loc[foods["crop"].isin(crop_list), "crop"])
-    crop_to_fresh_factor = _fresh_mass_conversion_factors(
-        edible_portion_df, food_crops, exception_crops
-    )
+    crop_to_fresh_factor = _fresh_mass_conversion_factors(edible_portion_df, food_crops)
 
     base_food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique().tolist()
     food_list = sorted(set(base_food_list).union(animal_product_list))
@@ -2598,7 +2592,6 @@ if __name__ == "__main__":
         foods,
         cfg_countries,
         crop_to_fresh_factor,
-        exception_crops,
         food_to_group,
         food_loss_waste,
         snakemake.params.crops,

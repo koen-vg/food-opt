@@ -15,36 +15,36 @@
 # - description: explanation of the conversion and source reference
 
 pathway,crop,food,factor,description
-white_flour,wheat,flour (white),0.75,White flour extraction rate (FAO SUA 2024 sheet 03)
-white_flour,wheat,wheat bran,0.20,Bran byproduct from white flour milling (FAO SUA 2024 sheet 03)
-white_flour,wheat,wheat germ,0.03,Germ separated during white flour milling (FAO SUA 2024 sheet 03)
-wholemeal_flour,wheat,flour (wholemeal),1.0,No processing
-milled_rice,dryland-rice,rice (white),0.68,Milled white rice from paddy - husking + polishing losses (FAO SUA 2024 sheet 03)
-milled_rice,dryland-rice,rice bran,0.08,Bran from rice milling (FAO SUA 2024 sheet 03)
-brown_rice,dryland-rice,rice (brown),0.77,Brown rice after hulling only (FAO SUA 2024 sheet 03)
-milled_rice_wetland,wetland-rice,rice (white),0.68,Milled white rice from paddy - husking + polishing losses (FAO SUA 2024 sheet 03)
-milled_rice_wetland,wetland-rice,rice bran,0.08,Bran from rice milling (FAO SUA 2024 sheet 03)
-brown_rice_wetland,wetland-rice,rice (brown),0.77,Brown rice after hulling only (FAO SUA 2024 sheet 03)
-hulled_barley,barley,barley (hulled),0.72,Hulled barley with processing losses (FAO SUA 2024 sheet 03)
-hulled_barley,barley,barley bran,0.12,Bran from barley hulling (FAO SUA 2024 sheet 03)
+white_flour,wheat,flour-white,0.75,White flour extraction rate (FAO SUA 2024 sheet 03)
+white_flour,wheat,wheat-bran,0.20,Bran byproduct from white flour milling (FAO SUA 2024 sheet 03)
+white_flour,wheat,wheat-germ,0.03,Germ separated during white flour milling (FAO SUA 2024 sheet 03)
+wholemeal_flour,wheat,flour-wholemeal,1.0,No processing
+milled_rice,dryland-rice,rice-white,0.68,Milled white rice from paddy - husking + polishing losses (FAO SUA 2024 sheet 03)
+milled_rice,dryland-rice,rice-bran,0.08,Bran from rice milling (FAO SUA 2024 sheet 03)
+brown_rice,dryland-rice,rice-brown,0.77,Brown rice after hulling only (FAO SUA 2024 sheet 03)
+milled_rice_wetland,wetland-rice,rice-white,0.68,Milled white rice from paddy - husking + polishing losses (FAO SUA 2024 sheet 03)
+milled_rice_wetland,wetland-rice,rice-bran,0.08,Bran from rice milling (FAO SUA 2024 sheet 03)
+brown_rice_wetland,wetland-rice,rice-brown,0.77,Brown rice after hulling only (FAO SUA 2024 sheet 03)
+hulled_barley,barley,barley-hulled,0.72,Hulled barley with processing losses (FAO SUA 2024 sheet 03)
+hulled_barley,barley,barley-bran,0.12,Bran from barley hulling (FAO SUA 2024 sheet 03)
 hulled_oat,oat,oat,0.78,Oat groats after hull removal (FAO SUA 2024 sheet 03)
-hulled_oat,oat,oat bran,0.06,Bran from oat processing (FAO SUA 2024 sheet 03)
+hulled_oat,oat,oat-bran,0.06,Bran from oat processing (FAO SUA 2024 sheet 03)
 hulled_buckwheat,buckwheat,buckwheat,0.78,Dehulled buckwheat groats (FAO SUA 2024 sheet 03)
-hulled_buckwheat,buckwheat,buckwheat hulls,0.10,Hulls from buckwheat processing (FAO SUA 2024 sheet 03)
+hulled_buckwheat,buckwheat,buckwheat-hulls,0.10,Hulls from buckwheat processing (FAO SUA 2024 sheet 03)
 rye_grain,rye,rye,1.0,No processing
 sorghum_grain,sorghum,sorghum,1.0,No processing
-foxtail_millet_grain,foxtail-millet,foxtail millet,1.0,No processing
-pearl_millet_grain,pearl-millet,pearl millet,1.0,No processing
+foxtail_millet_grain,foxtail-millet,foxtail-millet,1.0,No processing
+pearl_millet_grain,pearl-millet,pearl-millet,1.0,No processing
 maize_grain,maize,maize,1.0,No processing
 soybean_whole,soybean,soy,1.0,No processing
-dry_pea_whole,dry-pea,dry pea,1.0,No processing
+dry_pea_whole,dry-pea,dry-pea,1.0,No processing
 chickpea_whole,chickpea,chickpea,1.0,No processing
 cowpea_whole,cowpea,cowpea,1.0,No processing
 gram_whole,gram,gram,1.0,No processing
-phaseolus_bean_whole,phaseolus-bean,phaseolus bean,1.0,No processing
-pigeonpea_whole,pigeonpea,pigeon pea,1.0,No processing
+phaseolus_bean_whole,phaseolus-bean,phaseolus-bean,1.0,No processing
+pigeonpea_whole,pigeonpea,pigeon-pea,1.0,No processing
 potato_fresh,white-potato,potato,1.0,No processing
-sweet_potato_fresh,sweet-potato,sweet potato,1.0,No processing
+sweet_potato_fresh,sweet-potato,sweet-potato,1.0,No processing
 cassava_fresh,cassava,cassava,1.0,No processing
 yam_fresh,yam,yam,1.0,No processing
 tomato_fresh,tomato,tomato,1.0,No processing
@@ -55,13 +55,13 @@ banana_peeled,banana,banana,1.0,No processing
 citrus_fresh,citrus,citrus,1.0,No processing
 coconut_meat,coconut,coconut,1.0,No processing
 groundnut_shelled,groundnut,groundnut,1.0,No processing (shell accounted for by edible portion)
-sesame_whole,sesame,sesame seed,1.0,No processing
-sunflower_oil,sunflower,sunflower oil,0.35,TODO
-sunflower_oil,sunflower,sunflower meal,0.50,TODO
-sunflower_seed,sunflower,sunflower seed,1.0,No processing (shell accounted for by edible portion)
-rapeseed_oil,rapeseed,rapeseed oil,0.38,Oil extraction from rapeseed (FAO SUA 2024 sheet 03)
-rapeseed_oil,rapeseed,rapeseed meal,0.50,Meal from oil extraction (FAO SUA 2024 sheet 03)
-palm_oil,oil-palm,palm oil,1.0,Palm oil (GAEZ yields already in kg oil/ha; no conversion needed)
-olive_oil,olive,olive oil,1.0,Olive oil (GAEZ yields already in kg oil/ha; no conversion needed)
+sesame_whole,sesame,sesame-seed,1.0,No processing
+sunflower_oil,sunflower,sunflower-oil,0.35,TODO
+sunflower_oil,sunflower,sunflower-meal,0.50,TODO
+sunflower_seed,sunflower,sunflower-seed,1.0,No processing (shell accounted for by edible portion)
+rapeseed_oil,rapeseed,rapeseed-oil,0.38,Oil extraction from rapeseed (FAO SUA 2024 sheet 03)
+rapeseed_oil,rapeseed,rapeseed-meal,0.50,Meal from oil extraction (FAO SUA 2024 sheet 03)
+palm_oil,oil-palm,palm-oil,1.0,Palm oil (GAEZ yields already in kg oil/ha; no conversion needed)
+olive_oil,olive,olive-oil,1.0,Olive oil (GAEZ yields already in kg oil/ha; no conversion needed)
 sugarcane_sugar,sugarcane,sugar,1.0,Sucrose (GAEZ yields already in kg sugar/ha; no conversion needed)
 sugarbeet_sugar,sugarbeet,sugar,1.0,Sucrose (GAEZ yields already in kg sugar/ha; no conversion needed)

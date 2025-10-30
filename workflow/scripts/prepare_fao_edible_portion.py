@@ -31,14 +31,14 @@ logger = logging.getLogger(__name__)
 
 ALTERNATE_ITEM_NAMES: dict[str, str] = {
     "rape or colza seed": "rapeseed or colza seed",
-    "oil palm fruit": "palm oil",
+    "oil palm fruit": "palm-oil",
 }
 
 # Crops for which the edible portion coefficient should be set to 1.0
 # despite FAO listing a lower value. Reasons vary by crop type:
 # - Grains (rice, barley, oat, buckwheat): FAO coefficient represents milled/
 #   hulled grain; we track whole grain and handle milling separately.
-# - Oil crops (rapeseed, olive): FAO coefficient represents fruit/seed→oil
+# - Oil crops (rapeseed, olive, oil-palm): FAO coefficient represents fruit/seed→oil
 #   extraction; GAEZ yields are already in kg oil/ha, so no further conversion.
 # - Sugar crops (sugarcane, sugarbeet): GAEZ yields are already in kg sugar
 #   per hectare, so no further conversion needed.
@@ -50,6 +50,17 @@ EDIBLE_PORTION_EXCEPTIONS: set[str] = {
     "buckwheat",
     "rapeseed",
     "olive",
+    "oil-palm",
+    "sugarcane",
+    "sugarbeet",
+}
+
+# Crops where GAEZ yields are already in final product (oil or sugar), not raw crop.
+# For these, we set water_content to 0 since no moisture conversion is needed.
+FINAL_PRODUCT_CROPS: set[str] = {
+    "rapeseed",
+    "olive",
+    "oil-palm",
     "sugarcane",
     "sugarbeet",
 }
@@ -178,6 +189,20 @@ def main() -> None:
             if record is None and key in ALTERNATE_ITEM_NAMES:
                 record = records_by_name.get(ALTERNATE_ITEM_NAMES[key])
             if record is None:
+                # For final product crops, we don't need FAO data
+                if crop in FINAL_PRODUCT_CROPS:
+                    writer.writerow(
+                        {
+                            "crop": crop,
+                            "faostat_item": item,
+                            "fao_code": "",
+                            "edible_portion_coefficient": 1.0,
+                            "edible_portion_type": "",
+                            "water_content_g_per_100g": 0.0,
+                        }
+                    )
+                    continue
+
                 missing_components.append(item)
                 writer.writerow(
                     {
@@ -202,6 +227,17 @@ def main() -> None:
                 )
             )
 
+            # For crops where yields are in final product (oil/sugar), set water to 0
+            water_content = (
+                0.0
+                if crop in FINAL_PRODUCT_CROPS
+                else (
+                    ""
+                    if record.water_content_g_per_100g is None
+                    else record.water_content_g_per_100g
+                )
+            )
+
             writer.writerow(
                 {
                     "crop": crop,
@@ -211,11 +247,7 @@ def main() -> None:
                     "edible_portion_type": (
                         "" if record.edible_type is None else record.edible_type
                     ),
-                    "water_content_g_per_100g": (
-                        ""
-                        if record.water_content_g_per_100g is None
-                        else record.water_content_g_per_100g
-                    ),
+                    "water_content_g_per_100g": water_content,
                 }
             )
 

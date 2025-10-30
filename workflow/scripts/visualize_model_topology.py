@@ -56,7 +56,7 @@ def categorize_bus(bus_name: str, carrier: str) -> str | None:
 
     # Animal products
     if any(
-        x in bus_name for x in ["cattle meat", "dairy", "pig meat", "chicken", "eggs"]
+        x in bus_name for x in ["meat-cattle", "dairy", "meat-pig", "chicken", "eggs"]
     ):
         return "Animal Products"
 

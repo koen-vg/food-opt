@@ -37,53 +37,53 @@ logger = logging.getLogger(__name__)
 
 # Mapping of GLEAM residue feed codes to model metadata.
 # Notes:
-#   - Multiple crops can produce the same feed item (e.g., both rice crops → rice_straw).
+#   - Multiple crops can produce the same feed item (e.g., both rice crops → rice-straw).
 #   - Fallback FUE values correspond to the "all production systems" figures in GLEAM.
 RESIDUE_SPECS: dict[str, dict] = {
     "RSTRAW": {
-        "feed_item": "rice_straw",
+        "feed_item": "rice-straw",
         "gleam_crop": "Rice",
         "crops": ["dryland-rice", "wetland-rice"],
         "fue_fallback": 0.70,
     },
     "WSTRAW": {
-        "feed_item": "wheat_straw",
+        "feed_item": "wheat-straw",
         "gleam_crop": "Wheat",
         "crops": ["wheat"],
         "fue_fallback": 0.70,
     },
     "BSTRAW": {
-        "feed_item": "barley_straw",
+        "feed_item": "barley-straw",
         "gleam_crop": "Barley",
         "crops": ["barley", "oat", "rye"],
         "fue_fallback": 0.70,
     },
     "ZSTOVER": {
-        "feed_item": "maize_stover",
+        "feed_item": "maize-stover",
         "gleam_crop": "Maize",
         "crops": ["maize"],
         "fue_fallback": 0.70,
     },
     "MSTOVER": {
-        "feed_item": "millet_stover",
+        "feed_item": "millet-stover",
         "gleam_crop": "Millet",
         "crops": ["pearl-millet", "foxtail-millet"],
         "fue_fallback": 0.70,
     },
     "SSTOVER": {
-        "feed_item": "sorghum_stover",
+        "feed_item": "sorghum-stover",
         "gleam_crop": "Sorghum",
         "crops": ["sorghum"],
         "fue_fallback": 0.70,
     },
     "TOPS": {
-        "feed_item": "sugarcane_tops",
+        "feed_item": "sugarcane-tops",
         "gleam_crop": "Sugarcane",
         "crops": ["sugarcane"],
         "fue_fallback": 0.70,
     },
     "PSTRAW": {
-        "feed_item": "pulse_straw",
+        "feed_item": "pulse-straw",
         "gleam_crop": "Pulses",
         "crops": [
             "dry-pea",
@@ -96,7 +96,7 @@ RESIDUE_SPECS: dict[str, dict] = {
         "fue_fallback": 0.90,
     },
     "BNSTEM": {
-        "feed_item": "banana_stem",
+        "feed_item": "banana-stem",
         "gleam_crop": "Banana fruits",
         "crops": ["banana"],
         "fue_fallback": 0.50,

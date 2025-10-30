@@ -5,82 +5,82 @@
 # Classification of manure management systems by animal product and type (solid/liquid)
 # Based on the GLEAM 3.0 Documentation, Tables 4.4 and 4.5
 manure management system,animal product,type
-aerobic lagoon,cattle meat,liquid
-aerobic lagoon,pig meat,liquid
+aerobic lagoon,meat-cattle,liquid
+aerobic lagoon,meat-pig,liquid
 aerobic lagoon,dairy,liquid
-aerobic processing,cattle meat,liquid
-aerobic processing,pig meat,liquid
+aerobic processing,meat-cattle,liquid
+aerobic processing,meat-pig,liquid
 aerobic processing,dairy,liquid
-biogas,cattle meat,liquid
-biogas,pig meat,liquid
-biogas,chicken meat,liquid
+biogas,meat-cattle,liquid
+biogas,meat-pig,liquid
+biogas,meat-chicken,liquid
 biogas,dairy,liquid
-burned,cattle meat,solid
-burned,pig meat,solid
-burned,chicken meat,solid
+burned,meat-cattle,solid
+burned,meat-pig,solid
+burned,meat-chicken,solid
 burned,dairy,solid
-compost,cattle meat,solid
-compost,pig meat,solid
-compost,chicken meat,solid
+compost,meat-cattle,solid
+compost,meat-pig,solid
+compost,meat-chicken,solid
 compost,dairy,solid
-confinement,cattle meat,liquid
-confinement,cattle meat,solid
-confinement,pig meat,solid
-confinement,chicken meat,solid
+confinement,meat-cattle,liquid
+confinement,meat-cattle,solid
+confinement,meat-pig,solid
+confinement,meat-chicken,solid
 confinement,dairy,solid
-daily spread,cattle meat,solid
-daily spread,pig meat,liquid
-daily spread,chicken meat,solid
+daily spread,meat-cattle,solid
+daily spread,meat-pig,liquid
+daily spread,meat-chicken,solid
 daily spread,dairy,liquid
 daily spread,eggs,solid
-deep litter,cattle meat,solid
-deep litter,pig meat,solid
-deep litter,chicken meat,solid
+deep litter,meat-cattle,solid
+deep litter,meat-pig,solid
+deep litter,meat-chicken,solid
 deep litter,dairy,solid
-digester,cattle meat,liquid
-digester,pig meat,liquid
-digester,chicken meat,liquid
+digester,meat-cattle,liquid
+digester,meat-pig,liquid
+digester,meat-chicken,liquid
 digester,dairy,liquid
-drylot,cattle meat,solid
-drylot,pig meat,solid
-drylot,chicken meat,solid
+drylot,meat-cattle,solid
+drylot,meat-pig,solid
+drylot,meat-chicken,solid
 drylot,dairy,solid
-lagoon,cattle meat,liquid
-lagoon,pig meat,liquid
-lagoon,chicken meat,liquid
+lagoon,meat-cattle,liquid
+lagoon,meat-pig,liquid
+lagoon,meat-chicken,liquid
 lagoon,dairy,liquid
-liquid,cattle meat,liquid
-liquid,pig meat,liquid
-liquid,chicken meat,liquid
+liquid,meat-cattle,liquid
+liquid,meat-pig,liquid
+liquid,meat-chicken,liquid
 liquid,dairy,liquid
-liquid crust,cattle meat,liquid
-liquid crust,pig meat,liquid
-liquid crust,chicken meat,liquid
+liquid crust,meat-cattle,liquid
+liquid crust,meat-pig,liquid
+liquid crust,meat-chicken,liquid
 liquid crust,dairy,liquid
-liquid other,cattle meat,liquid
-liquid other,pig meat,liquid
+liquid other,meat-cattle,liquid
+liquid other,meat-pig,liquid
 liquid other,dairy,liquid
-litter,chicken meat,solid
+litter,meat-chicken,solid
 litter,eggs,solid
-manure without litter,chicken meat,solid
+manure without litter,meat-chicken,solid
 manure without litter,eggs,solid
-pasture & paddock,cattle meat,solid
-pasture & paddock,pig meat,solid
-pasture & paddock,chicken meat,solid
+pasture & paddock,meat-cattle,solid
+pasture & paddock,meat-pig,solid
+pasture & paddock,meat-chicken,solid
 pasture & paddock,dairy,solid
-pit 1 (<2 months),cattle meat,liquid
-pit 1 (<2 months),pig meat,liquid
-pit 1 (<2 months),chicken meat,solid
+pit 1 (<2 months),meat-cattle,liquid
+pit 1 (<2 months),meat-pig,liquid
+pit 1 (<2 months),meat-chicken,solid
 pit 1 (<2 months),dairy,liquid
-pit 2 (>2months),cattle meat,liquid
-pit 2 (>2months),pig meat,liquid
-pit 2 (>2months),chicken meat,solid
+pit 2 (>2months),meat-cattle,liquid
+pit 2 (>2months),meat-pig,liquid
+pit 2 (>2months),meat-chicken,solid
 pit 2 (>2months),dairy,liquid
-solid,cattle meat,solid
-solid,pig meat,solid
-solid,chicken meat,solid
+solid,meat-cattle,solid
+solid,meat-pig,solid
+solid,meat-chicken,solid
 solid,dairy,solid
-thermal drying,cattle meat,solid
-thermal drying,pig meat,solid
-thermal drying,chicken meat,solid
+thermal drying,meat-cattle,solid
+thermal drying,meat-pig,solid
+thermal drying,meat-chicken,solid
 thermal drying,dairy,solid
