@@ -1193,12 +1193,14 @@ def add_food_conversion_links(
     food_to_group: dict[str, str],
     loss_waste: pd.DataFrame,
     crop_list: list,
+    byproduct_list: list,
 ) -> None:
     """Add links for converting crops to foods via processing pathways.
 
     Pathways can have multiple outputs (e.g., wheat → white flour + bran).
     Each pathway creates one multi-output Link per country.
     Only processes crops that are in the configured crop_list.
+    Foods flagged as byproducts are ignored when checking for food-group mappings.
     """
 
     # Validate that foods.csv has the new pathway column
@@ -1221,6 +1223,7 @@ def add_food_conversion_links(
         )
 
     missing_group_foods: set[str] = set()
+    byproduct_foods: set[str] = set(byproduct_list or [])
     excessive_losses: set[tuple[str, str]] = set()
     invalid_pathways: list[str] = []
 
@@ -1296,7 +1299,8 @@ def add_food_conversion_links(
                 multiplier = 1.0
                 if group is None:
                     # Food has no group mapping - no loss/waste adjustment
-                    missing_group_foods.add(food)
+                    if food not in byproduct_foods:
+                        missing_group_foods.add(food)
                 else:
                     # Look up loss/waste fractions (guaranteed to exist by preprocessing)
                     raw_loss, raw_waste = loss_waste_pairs[(country, group)]
@@ -2637,6 +2641,7 @@ if __name__ == "__main__":
         food_to_group,
         food_loss_waste,
         snakemake.params.crops,
+        snakemake.params.byproducts,
     )
     add_feed_supply_links(
         n,
