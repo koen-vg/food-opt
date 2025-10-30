@@ -40,6 +40,8 @@ The two files below, created and distributed for internal food-opt use, define p
 
   **Alternative pathways**: Different pathways for the same crop represent processing alternatives that the model can choose between based on demand and costs. For example, wheat can be processed via ``white_flour`` or ``wholemeal_flour`` pathways.
 
+  **Sugar and oil crops**: Yields for sugarcane, sugarbeet, and oil-palm are first converted back to whole-crop dry matter (see :doc:`crop_production`) and then uplifted to fresh mass using the moisture table. Pathway factors therefore reflect *fresh* extraction efficiencies: 0.24 for palm oil (24 % oil from fresh fruit bunches), 0.14 for cane sugar, and 0.10 for beet sugar.
+
 **data/food_groups.csv**
   Maps foods to food groups for dietary constraint aggregation and health impact assessment. Each food must be assigned to exactly one food group.
 
