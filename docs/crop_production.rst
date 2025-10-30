@@ -309,7 +309,73 @@ Currently, the model uses annual time resolution, so it implicitly assumes:
 * Each land parcel produces one crop per year
 * Water constraints apply to the full growing season
 
-Allowing for growing multiple crops a year is work in development.
+Multiple Cropping
+-----------------
+
+Many production systems plant two or more sequential crops on the same parcel. The
+model supports this via named combinations declared in ``config/*.yaml`` under
+``multiple_cropping``. Each entry specifies a ``crops`` list (duplicates allowed for
+double rice) and a ``water_supplies`` array that chooses whether the sequence is rainfed
+(``r``) or irrigated (``i``). The preprocessing rule ``build_multi_cropping`` reads the
+relevant GAEZ rasters for every crop in each (combination, water supply) pair and:
+
+* filters pixels where any crop lacks suitability or yield data,
+* shifts later crops forward by whole-year increments until all growing seasons are
+  non-overlapping within a 365-day window, and
+* computes the minimum suitable area fraction across the sequence.
+
+Eligible hectares are aggregated to ``processing/{name}/multi_cropping/eligible_area.csv``
+alongside the summed irrigated water requirement (``water_requirement_m3_per_ha``); the
+column is zero for rainfed variants. Per-cycle yields (tonnes/ha for each step) are written to
+``processing/{name}/multi_cropping/cycle_yields.csv`` so downstream steps can preserve
+product-specific productivity.
+
+The RES01 classes report the agro-climatic zone the pixel belongs to. We interpret the
+numeric codes as:
+
+* 0 – masked (ocean/undefined)
+* 1 – no cropping (too cold/dry)
+* 2 – single cropping
+* 3 – limited double cropping (GAEZ permits relay; we conservatively treat it as sequential
+  double cropping with at most one wetland rice cycle)
+* 4 – double cropping (no wetland rice sequentially)
+* 5 – double cropping with up to one wetland rice crop
+* 6 – double rice cropping (limited triple in the documentation is ignored here)
+* 7 – triple cropping (≤2 wetland rice crops)
+* 8 – triple rice cropping (up to three wetland rice crops)
+
+Relay cropping opportunities mentioned for the C/F zones are intentionally ignored for now; we
+only construct sequential crop chains. This assumption is called out in the configuration and
+model framework documentation so users know the limitation.
+
+During ``build_model`` each (combination, region, resource class) creates a single
+rained or irrigated multi-output link that:
+
+* draws from the matching land bus (``_r`` or ``_i``) used by individual crops,
+* emits one crop bus per cycle with efficiencies equal to the aggregated yield,
+* charges marginal cost using the sum of crop prices across cycles, and
+* deducts the combined fertilizer rate (kg N per ha summed over the crops),
+* (irrigated only) withdraws the summed water requirement on the region water bus.
+
+If any required raster is missing the rule fails early to avoid silently enabling
+unsupported sequences.
+
+.. figure:: /_static/figures/multi_cropping_potential_rainfed.svg
+   :alt: Rain-fed multi-cropping zones and regional potential
+   :width: 100%
+
+   Rain-fed perspective: top panel shows RES01-MCR classes from GAEZ v5. Bottom panel
+   reports the share of each optimisation region where the climate supports sequential
+   multi-cropping (zones C–H). Zones suitable only for relay systems are counted as
+   sequential double cropping, consistent with the current model assumptions.
+
+.. figure:: /_static/figures/multi_cropping_potential_irrigated.svg
+   :alt: Irrigated multi-cropping zones and regional potential
+   :width: 100%
+
+   Irrigated perspective: top panel shows RES01-MCI classes. Bottom panel reports the
+   share of each optimisation region where irrigated climate conditions allow sequential
+   multi-cropping. Relay-only zones are again interpreted as sequential crop chains.
 
 Crop-Specific Data Files
 -------------------------

@@ -5,6 +5,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 from pathlib import Path
+import sys
+
+# Ensure workflow.scripts is in path for imports
+sys.path.insert(0, str(Path(__file__).parent))
 
 from osgeo import gdal, osr
 
@@ -16,30 +20,13 @@ from exactextract.raster import NumPyRasterSource  # noqa: E402
 import geopandas as gpd  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-import rasterio  # noqa: E402
+from raster_utils import (  # noqa: E402
+    calculate_all_cell_areas,
+    raster_bounds,
+    read_raster_float,
+    scale_fraction,
+)
 import xarray as xr  # noqa: E402
-
-try:
-    from workflow.scripts.raster_utils import calculate_all_cell_areas, scale_fraction
-except ImportError:  # Snakemake script execution fallback
-    from raster_utils import calculate_all_cell_areas, scale_fraction  # type: ignore
-
-
-def read_raster_float(path: str):
-    src = rasterio.open(path)
-    arr = src.read(1).astype(float)
-    if src.nodata is not None:
-        arr = np.where(arr == src.nodata, np.nan, arr)
-    return arr, src
-
-
-def raster_bounds(transform, width: int, height: int):
-    xmin = transform.c
-    ymax = transform.f
-    xmax = xmin + width * transform.a
-    ymin = ymax + height * transform.e
-    return xmin, ymin, xmax, ymax
-
 
 if __name__ == "__main__":
     # Inputs

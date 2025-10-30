@@ -67,6 +67,24 @@ Crop Selection
 
 See :doc:`crop_production` for full list. Add/remove crops to explore specialized vs. diversified production systems.
 
+Multiple Cropping
+~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: multiple_cropping ---
+   :end-before: # --- section: macronutrients ---
+
+Define sequential cropping systems as ordered lists of crops. Entries may
+repeat a crop (double rice) or mix cereals and legumes (rice→wheat, maize→soybean) and
+list multiple ``water_supplies`` (``r`` for rainfed, ``i`` for irrigated) to build both
+variants. The ``build_multi_cropping`` rule checks growing-season compatibility,
+aggregates eligible area/yields, and sums irrigated water demand; ``build_model`` turns
+each combination into a multi-output land link. Leave the section empty to disable the
+feature. Multiple cropping zones that imply relay cropping (GAEZ classes "limited double" or
+"double rice … limited triple") are still accepted here but are interpreted as sequential crop
+chains; relay-specific dynamics are not yet modelled.
+
 Country Coverage
 ~~~~~~~~~~~~~~~~
 

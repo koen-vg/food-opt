@@ -93,6 +93,21 @@ rule download_gaez_suitability_data:
         "uv run gsutil cp {params.gcs_url} {output}"
 
 
+rule download_gaez_multiple_cropping_zone:
+    output:
+        "data/downloads/gaez_multiple_cropping_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}.tif",
+    params:
+        gcs_url=lambda w: (
+            f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES01-MCR/"
+            f"GAEZ-V5.RES01-MCR.{w.period}.{w.climate_model}.{w.scenario}.tif"
+            if w.water_supply.lower() == "r"
+            else f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES01-MCI/"
+            f"GAEZ-V5.RES01-MCI.{w.period}.{w.climate_model}.{w.scenario}.tif"
+        ),
+    shell:
+        "uv run gsutil cp {params.gcs_url} {output}"
+
+
 rule download_gaez_growing_season_start:
     output:
         "data/downloads/gaez_growing_season_start_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",

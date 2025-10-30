@@ -817,6 +817,167 @@ def add_regional_crop_production_links(
             n.add("Link", **link_params)
 
 
+def add_multi_cropping_links(
+    n: pypsa.Network,
+    eligible_area: pd.DataFrame,
+    cycle_yields: pd.DataFrame,
+    region_to_country: pd.Series,
+    allowed_countries: set[str],
+    crop_prices_usd_per_t: Mapping[str, float],
+    fertilizer_n_rates: Mapping[str, float],
+    residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
+    luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
+) -> None:
+    """Add multi-cropping production links with multiple crop outputs."""
+
+    if eligible_area.empty or cycle_yields.empty:
+        logger.info("No multi-cropping combinations with positive area; skipping")
+        return
+
+    residue_lookup = residue_lookup or {}
+    luc_lef_lookup = luc_lef_lookup or {}
+
+    area_df = eligible_area.copy()
+    area_df["resource_class"] = area_df["resource_class"].astype(int)
+    area_df["water_supply"] = area_df["water_supply"].astype(str)
+    if "water_requirement_m3_per_ha" not in area_df.columns:
+        area_df["water_requirement_m3_per_ha"] = 0.0
+    cycle_df = cycle_yields.copy()
+    cycle_df["resource_class"] = cycle_df["resource_class"].astype(int)
+    cycle_df["water_supply"] = cycle_df["water_supply"].astype(str)
+
+    cycle_groups = cycle_df.groupby(
+        ["combination", "region", "resource_class", "water_supply"], sort=False
+    )
+
+    for row in area_df.itertuples(index=False):
+        key = (
+            row.combination,
+            row.region,
+            int(row.resource_class),
+            row.water_supply,
+        )
+        if key not in cycle_groups.indices:
+            continue
+
+        cycles = (
+            cycle_groups.get_group(key)
+            .sort_values("cycle_index")
+            .reset_index(drop=True)
+        )
+        if cycles.empty:
+            continue
+
+        eligible_ha = float(row.eligible_area_ha)
+        if not np.isfinite(eligible_ha) or eligible_ha <= 0:
+            continue
+
+        country = region_to_country.get(row.region)
+        if not isinstance(country, str):
+            continue
+        if country not in allowed_countries:
+            continue
+
+        land_bus = (
+            f"land_{row.region}_class{int(row.resource_class)}_{row.water_supply}"
+        )
+        if land_bus not in n.buses.index:
+            logger.warning(
+                "Land bus '%s' missing; skipping multi-cropping link for %s/%s",
+                land_bus,
+                row.combination,
+                row.region,
+            )
+            continue
+
+        outputs = [
+            (
+                str(cycle_row.crop),
+                float(cycle_row.yield_t_per_ha),
+            )
+            for cycle_row in cycles.itertuples(index=False)
+            if np.isfinite(cycle_row.yield_t_per_ha) and cycle_row.yield_t_per_ha > 0
+        ]
+        if not outputs:
+            continue
+
+        link_name = f"produce_multi_{row.combination}_{row.water_supply}_{row.region}_class{int(row.resource_class)}"
+
+        params: dict[str, object] = {
+            "carrier": f"multi_crop_{row.combination}",
+            "bus0": land_bus,
+            "p_nom_extendable": True,
+            "p_nom_max": eligible_ha / 1e6,  # ha → Mha
+        }
+
+        total_cost = 0.0
+        for idx_output, (crop, yield_per_ha) in enumerate(outputs):
+            price = float(crop_prices_usd_per_t.get(crop, 0.0))
+            total_cost += price * yield_per_ha * 1e6
+            country_bus = f"crop_{crop}_{country}"
+            bus_key = "bus1" if idx_output == 0 else f"bus{idx_output + 1}"
+            eff_key = "efficiency" if idx_output == 0 else f"efficiency{idx_output + 1}"
+            params[bus_key] = country_bus
+            params[eff_key] = yield_per_ha * 1e6  # t/ha → t/Mha
+
+        next_bus_idx = len(outputs) + 1
+        params["marginal_cost"] = total_cost
+
+        water_requirement = float(
+            getattr(row, "water_requirement_m3_per_ha", 0.0) or 0.0
+        )
+        if row.water_supply == "i":
+            if not np.isfinite(water_requirement) or water_requirement < 0:
+                logger.warning(
+                    "Skipping multi-cropping link %s due to invalid water requirement",
+                    link_name,
+                )
+                continue
+            if water_requirement > 0:
+                params[f"bus{next_bus_idx}"] = f"water_{row.region}"
+                params[f"efficiency{next_bus_idx}"] = -water_requirement * 1e-3
+                next_bus_idx += 1
+
+        total_fertilizer_rate = sum(
+            float(fertilizer_n_rates.get(crop, 0.0)) for crop, _ in outputs
+        )
+        if total_fertilizer_rate > 0:
+            params[f"bus{next_bus_idx}"] = f"fertilizer_{country}"
+            params[f"efficiency{next_bus_idx}"] = (
+                -total_fertilizer_rate * 1e6 * KG_TO_MEGATONNE
+            )  # kg N/ha → Mt N/Mha
+            next_bus_idx += 1
+
+        residue_efficiencies: dict[str, float] = {}
+        for crop, _yield in outputs:
+            residue_dict = residue_lookup.get(
+                (crop, row.water_supply, row.region, int(row.resource_class)), {}
+            )
+            for feed_item, residue_yield in residue_dict.items():
+                residue_efficiencies[feed_item] = residue_efficiencies.get(
+                    feed_item, 0.0
+                ) + float(residue_yield)
+
+        for feed_item, residue_yield in sorted(residue_efficiencies.items()):
+            if residue_yield <= 0:
+                continue
+            params[f"bus{next_bus_idx}"] = f"residue_{feed_item}_{country}"
+            params[f"efficiency{next_bus_idx}"] = residue_yield * 1e6
+            next_bus_idx += 1
+
+        luc_lef = float(
+            luc_lef_lookup.get(
+                (row.region, int(row.resource_class), row.water_supply, "cropland"),
+                0.0,
+            )
+        )
+        if not np.isclose(luc_lef, 0.0):
+            params[f"bus{next_bus_idx}"] = "co2"
+            params[f"efficiency{next_bus_idx}"] = luc_lef * 1e6 * TONNE_TO_MEGATONNE
+
+        n.add("Link", link_name, **params)
+
+
 def add_grassland_feed_links(
     n: pypsa.Network,
     grassland: pd.DataFrame,
@@ -2146,6 +2307,9 @@ if __name__ == "__main__":
         ["region", "water_supply", "resource_class"]
     ).sort_index()
 
+    multi_cropping_area_df = read_csv(snakemake.input.multi_cropping_area)
+    multi_cropping_cycle_df = read_csv(snakemake.input.multi_cropping_yields)
+
     luc_lef_lookup: dict[tuple[str, int, str, str], float] = {}
     carbon_price = float(snakemake.params.emissions["ghg_price"])
     ch4_to_co2_factor = float(snakemake.params.emissions["ch4_to_co2_factor"])
@@ -2407,6 +2571,18 @@ if __name__ == "__main__":
         luc_lef_lookup,
         residue_lookup,
     )
+    if snakemake.params.multiple_cropping:
+        add_multi_cropping_links(
+            n,
+            multi_cropping_area_df,
+            multi_cropping_cycle_df,
+            region_to_country,
+            set(cfg_countries),
+            crop_prices,
+            fertilizer_n_rates,
+            residue_lookup,
+            luc_lef_lookup,
+        )
     if snakemake.params.grazing["enabled"]:
         add_grassland_feed_links(
             n,

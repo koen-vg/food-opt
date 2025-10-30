@@ -66,8 +66,31 @@ def scale_fraction(arr: np.ndarray) -> np.ndarray:
 
 
 def raster_bounds(transform, width: int, height: int):
+    """Calculate bounding box from raster transform and dimensions."""
     xmin = transform.c
     ymax = transform.f
     xmax = xmin + width * transform.a
     ymin = ymax + height * transform.e
     return xmin, ymin, xmax, ymax
+
+
+def read_raster_float(path: str):
+    """Open raster and return array + source, converting nodata to NaN.
+
+    Returns:
+        tuple: (array as float, rasterio source - caller must close)
+    """
+    src = rasterio.open(path)
+    arr = src.read(1).astype(float)
+    if src.nodata is not None:
+        arr = np.where(arr == src.nodata, np.nan, arr)
+    return arr, src
+
+
+def load_raster_array(path: str) -> np.ndarray:
+    """Load raster as float array, converting nodata to NaN."""
+    with rasterio.open(path) as src:
+        arr = src.read(1).astype(float)
+        if src.nodata is not None:
+            arr = np.where(arr == src.nodata, np.nan, arr)
+    return arr

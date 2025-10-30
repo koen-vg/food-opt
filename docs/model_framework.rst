@@ -141,6 +141,15 @@ The efficiency parameters capture:
 * Fertilizer requirement per tonne of crop (``efficiency3``, negative)
 * CO₂ emissions per tonne of crop (``efficiency4``, positive)
 
+Configured multi-cropping sequences reuse the same pattern but emit several crop
+outputs from a single land link. The land input (bus0) reuses the rainfed or irrigated
+land bus (``_r``/``_i``) for the region, while each cycle contributes its own ``bus{n}``
+with efficiency set to the aggregated yield (t/ha) for that crop. Fertilizer
+requirements sum across all cycles before being applied on the fertilizer bus; irrigated
+variants also attach to the region water bus with the summed water requirement.
+At present we ignore relay-cropping possibilities in the GAEZ multiple-cropping
+classification and treat every sequence as strictly sequential within the year.
+
 Resource Flow Structure
 -----------------------
 

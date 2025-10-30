@@ -70,6 +70,12 @@ Data Preparation Rules
   * **Script**: ``workflow/scripts/build_crop_yields.py``
   * **Purpose**: Aggregate yields by (region, class) for each crop
 
+**build_multi_cropping**
+  * **Input**: Resource classes, regions, the RES01 multiple-cropping zone rasters, and the required GAEZ RES05 rasters (yield, suitability, growing season start/length, plus water requirement for irrigated variants) for every crop referenced in ``config.multiple_cropping``
+  * **Output**: ``processing/{name}/multi_cropping/eligible_area.csv`` (eligible hectares, irrigated water requirement), ``processing/{name}/multi_cropping/cycle_yields.csv`` (per-cycle yields)
+  * **Script**: ``workflow/scripts/build_multi_cropping.py``
+  * **Purpose**: Filter pixels by the RES01 class (ignoring relay-only options), confirm crop calendars fit within the year, aggregate eligible hectares to regions/resource classes, and compute per-cycle yields
+
 **build_grassland_yields**
   * **Input**: ISIMIP grassland yield NetCDF, resource classes, regions
   * **Output**: ``processing/{name}/grassland_yields.csv``
@@ -86,10 +92,10 @@ Model Building and Solving
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **build_model**
-  * **Input**: All crop yields, grassland yields, land areas, population, water availability, static data files (crops.csv, foods.csv with pathway-based processing, etc.)
+  * **Input**: All crop yields, multi-cropping aggregates, grassland yields, land areas, population, water availability, static data files (crops.csv, foods.csv with pathway-based processing, etc.)
   * **Output**: ``results/{name}/build/model.nc``
   * **Script**: ``workflow/scripts/build_model.py``
-  * **Purpose**: Construct PyPSA network with all components, links, and constraints. Creates multi-output links for crop→food conversion based on processing pathways defined in foods.csv.
+  * **Purpose**: Construct PyPSA network with all components, links, and constraints. Creates multi-output links for regular crops, configured multi-cropping sequences, and crop→food processing pathways defined in foods.csv.
 
 **solve_model**
   * **Input**: Built model, health data, food-to-risk mapping

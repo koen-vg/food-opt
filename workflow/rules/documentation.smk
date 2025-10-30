@@ -28,6 +28,8 @@ DOC_FIGURES = [
     "crop_yield_wetland-rice",
     "crop_yield_maize",
     "crop_yield_resource_class_wheat",
+    "multi_cropping_potential_rainfed",
+    "multi_cropping_potential_irrigated",
     # Water availability figures
     "water_basin_availability",
     "water_region_availability",
@@ -128,6 +130,34 @@ rule doc_fig_crop_yield_resource_class:
         resource_class_2=2,
     script:
         "../scripts/doc_figures/crop_yield_resource_class.py"
+
+
+rule doc_fig_multi_cropping_potential_rainfed:
+    """Visualise rain-fed multi-cropping zones and regional potential."""
+    input:
+        zone_raster=lambda w: gaez_path("multiple_cropping_zone", "r", "all"),
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+    output:
+        svg="docs/_static/figures/multi_cropping_potential_rainfed.svg",
+        png="docs/_static/figures/multi_cropping_potential_rainfed.png",
+    params:
+        water_supply="rainfed",
+    script:
+        "../scripts/doc_figures/multi_cropping_potential.py"
+
+
+rule doc_fig_multi_cropping_potential_irrigated:
+    """Visualise irrigated multi-cropping zones and regional potential."""
+    input:
+        zone_raster=lambda w: gaez_path("multiple_cropping_zone", "i", "all"),
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+    output:
+        svg="docs/_static/figures/multi_cropping_potential_irrigated.svg",
+        png="docs/_static/figures/multi_cropping_potential_irrigated.png",
+    params:
+        water_supply="irrigated",
+    script:
+        "../scripts/doc_figures/multi_cropping_potential.py"
 
 
 rule doc_fig_water_basin_availability:
