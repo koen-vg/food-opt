@@ -360,7 +360,7 @@ rained or irrigated multi-output link that:
 If any required raster is missing the rule fails early to avoid silently enabling
 unsupported sequences.
 
-.. figure:: /_static/figures/multi_cropping_potential_rainfed.svg
+.. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/multi_cropping_potential_rainfed.png
    :alt: Rain-fed multi-cropping zones and regional potential
    :width: 100%
 
@@ -369,7 +369,7 @@ unsupported sequences.
    multi-cropping (zones C–H). Zones suitable only for relay systems are counted as
    sequential double cropping, consistent with the current model assumptions.
 
-.. figure:: /_static/figures/multi_cropping_potential_irrigated.svg
+.. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/multi_cropping_potential_irrigated.png
    :alt: Irrigated multi-cropping zones and regional potential
    :width: 100%
 
