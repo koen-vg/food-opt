@@ -203,6 +203,8 @@ Trade Configuration
 
 Increase trade costs to explore localized food systems; decrease for globalized trade.
 
+All trade costs are expressed in USD_2024 per tonne per kilometer.
+
 Emissions Pricing
 ~~~~~~~~~~~~~~~~~
 
@@ -236,6 +238,8 @@ Health Configuration
    :end-before: # --- section: aggregation ---
 
 Reduce ``region_clusters`` or ``log_rr_points`` to speed up solving.
+
+The ``value_per_yll`` parameter monetizes health impacts in USD_2024 per year of life lost (YLL).
 
 Solver Configuration
 ~~~~~~~~~~~~~~~~~~~~

@@ -17,6 +17,10 @@ Output
 Notes
 - Strictly uses the `faostat` package to obtain ready-to-use DataFrames.
 - If any crop lacks data, the script writes NaN for its price and logs a warning.
+- **Important**: FAOSTAT prices are in nominal USD for each year. The 2015-2024
+  average computed here mixes different dollar years and is NOT inflation-adjusted.
+  For proper cost modeling in 2024 dollars, these prices should be inflation-adjusted
+  to USD_2024 using appropriate deflators (e.g., US CPI, World Bank GDP deflator).
 """
 
 from collections.abc import Iterable

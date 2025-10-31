@@ -72,7 +72,7 @@ FAOSTAT Producer Prices
 
 **Provider**: FAO Statistics Division
 
-**Description**: Crop producer prices by country (2015-2024) in USD/tonne.
+**Description**: Crop producer prices by country (2015-2024) in nominal USD/tonne.
 
 **Access**: https://www.fao.org/faostat/en/ (PP domain)
 
@@ -81,6 +81,8 @@ FAOSTAT Producer Prices
 **Retrieval**: Via ``faostat`` Python package (``workflow/scripts/retrieve_faostat_prices.py``)
 
 **Usage**: Calibrating production costs in the objective function
+
+**Important note on currency**: FAOSTAT prices are reported in nominal USD for each year. The model currently computes a simple average over 2015-2024, which mixes different dollar years without inflation adjustment. For rigorous cost accounting in USD_2024, these prices should be deflated/inflated to 2024 dollars using an appropriate price index (e.g., US CPI, World Bank GDP deflator).
 
 FAOSTAT Food Balance Sheets (FBS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

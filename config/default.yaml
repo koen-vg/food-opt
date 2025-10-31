@@ -224,10 +224,10 @@ diet:
 # --- section: trade ---
 trade:
   crop_hubs: 20
-  crop_default_trade_cost_per_km: 1e-2
+  crop_default_trade_cost_per_km: 1e-2  # USD_2024 per tonne per km
   crop_trade_cost_categories:
     bulk_dry_goods:
-      cost_per_km: 6e-3
+      cost_per_km: 6e-3  # USD_2024 per tonne per km
       crops:
       - wheat
       - dryland-rice
@@ -240,7 +240,7 @@ trade:
       - dry-pea
       - chickpea
     bulky_fresh:
-      cost_per_km: 1.4e-2
+      cost_per_km: 1.4e-2  # USD_2024 per tonne per km
       crops:
       - white-potato
       - sweet-potato
@@ -249,7 +249,7 @@ trade:
       - sugarbeet
       - biomass-sorghum
     perishable_high_value:
-      cost_per_km: 2.2e-2
+      cost_per_km: 2.2e-2  # USD_2024 per tonne per km
       crops:
       - tomato
       - carrot
@@ -261,10 +261,10 @@ trade:
       - rapeseed
       - groundnut
   animal_product_hubs: 20
-  animal_product_default_trade_cost_per_km: 2.1e-2
+  animal_product_default_trade_cost_per_km: 2.1e-2  # USD_2024 per tonne per km
   animal_product_trade_cost_categories:
     chilled_meat:
-      cost_per_km: 2.8e-2
+      cost_per_km: 2.8e-2  # USD_2024 per tonne per km
       products:
       - meat-cattle
       - meat-pig
@@ -281,7 +281,7 @@ health:
   intake_grid_step: 20   # Intake resolution in g/person/day
   log_rr_points: 10
   omega3_per_100g_fish: 1.5
-  value_per_yll: 150000  # USD per year of life lost
+  value_per_yll: 150000  # USD_2024 per year of life lost
   # Dietary risk factors to consider (must match GDD data items)
   risk_factors:
   - fruits

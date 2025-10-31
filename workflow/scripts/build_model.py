@@ -2469,6 +2469,8 @@ if __name__ == "__main__":
     logger.debug("Nutrition data:\n%s", nutrition.head())
 
     # Read FAOSTAT prices (USD/tonne) and build crop->price mapping
+    # Note: These prices are averaged over 2015-2024 in nominal USD (not inflation-adjusted).
+    # For rigorous cost modeling, should be deflated to USD_2024.
     prices_df = read_csv(snakemake.input.prices)
     # Expect columns: crop, faostat_item, n_obs, price_usd_per_tonne
     crop_prices = prices_df.set_index("crop")["price_usd_per_tonne"].astype(float)

@@ -236,6 +236,8 @@ constructed as
    \text{Cost}_{c,g} = V\, \mathrm{YLL}^{\mathrm{base}}_{c,g}
    \left( \frac{RR_{c,g}}{RR^{\mathrm{ref}}_{c,g}} - 1 \right).
 
+where :math:`V` is the value per year of life lost (configured in ``health.value_per_yll`` as USD_2024 per YLL).
+
 A constant term subtracts
 :math:`V\,\mathrm{YLL}^{\mathrm{base}}_{c,g}` so that the baseline diet has zero
 health cost and only improvements or deteriorations relative to the reference
