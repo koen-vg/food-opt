@@ -18,6 +18,7 @@ import xarray as xr
 
 NO_DATA = -9999.0
 
+
 # Enable GDAL exceptions for better error messages
 gdal.UseExceptions()
 osr.UseExceptions()
@@ -29,31 +30,31 @@ os.environ["GDAL_CACHEMAX"] = "512"
 
 def _load_target_grid(
     grid_path: str,
-) -> tuple[Affine, CRS, tuple[int, int], dict[str, np.ndarray]]:
+) -> tuple[Affine, CRS, tuple[int, int], dict[str, np.ndarray], dict[str, object]]:
     ds = xr.load_dataset(grid_path)
     try:
-        transform = Affine(*ds.attrs["transform"])
+        transform_attr = tuple(ds.attrs["transform"])
     except KeyError as exc:
         raise ValueError("grid definition missing affine transform metadata") from exc
+    target_transform = Affine.from_gdal(*transform_attr)
     try:
         crs = CRS.from_wkt(ds.attrs["crs_wkt"])
     except KeyError as exc:
         raise ValueError("grid definition missing CRS metadata") from exc
 
-    height = int(ds.attrs.get("height", ds.sizes["y"]))
-    width = int(ds.attrs.get("width", ds.sizes["x"]))
-
-    cols = np.arange(width, dtype=np.float64)
-    rows = np.arange(height, dtype=np.float64)
-    lon = transform.c + (cols + 0.5) * transform.a
-    lat = transform.f + (rows + 0.5) * transform.e
-
+    height = int(ds.sizes["y"])
+    width = int(ds.sizes["x"])
     coords = {
-        "y": lat.astype(np.float32),
-        "x": lon.astype(np.float32),
+        "y": ds["y"].astype(np.float32).values,
+        "x": ds["x"].astype(np.float32).values,
     }
-
-    return transform, crs, (height, width), coords
+    attrs = {
+        "transform": transform_attr,
+        "crs_wkt": ds.attrs["crs_wkt"],
+        "height": ds.attrs.get("height", height),
+        "width": ds.attrs.get("width", width),
+    }
+    return target_transform, crs, (height, width), coords, attrs
 
 
 def main() -> None:
@@ -62,12 +63,9 @@ def main() -> None:
     output_path: str = snakemake.output.regrowth  # type: ignore[name-defined]
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    (
-        target_transform,
-        target_crs,
-        target_shape,
-        coords,
-    ) = _load_target_grid(grid_path)
+    target_transform, target_crs, target_shape, coords, attr_template = (
+        _load_target_grid(grid_path)
+    )
 
     # Use WarpedVRT for efficient resampling - much faster than reproject()
     # for large files as it uses GDAL's optimized warping internally
@@ -97,11 +95,8 @@ def main() -> None:
         {
             "regrowth_tc_per_ha_yr": (("y", "x"), dst.astype(np.float32)),
         },
-        coords=coords,
-        attrs={
-            "transform": target_transform.to_gdal(),
-            "crs_wkt": target_crs.to_wkt(),
-        },
+        coords={"y": coords["y"], "x": coords["x"]},
+        attrs=attr_template,
     )
 
     encoding = {

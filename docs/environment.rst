@@ -546,7 +546,7 @@ Conceptual overview
 For every grid cell on the common suitability grid, the workflow computes three main quantities:
 
 * **Pulse emissions (:math:`P_{i,u}`)** – the one-off release (or uptake) that occurs when land transitions from its natural state to land use :math:`u` (cropland or pasture). We estimate above-ground biomass (AGB), below-ground biomass (BGB), and soil organic carbon (SOC) stocks for both the natural and agricultural equilibria, then convert the difference to CO₂ using the stoichiometric factor :math:`44/12`.
-* **Annual regrowth (:math:`R_i`)** – the ongoing sequestration potential when land is spared or allowed to regrow. Regrowth is only applied where forest cover is present in the baseline land-cover map.
+* **Annual regrowth (:math:`R_i`)** – the ongoing sequestration potential when land is spared or allowed to regrow. Regrowth credits are only granted where the baseline land-cover map indicates the area is **eligible for potential forest** (forest fraction above the configured threshold), reflecting that the Cook-Patton & Griscom dataset quantifies how much carbon *could* accumulate if forests were allowed to return.
 * **Managed flux (:math:`M_{i,u}`)** – ongoing emissions from managed systems (e.g., peat oxidation, continuous tillage). The current implementation sets :math:`M_{i,u} = 0` everywhere as a simplifying assumption.
 
 The per-hectare land-use change factor (LEF) combines these components over the planning horizon :math:`H` (years) configured in ``config/default.yaml``:
@@ -565,7 +565,7 @@ The LUC pipeline harmonises several global datasets to the common grid:
 * Land cover fractions and forest masks from Copernicus ESA CCI land cover (:ref:`copernicus-land-cover`)
 * Above-ground biomass from ESA Biomass CCI v6.0 (:ref:`esa-biomass-cci`)
 * Soil organic carbon stocks (0–30 cm) from ISRIC SoilGrids 2.0 (:ref:`soilgrids-soc`), scaled to 1 m depth using IPCC Tier 1 factors
-* Natural forest regrowth rates from Cook-Patton & Griscom (2020) (:ref:`cook-patton-regrowth`)
+* Natural forest regrowth rates from Cook-Patton & Griscom (2020) (:ref:`cook-patton-regrowth`), representing the carbon that would accumulate if previously cleared land were reforested
 * IPCC Tier 1 below-ground biomass ratios, soil depletion factors, and agricultural equilibrium assumptions stored in ``data/luc_zone_parameters.csv``
 
 These layers are reprojected, resampled, and combined by dedicated Snakemake rules to produce per-cell biomass/SOC stocks, forest masks, and regrowth rates ready for downstream processing. Figure :ref:`fig-luc-inputs` summarises the harmonised rasters on the common model grid.
@@ -602,16 +602,19 @@ Regrowth sequestration rates from Cook-Patton et al. (2020) represent **young re
 
 To avoid incorrectly crediting sequestration on mature forest, the LEF calculation for spared land includes a conditional that sets the sequestration benefit to zero where **current above-ground biomass (AGB)** exceeds a configurable threshold (``luc.spared_land_agb_threshold_tc_per_ha``, default 20 tC/ha). Specifically:
 
+Regrowth credits are granted only when **both** of the following hold:
+
 .. math::
 
    \mathrm{LEF}_{\mathrm{spared}} = \begin{cases}
-   -R & \text{if } \mathrm{AGB} \leq \text{threshold} \\
-   0 & \text{if } \mathrm{AGB} > \text{threshold}
+   -R & \text{if } \mathrm{forest\_mask} = 1 \text{ and } \mathrm{AGB} \leq \text{threshold} \\
+   0 & \text{otherwise}
    \end{cases}
 
 This ensures:
 
 * Low-biomass areas (recently cleared or degraded land suitable for agriculture) receive negative LEFs (sequestration credits) if left unused
+* Cells flagged as potential forest by the land-cover dataset are eligible for credits provided their AGB is low enough, representing areas that could regrow quickly if spared
 * High-biomass areas (mature tropical rainforest, boreal forest) receive zero spared-land LEF—their carbon value is already captured via high pulse emissions if converted, but they are not credited for additional regrowth
 
 The threshold of 20 tC/ha is intermediate between typical agricultural land (0-10 tC/ha) and mature forest (50-200+ tC/ha). Areas above this threshold are assumed to represent established vegetation that would not exhibit the rapid early-successional regrowth rates quantified by Cook-Patton et al.
@@ -634,7 +637,7 @@ The current implementation makes several simplifying assumptions that should be 
 
 * **Agricultural biomass stocks**: Cropland and pasture equilibrium above-ground biomass is assumed to be negligible (0 tC/ha) for annual crops. This is a conservative assumption appropriate for grain crops where biomass is harvested annually, but underestimates carbon storage in perennial crops (orchards, oil palm, coffee) and improved pastures. See ``data/luc_zone_parameters.csv`` for the zone-specific parameters.
 
-* **Forest mask threshold**: Regrowth sequestration is only applied to cells with ≥20% forest cover in the baseline land cover map. This threshold can be adjusted via ``config['luc']['forest_fraction_threshold']`` (default: 0.2). The choice of 20% is intermediate between FAO's forest definition (≥10% tree cover) and stricter definitions (≥30%).
+* **Forest mask threshold**: Regrowth sequestration is only applied to cells with ≥20% forest fraction in the land-cover-derived potential forest layer (i.e., areas that would naturally support forest if unmanaged). This threshold can be adjusted via ``config['luc']['forest_fraction_threshold']`` (default: 0.2). Raising the threshold restricts eligibility to areas that are strongly classified as forest; lowering it allows credits on lightly wooded mosaics.
 
 * **Soil organic carbon depth**: SOC stocks in the 0-30 cm layer (from SoilGrids) are scaled to 1 m depth using zone-specific factors from ``data/luc_zone_parameters.csv``. **TODO**: These factors require verification against IPCC 2006/2019 Guidelines Volume 4 Chapter 2 to ensure they match the intended Tier 1 methodology.
 

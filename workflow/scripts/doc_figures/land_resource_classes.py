@@ -47,7 +47,7 @@ def main(
     # Get the geospatial transform to convert pixel coords to lon/lat
     from rasterio.transform import Affine
 
-    transform = Affine(*classes.attrs["transform"])
+    transform = Affine.from_gdal(*classes.attrs["transform"])
 
     # Calculate actual lon/lat coordinates from the transform
     # The x and y in the dataset are just pixel indices, not coordinates

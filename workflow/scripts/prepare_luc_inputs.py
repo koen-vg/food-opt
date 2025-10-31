@@ -26,7 +26,7 @@ def _load_target_grid(
 ) -> tuple[Affine, CRS, tuple[int, int], dict[str, np.ndarray]]:
     ds = xr.load_dataset(resource_classes_path)
     try:
-        transform = Affine(*ds.attrs["transform"])
+        transform = Affine.from_gdal(*ds.attrs["transform"])
     except KeyError as exc:
         raise ValueError(
             "resource_classes.nc missing affine transform metadata"

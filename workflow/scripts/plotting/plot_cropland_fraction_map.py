@@ -235,7 +235,7 @@ def main() -> None:
 
     class_grid = classes_ds["resource_class"].values.astype(np.int16)
     region_grid = classes_ds["region_id"].values.astype(np.int32)
-    transform = Affine(*classes_ds.attrs["transform"])
+    transform = Affine.from_gdal(*classes_ds.attrs["transform"])
     height, width = class_grid.shape
     lon_min, lat_min, lon_max, lat_max = array_bounds(height, width, transform)
     extent = (lon_min, lon_max, lat_min, lat_max)  # Fixed orientation!

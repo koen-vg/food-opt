@@ -286,19 +286,13 @@ def main() -> None:
 
     if not rows:
         pd.DataFrame(columns=OUTPUT_COLUMNS).to_csv(output_path, index=False)
-        logger.info("Residue yields for crop '%s' are empty.", crop)
+        logger.warning("Residue yields for crop '%s' are empty.", crop)
         return
 
     residue_df = pd.DataFrame(rows).sort_values(
         ["feed_item", "water_supply", "region", "resource_class"]
     )
     residue_df.to_csv(output_path, index=False)
-    logger.info(
-        "Computed %d residue entries for crop '%s' (%d feed items).",
-        len(residue_df),
-        crop,
-        residue_df["feed_item"].nunique(),
-    )
 
 
 if __name__ == "__main__":

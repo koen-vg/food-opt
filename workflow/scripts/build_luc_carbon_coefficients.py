@@ -19,7 +19,7 @@ ZONE_ORDER = ["tropical", "temperate", "boreal"]
 
 def _load_transform(ds: xr.Dataset) -> tuple[Affine, int, int, np.ndarray, np.ndarray]:
     try:
-        transform = Affine(*ds.attrs["transform"])
+        transform = Affine.from_gdal(*ds.attrs["transform"])
     except KeyError as exc:
         raise ValueError(
             "resource_classes.nc missing affine transform metadata"
@@ -157,7 +157,10 @@ def main() -> None:
     p_crop = (s_nat - s_ag_crop) * CO2_PER_C
     p_past = (s_nat - s_ag_past) * CO2_PER_C
 
-    regrowth_tc = np.where(forest_mask & np.isfinite(regrowth_tc), regrowth_tc, 0.0)
+    forest_mask_bool = forest_mask.astype(bool)
+    # Only credit regrowth on cells that the potential-forest map flags as forested.
+    eligible_regrowth = forest_mask_bool & np.isfinite(regrowth_tc)
+    regrowth_tc = np.where(eligible_regrowth, regrowth_tc, 0.0)
     regrowth = regrowth_tc * CO2_PER_C
 
     lef_crop = p_crop / horizon_years + regrowth

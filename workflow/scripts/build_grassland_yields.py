@@ -47,7 +47,7 @@ if __name__ == "__main__":
     transform_tuple = ds_classes.attrs.get("transform")
     if transform_tuple is None:
         raise ValueError("resource_classes.nc missing 'transform' attribute")
-    transform = Affine(*transform_tuple)
+    transform = Affine.from_gdal(*transform_tuple)
 
     height, width = class_labels.shape
     bbox = raster_bounds(transform, width, height)

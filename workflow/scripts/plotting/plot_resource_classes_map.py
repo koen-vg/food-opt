@@ -35,7 +35,7 @@ def _load_resource_classes(
         transform_vals = ds.attrs.get("transform")
         if transform_vals is None:
             raise ValueError("NetCDF missing 'transform' attribute")
-        transform = Affine(*transform_vals)
+        transform = Affine.from_gdal(*transform_vals)
         crs_wkt = ds.attrs.get("crs_wkt")
         if not crs_wkt:
             raise ValueError("NetCDF missing 'crs_wkt' attribute for CRS")

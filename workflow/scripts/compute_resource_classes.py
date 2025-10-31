@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # Store transform/CRS/bounds as attrs for downstream use
     ds.attrs.update(
         {
-            "transform": tuple(transform) if hasattr(transform, "__iter__") else None,
+            "transform": transform.to_gdal(),
             "crs_wkt": crs.to_wkt() if crs else None,
             "height": int(height),
             "width": int(width),
