@@ -94,9 +94,9 @@ The following table reproduces the GBD 2021 dietary risk factor definitions from
    * - Diet high in processed meat
      - Average daily consumption (in grams per day) of meat preserved by smoking, curing, salting, or addition of chemical preservatives
      - 0 g/day
-   * - Diet high in sugar-sweetened beverages (SSBs)
-     - Average daily consumption (in grams per day) of beverages with ≥50 kcal per 226.8 gram serving, including carbonated beverages, sodas, energy drinks, and fruit drinks, but excluding 100% fruit and vegetable juices
-     - 0 g/day
+   * - Diet high in sugar-sweetened beverages (SSBs) (refined sugar proxy)
+     - Average daily consumption (in grams per day) of beverages with ≥50 kcal per 226.8 gram serving, including carbonated beverages, sodas, energy drinks, and fruit drinks, but excluding 100% fruit and vegetable juices. Exposures are converted to refined sugar equivalents assuming 5.7 g sugar per 100 g beverage (consistent with the ≥50 kcal threshold).
+     - 0 g/day (refined sugar equivalent)
    * - Diet high in trans fatty acids
      - Average daily consumption (in percent daily energy) of trans fat from all sources, mainly partially hydrogenated vegetable oils and ruminant products
      - 0–1.1% of total daily energy
@@ -109,6 +109,7 @@ The following table reproduces the GBD 2021 dietary risk factor definitions from
 * All intake quantities are in **fresh (as consumed) weight**, matching the GDD dietary intake data convention (see :doc:`current_diets`)
 * **GBD risk factors are evaluated for adult populations (≥25 years)** - the current implementation uses population-weighted "All ages" dietary intake averages, which may underestimate risk for adult-only populations
 * The model currently implements a subset of these risk factors based on data availability and model scope
+* SSB risk-factor exposures are converted to refined sugar equivalents using :code:`health.ssb_sugar_g_per_100g`; added-sugar intake from GDD (variable ``v35``) is aggregated into the same refined-sugar risk factor.
 * Risk factor definitions specify both the intake measure (e.g., grams per day) and the threshold or optimal range
 * "Diet low in" risk factors specify minimum recommended intakes; "diet high in" risk factors treat any intake as risk-increasing
 * Milk/dairy measurements use milk equivalents, where cheese and yogurt are converted to their milk equivalent weight

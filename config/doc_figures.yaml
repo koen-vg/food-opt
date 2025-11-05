@@ -24,6 +24,7 @@ health:
   region_clusters: 15  # Reduced from 30
   intake_grid_step: 20
   log_rr_points: 10
+  ssb_sugar_g_per_100g: 5.7
   risk_factors:
   - fruits
   - vegetables
@@ -33,6 +34,7 @@ health:
   - red_meat
   - prc_meat
   - whole_grains
+  - sugar
   causes:
   - CHD
   - Stroke

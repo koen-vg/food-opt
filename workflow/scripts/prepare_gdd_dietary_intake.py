@@ -32,6 +32,14 @@ def main():
     reference_year = snakemake.params["reference_year"]
     food_groups = snakemake.params["food_groups"]
     output_file = snakemake.output["diet"]
+    ssb_sugar_g_per_100g = float(snakemake.params["ssb_sugar_g_per_100g"])
+    if ssb_sugar_g_per_100g <= 0:
+        print(
+            "ERROR: health.ssb_sugar_g_per_100g must be positive for sugar conversions",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    ssb_sugar_per_gram = ssb_sugar_g_per_100g / 100.0
 
     # Map GDD variable codes (vXX) to model food groups
     # Based on GDD codebook and canonical food_groups.csv
@@ -49,7 +57,8 @@ def main():
         "v11": "fish",  # Total seafoods (fish + shellfish)
         "v12": "eggs",  # Eggs
         "v57": "dairy",  # Total Milk (includes milk equivalents from all dairy)
-        "v15": None,  # Sugar-sweetened beverages (not tracked as food group)
+        "v15": "sugar",  # Sugar-sweetened beverages → refined sugar equivalent
+        "v35": "sugar",  # Added sugars (g/day already reported)
         "v16": None,  # Fruit juices (excluded - not part of GBD fruit risk factor)
         "v17": None,  # Coffee (not tracked as food group)
         "v18": None,  # Tea (not tracked as food group)
@@ -120,13 +129,22 @@ def main():
                     print(f"ERROR: Still no data for {csv_file.name}", file=sys.stderr)
                     continue
 
+            if model_item == "sugar":
+                if varcode == "v15":
+                    beverage_grams = pd.to_numeric(
+                        df_year["median"], errors="coerce"
+                    ).fillna(0.0)
+                    df_year["median"] = beverage_grams * ssb_sugar_per_gram
+                else:
+                    df_year["median"] = pd.to_numeric(
+                        df_year["median"], errors="coerce"
+                    ).fillna(0.0)
+
             # Aggregate to country-age level (weighted mean across sex/urban/education strata)
             # GDD stratifies by age, sex, urban, education
             # We want population-weighted national averages by age group
             # The 'median' column is the mean intake (50th percentile of modeled simulations)
 
-            # Map age midpoints to age buckets compatible with GBD naming
-            # Based on GDD energy adjustment buckets: 0-1, 1-2, 2-5, 6-10, 11-74, 75+
             def map_age_bucket(age_val):
                 if age_val == 999:
                     return "All ages"
@@ -207,6 +225,8 @@ def main():
             return (
                 "g/day (milk equiv)"  # Total milk equivalents from all dairy products
             )
+        if item == "sugar":
+            return "g/day (refined sugar eq)"
         else:
             return "g/day (fresh wt)"  # Fresh/cooked "as consumed" weight
 

@@ -55,6 +55,11 @@ RISK_CONFIG = {
         "unit": "g/day",
         "conversion": 1.0,
     },
+    "Diet high in sugar-sweetened beverages": {
+        "risk_factor": "sugar",
+        "unit": "g/day",
+        "conversion": None,
+    },
 }
 
 
@@ -134,6 +139,7 @@ def _extract_risk_blocks(df: pd.DataFrame) -> dict[str, tuple[int, int]]:
 def _parse_relative_risks(
     df: pd.DataFrame,
     omega3_conversion: float,
+    ssb_sugar_per_gram: float,
 ) -> pd.DataFrame:
     """Parse the Excel sheet into tidy RR records."""
 
@@ -151,6 +157,11 @@ def _parse_relative_risks(
             if omega3_conversion <= 0:
                 raise ValueError("omega3_conversion must be positive")
             conversion = omega3_conversion
+
+        if risk_id == "sugar":
+            if ssb_sugar_per_gram <= 0:
+                raise ValueError("ssb_sugar_per_gram must be positive")
+            conversion = ssb_sugar_per_gram
 
         block = df.iloc[start:end]
         block = block[block[0].notna()]
@@ -233,16 +244,20 @@ def main() -> None:
     input_path = Path(snakemake.input["gbd_rr"])
     output_path = Path(snakemake.output["relative_risks"])
     omega3_per_100g = float(snakemake.params["omega3_per_100g"])
+    ssb_sugar_g_per_100g = float(snakemake.params["ssb_sugar_g_per_100g"])
 
     # Convert g omega-3 per 100 g fish to conversion factor g_fish per g omega-3
     if omega3_per_100g <= 0:
         raise ValueError("omega3_per_100g must be positive")
     omega3_conversion = 100.0 / omega3_per_100g
+    if ssb_sugar_g_per_100g <= 0:
+        raise ValueError("ssb_sugar_g_per_100g must be positive")
+    ssb_sugar_per_gram = ssb_sugar_g_per_100g / 100.0
 
     logger.info(f"Reading {input_path}")
     df = pd.read_excel(input_path, header=None)
 
-    relative_risks = _parse_relative_risks(df, omega3_conversion)
+    relative_risks = _parse_relative_risks(df, omega3_conversion, ssb_sugar_per_gram)
 
     # Validate that we have all required risk factors and causes
     required_risk_factors = set(snakemake.params["risk_factors"])

@@ -271,6 +271,7 @@ def _filter_and_prepare_data(
         "fish_pelag": "fish",
         "fish_demrs": "fish",
         "fish": "fish",
+        "sugar": "sugar",
     }
     diet["risk_factor"] = diet["item"].map(item_to_risk)
     diet = diet.dropna(subset=["risk_factor"])

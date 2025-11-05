@@ -245,6 +245,7 @@ rule prepare_gdd_dietary_intake:
         countries=config["countries"],
         food_groups=list(config["food_groups"].keys()),
         reference_year=config["health"]["reference_year"],
+        ssb_sugar_g_per_100g=config["health"]["ssb_sugar_g_per_100g"],
     output:
         diet="processing/{name}/gdd_dietary_intake.csv",
     script:
@@ -271,6 +272,7 @@ rule prepare_relative_risks:
         risk_factors=config["health"]["risk_factors"],
         causes=config["health"]["causes"],
         omega3_per_100g=config["health"].get("omega3_per_100g_fish", 1.5),
+        ssb_sugar_g_per_100g=config["health"]["ssb_sugar_g_per_100g"],
     output:
         relative_risks=f"processing/{name}/health/relative_risks.csv",
     script:
