@@ -88,6 +88,7 @@ pixi run python <...>
 
 Notes:
 
+- Remember the double dash (--) before any target file, to separate flags from the target file.
 - For now, use the config/toy.yaml configuration file.
 - Snakemake tracks code changes and will rerun affected rules; manual cleanup of workflow artefacts is unnecessary. You almost never have to use the `--forcerun` argument.
 - Prefer small, testable edits and validate by running the narrowest target that exercises your change.
