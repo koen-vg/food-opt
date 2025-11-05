@@ -34,9 +34,7 @@ Brief descriptions of key external datasets used by this project, with links and
 
 ## FAOSTAT — FAO Statistics Division
 
-- Description: FAO’s global statistical database covering food and agriculture domains for 245+ countries and territories from 1961 onward. This project currently uses:
-  - the **Producer Prices (PP)** domain (2015–2024 USD/tonne crop producer prices) for cost calibration.
-  - the **Food Balance Sheets (FBS)** domain to obtain per-capita food supply quantities (kg/capita/year), which feed the food loss and waste scaling step.
+- Description: FAO's global statistical database covering food and agriculture domains for 245+ countries and territories from 1961 onward. This project uses the **Food Balance Sheets (FBS)** domain to obtain per-capita food supply quantities (kg/capita/year), which feed the food loss and waste scaling step.
 - Website: https://www.fao.org/faostat/en/
 - Version/format: Retrieved via the FAOSTAT API using the ``faostat`` Python client (JSON → Pandas DataFrame).
 - License/terms (summary): Datasets disseminated through FAO corporate statistical databases are licensed under Creative Commons Attribution 4.0 International (CC BY 4.0), complemented by FAO’s additional Statistical Database Terms of Use.
@@ -50,6 +48,29 @@ Brief descriptions of key external datasets used by this project, with links and
 - Version/format: JSON retrieved via the UNSD SDG API.
 - License/terms (summary): Data may be copied, duplicated, and redistributed provided UNdata/UNSD is cited as the reference. (UNdata terms: “All data and metadata provided on UNdata’s website are available free of charge and may be copied freely, duplicated and further distributed provided that UNdata is cited as the reference.”)
 - Citation: United Nations Statistics Division. SDG Indicator Database, Goal 12.3.1a/b (Food Loss and Waste). https://unstats.un.org/sdgs/dataportal (accessed YYYY-MM-DD).
+
+## USDA ERS — Cost and Returns Data
+
+- Description: Economic Research Service (ERS) cost and returns data providing detailed production cost estimates (USD per acre) for major U.S. crops. Data includes operating costs (seed, chemicals, custom services, fuel, repairs, labor) and allocated overhead (machinery depreciation, farm overhead, taxes/insurance). This project uses a 10-year average (2015–2024) to establish baseline production costs per hectare.
+- Website: https://www.ers.usda.gov/data-products/commodity-costs-and-returns/
+- Data catalog: https://catalog.data.gov/dataset/commodity-costs-and-returns
+- Version/format: Individual crop CSV files retrieved via direct download from ERS QuickStats portal. URLs are listed in `data/usda_cost_sources.csv`.
+- Coverage: U.S. total (national averages); annual data from 1975 to present depending on crop.
+- License/terms (summary): Creative Commons Attribution (CC BY). Free to use with attribution to USDA Economic Research Service.
+- Citation: U.S. Department of Agriculture, Economic Research Service. Commodity Costs and Returns. https://www.ers.usda.gov/data-products/commodity-costs-and-returns/
+- Workflow integration: Retrieved via the `retrieve_usda_costs` rule, which downloads CSV files, extracts relevant cost categories, applies inflation adjustment using CPI-U, splits costs into per-year (annual fixed) and per-planting (variable per crop) components, and converts from USD/acre to USD/ha. Output: `processing/{name}/usda_costs.csv`. Cost categories are documented in `docs/crop_production.rst` and `docs/data_sources.rst`.
+
+## BLS — Consumer Price Index for All Urban Consumers (CPI-U)
+
+- Description: Bureau of Labor Statistics (BLS) Consumer Price Index for All Urban Consumers (CPI-U), All items, U.S. city average, not seasonally adjusted. This project uses annual averages to adjust nominal USD values throughout the workflow to real USD in a configurable base year (default: 2024).
+- Website: https://www.bls.gov/cpi/
+- API documentation: https://www.bls.gov/developers/api_signature_v2.htm
+- Series ID: CUUR0000SA0
+- Version/format: Retrieved via BLS Public Data API v2.0 (JSON → CSV). Monthly values are averaged to produce annual CPI-U indices.
+- Coverage: 1913 to present (this project retrieves 2015 onwards to cover the USDA cost data period).
+- License/terms (summary): Public domain.
+- Citation: U.S. Bureau of Labor Statistics. Consumer Price Index for All Urban Consumers: All Items in U.S. City Average. https://www.bls.gov/cpi/
+- Workflow integration: Retrieved via the `retrieve_cpi_data` rule and stored in `processing/shared/cpi_annual.csv` for reuse across the workflow. Used by `retrieve_usda_costs` and potentially other rules requiring inflation adjustment.
 
 ## FAO — Nutrient Conversion Table for SUA (2024)
 

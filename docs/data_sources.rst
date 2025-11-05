@@ -67,22 +67,60 @@ CROPGRIDS v1.08
 
 **Usage**: Yield gap analysis (comparing attainable vs. actual yields)
 
-FAOSTAT Producer Prices
-~~~~~~~~~~~~~~~~~~~~~~~~
+USDA Cost and Returns Data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Provider**: FAO Statistics Division
+**Provider**: United States Department of Agriculture Economic Research Service (USDA ERS)
 
-**Description**: Crop producer prices by country (2015-2024) in nominal USD/tonne.
+**Description**: Detailed production cost estimates (USD/acre) for major field crops in the United States, including operating costs and allocated overhead.
 
-**Access**: https://www.fao.org/faostat/en/ (PP domain)
+**Temporal coverage**: 1996-2024 (varies by crop)
 
-**License**: CC BY 4.0 + FAO database terms
+**Access**: https://www.ers.usda.gov/data-products/commodity-costs-and-returns/
 
-**Retrieval**: Via ``faostat`` Python package (``workflow/scripts/retrieve_faostat_prices.py``)
+**License**: Creative Commons Attribution (CC BY)
 
-**Usage**: Calibrating production costs in the objective function
+**Retrieval**: Direct CSV download via ``workflow/scripts/retrieve_usda_costs.py``
 
-**Important note on currency**: FAOSTAT prices are reported in nominal USD for each year. The model currently computes a simple average over 2015-2024, which mixes different dollar years without inflation adjustment. For rigorous cost accounting in USD_2024, these prices should be deflated/inflated to 2024 dollars using an appropriate price index (e.g., US CPI, World Bank GDP deflator).
+**Coverage**: 9 major crops (corn/maize, wheat, rice, barley, oats, sorghum, soybeans, groundnut/peanuts, cotton)
+
+**Usage**: Bottom-up mechanistic estimates of crop production costs per hectare. Costs are split into:
+
+* **Per-year costs** (annual fixed): Machinery depreciation, farm overhead, taxes/insurance
+* **Per-planting costs** (variable): Seed, chemicals, labor, fuel, repairs, custom services
+
+Costs explicitly **excluded** (modeled endogenously):
+
+* Fertilizer costs (nitrogen/phosphorus/potassium modeled separately)
+* Land opportunity costs (land allocation is optimized)
+* Irrigation water costs (water is a separate constraint)
+
+**Cost allocation**: For crops without direct USDA data, costs fall back to similar crops via ``data/crop_cost_fallbacks.yaml`` (e.g., other cereals use wheat costs, other legumes use soybean costs).
+
+**Inflation adjustment**: All costs are inflation-adjusted to a configurable base year (default: 2024) using US CPI-U data from BLS. See :ref:`bls-cpi-data` for details.
+
+.. _bls-cpi-data:
+
+BLS Consumer Price Index (CPI-U)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: U.S. Bureau of Labor Statistics (BLS)
+
+**Description**: Consumer Price Index for All Urban Consumers (CPI-U), U.S. city average, all items. Used for inflation adjustment of cost data.
+
+**Series**: CUUR0000SA0
+
+**Temporal coverage**: 1913-present (monthly data)
+
+**Access**: https://api.bls.gov/publicAPI/v2/timeseries/data/
+
+**License**: Public domain.
+
+**Retrieval**: Automatic via BLS Public Data API (``workflow/scripts/retrieve_cpi_data.py``)
+
+**Usage**: Convert nominal USD values from different years to real USD in a common base year. Annual CPI averages are computed from monthly values and stored in ``processing/shared/cpi_annual.csv`` for reuse across the workflow.
+
+**Configuration**: Base year for currency values is set in ``config/default.yaml`` as ``currency_base_year`` (default: 2024).
 
 FAOSTAT Food Balance Sheets (FBS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

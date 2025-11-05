@@ -38,15 +38,28 @@ rule download_cropgrids_nc_maps:
         "../scripts/download_figshare_file.py"
 
 
-rule retrieve_faostat_prices:
+rule retrieve_cpi_data:
+    params:
+        start_year=2015,
+        end_year=config["currency_base_year"],
+    output:
+        cpi="processing/shared/cpi_annual.csv",
+    script:
+        "../scripts/retrieve_cpi_data.py"
+
+
+rule retrieve_usda_costs:
     input:
-        mapping="data/faostat_item_map.csv",
+        sources="data/usda_cost_sources.csv",
+        mapping="data/crop_cost_fallbacks.yaml",
+        cpi="processing/shared/cpi_annual.csv",
     params:
         crops=config["crops"],
+        base_year=config["currency_base_year"],
     output:
-        prices=f"processing/{name}/faostat_prices.csv",
+        costs=f"processing/{name}/usda_costs.csv",
     script:
-        "../scripts/retrieve_faostat_prices.py"
+        "../scripts/retrieve_usda_costs.py"
 
 
 rule download_gaez_yield_data:

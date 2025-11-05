@@ -5,6 +5,7 @@
 # Default configuration - override in project-specific configs
 # --- section: scenario_metadata ---
 planning_horizon: 2030
+currency_base_year: 2024  # Base year for inflation-adjusted USD values
 
 # --- section: downloads ---
 downloads:

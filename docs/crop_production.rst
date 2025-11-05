@@ -202,6 +202,158 @@ The model constrains:
 * Total water used per region ≤ blue water availability (see water constraints)
 * Total fertilizer used globally ≤ global fertilizer limit
 
+Production Costs
+----------------
+
+Crop production incurs economic costs that are included in the optimization objective. The model uses bottom-up mechanistic cost estimates from USDA Economic Research Service data, providing detailed production cost breakdowns per hectare of planted area.
+
+Data Source
+~~~~~~~~~~~
+
+Cost data comes from the USDA ERS Cost and Returns database, which tracks detailed production costs for major U.S. field crops from 1996-2024. The data is retrieved automatically via ``workflow/scripts/retrieve_usda_costs.py``. The USDA has production cost data on only a subset of crops included in this model:
+
+* **Direct data**: 9 crops with USDA coverage (wheat, maize, rice, barley, oats, sorghum, soybeans, groundnuts, cotton)
+* **Fallback mappings**: Other crops use costs from similar crops via ``data/crop_cost_fallbacks.yaml``
+
+  * Other cereals → wheat or maize
+  * Other legumes → soybean
+  * Vegetables, roots, fruits → wheat (as general row crop proxy)
+  * Oil crops → soybean or groundnut
+
+All costs are inflation-adjusted* to a common base year (configurable via ``currency_base_year`` in ``config/default.yaml``, default: 2024) using CPI-U data from the U.S. Bureau of Labor Statistics.
+
+Cost Structure
+~~~~~~~~~~~~~~
+
+Production costs are split into two categories to accurately model economies of scale in multiple cropping systems:
+
+**Per-year costs** (annual fixed costs):
+
+* Capital recovery of machinery and equipment (depreciation)
+* General farm overhead
+* Taxes and insurance
+
+These costs are incurred once per year regardless of how many crops are planted.
+
+**Per-planting costs** (variable costs per crop):
+
+* Seed
+* Chemicals (pesticides, herbicides)
+* Labor (hired and opportunity cost of unpaid labor)
+* Fuel, lubrication, and electricity
+* Repairs and maintenance
+* Custom services (hired machinery)
+* Interest on operating capital
+
+These costs are incurred for each crop planting operation.
+
+**Example breakdown** (wheat, USD_2024/ha):
+
+* Per-year costs: $354.88/ha
+* Per-planting costs: $306.76/ha
+* **Total single crop**: $661.64/ha
+
+Costs Explicitly Excluded
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To avoid double-counting with endogenously-modeled constraints, the following USDA cost categories are excluded:
+
+* **Fertilizer**: Modeled separately with quantity constraints and emissions
+* **Land opportunity costs**: Land allocation is optimized, not a fixed cost
+* **Irrigation water**: Water is a separate resource constraint with availability limits
+
+Single Crop Production
+~~~~~~~~~~~~~~~~~~~~~~~
+
+For standard single-crop production, the total cost is simply:
+
+.. math::
+
+   \text{Cost}_{\text{single}} = \text{Cost}_{\text{per-year}} + \text{Cost}_{\text{per-planting}}
+
+This cost is applied per hectare of land used (converted to USD/Mha internally for numerical stability):
+
+.. code-block:: python
+
+   # Single crop marginal cost (USD/Mha)
+   marginal_cost = (cost_per_year + cost_per_planting) × 1e6
+
+Multiple Cropping
+~~~~~~~~~~~~~~~~~
+
+For multiple cropping sequences (e.g., wheat followed by rice on the same land), costs are allocated more carefully:
+
+* **Per-year costs are averaged** across crops (machinery, overhead are shared)
+* **Per-planting costs are summed** (each crop requires its own operations)
+
+.. math::
+
+   \text{Cost}_{\text{multi}} = \frac{\sum_i \text{Cost}_{\text{per-year},i}}{n} + \sum_i \text{Cost}_{\text{per-planting},i}
+
+where :math:`n` is the number of crops in the sequence.
+
+**Example: Wheat + Rice** (USD_2024/ha):
+
+* Wheat per-year: $354.88/ha
+* Rice per-year: $604.66/ha
+* Wheat per-planting: $306.76/ha
+* Rice per-planting: $1,541.76/ha
+
+If planted separately:
+
+* Wheat: $661.64/ha
+* Rice: $2,146.42/ha
+* **Total: $2,808.06 on 2 hectares**
+
+If planted sequentially on same hectare:
+
+* Per-year (averaged): ($354.88 + $604.66) / 2 = $479.77/ha
+* Per-planting (summed): $306.76 + $1,541.76 = $1,848.52/ha
+* **Total: $2,328.29 on 1 hectare**
+* **Savings: $479.77 (17.1%)** from shared machinery and overhead
+
+Workflow Processing
+~~~~~~~~~~~~~~~~~~~
+
+Cost data is processed through several steps:
+
+1. **CPI retrieval** (``retrieve_cpi_data`` rule):
+
+   * Fetches annual CPI-U averages from BLS API
+   * Stores in ``processing/shared/cpi_annual.csv``
+   * Reusable across workflow for any inflation adjustment
+
+2. **Cost retrieval** (``retrieve_usda_costs`` rule):
+
+   * Downloads USDA crop cost CSVs
+   * Filters to relevant cost categories (per-year vs. per-planting)
+   * Inflates to base year using CPI data
+   * Averages over 2015-2024
+   * Converts from $/acre to $/ha (factor: 2.47105)
+   * Maps crops via ``data/crop_cost_fallbacks.yaml``
+   * Outputs: ``processing/{name}/usda_costs.csv``
+
+3. **Model integration** (``build_model.py``):
+
+   * Reads split costs (per-year and per-planting)
+   * Applies simple sum for single crops
+   * Applies averaged per-year + summed per-planting for multiple cropping
+
+Configuration
+~~~~~~~~~~~~~
+
+The base year for all currency values is configured in ``config/default.yaml``:
+
+.. code-block:: yaml
+
+   currency_base_year: 2024  # Base year for inflation-adjusted USD values
+
+Changing this value will automatically:
+
+* Adjust CPI retrieval range
+* Inflate all cost data to the new base year
+* Update column names in output files (e.g., ``cost_usd_2025_per_ha``)
+
 Water Constraints
 -----------------
 

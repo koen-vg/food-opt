@@ -643,7 +643,8 @@ def add_regional_crop_production_links(
     yields_data: dict,
     region_to_country: pd.Series,
     allowed_countries: set,
-    crop_prices_usd_per_t: pd.Series,
+    crop_costs_per_year: pd.Series,
+    crop_costs_per_planting: pd.Series,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
 ) -> None:
@@ -699,14 +700,23 @@ def add_regional_crop_production_links(
             if df.empty:
                 continue
 
-            # Price for this crop (USD/tonne); if missing, use 0 (expected for forage crops)
-            price = float(crop_prices_usd_per_t.get(crop, float("nan")))
-            if not np.isfinite(price):
+            # Cost for this crop: per-year + per-planting costs (USD/ha); if missing, use 0
+            cost_year = float(crop_costs_per_year.get(crop, float("nan")))
+            cost_planting = float(crop_costs_per_planting.get(crop, float("nan")))
+
+            if not np.isfinite(cost_year):
+                cost_year = 0.0
+            if not np.isfinite(cost_planting):
+                cost_planting = 0.0
+
+            if cost_year == 0.0 and cost_planting == 0.0:
                 logger.info(
-                    "No FAOSTAT price for crop '%s'; defaulting marginal_cost to 0",
+                    "No USDA cost for crop '%s'; defaulting marginal_cost to 0",
                     crop,
                 )
-                price = 0.0
+
+            # For single crops, total cost = per-year + per-planting
+            cost_per_ha = cost_year + cost_planting
 
             # Add links
             # Connect to class-level land bus per region/resource class and water supply
@@ -723,7 +733,8 @@ def add_regional_crop_production_links(
                 ],
                 dtype=float,
             )  # tCO2/ha/yr
-            base_cost = (price * df["yield"] * 1e6).to_numpy()
+            # Cost is per hectare; convert to per Mha (USD/Mha = USD/ha * 1e6)
+            base_cost = cost_per_ha * 1e6
 
             link_params = {
                 "name": df.index,
@@ -848,7 +859,8 @@ def add_multi_cropping_links(
     cycle_yields: pd.DataFrame,
     region_to_country: pd.Series,
     allowed_countries: set[str],
-    crop_prices_usd_per_t: Mapping[str, float],
+    crop_costs_per_year: Mapping[str, float],
+    crop_costs_per_planting: Mapping[str, float],
     fertilizer_n_rates: Mapping[str, float],
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
@@ -935,18 +947,33 @@ def add_multi_cropping_links(
             "p_nom_max": eligible_ha / 1e6,  # ha → Mha
         }
 
-        total_cost = 0.0
+        # Multiple cropping costs: average per-year costs, sum per-planting costs
+        # Per-year costs (machinery, overhead, etc.) are shared across crops
+        # Per-planting costs (labor, chemicals, etc.) are incurred for each crop
+        total_cost_per_year = 0.0
+        total_cost_per_planting = 0.0
+        n_crops = len(outputs)
+
         for idx_output, (crop, yield_per_ha) in enumerate(outputs):
-            price = float(crop_prices_usd_per_t.get(crop, 0.0))
-            total_cost += price * yield_per_ha * 1e6
+            cost_year = float(crop_costs_per_year.get(crop, 0.0))
+            cost_planting = float(crop_costs_per_planting.get(crop, 0.0))
+
+            total_cost_per_year += cost_year
+            total_cost_per_planting += cost_planting
+
             country_bus = f"crop_{crop}_{country}"
             bus_key = "bus1" if idx_output == 0 else f"bus{idx_output + 1}"
             eff_key = "efficiency" if idx_output == 0 else f"efficiency{idx_output + 1}"
             params[bus_key] = country_bus
             params[eff_key] = yield_per_ha * 1e6  # t/ha → t/Mha
 
-        next_bus_idx = len(outputs) + 1
-        params["marginal_cost"] = total_cost
+        next_bus_idx = n_crops + 1
+        # Average per-year costs across crops, sum per-planting costs
+        avg_cost_per_year = total_cost_per_year / n_crops if n_crops > 0 else 0.0
+        total_cost_per_ha = avg_cost_per_year + total_cost_per_planting
+
+        # Convert cost from USD/ha to USD/Mha
+        params["marginal_cost"] = total_cost_per_ha * 1e6
 
         water_requirement = float(
             getattr(row, "water_requirement_m3_per_ha", 0.0) or 0.0
@@ -2468,35 +2495,22 @@ if __name__ == "__main__":
     logger.debug("Food groups data:\n%s", food_groups.head())
     logger.debug("Nutrition data:\n%s", nutrition.head())
 
-    # Read FAOSTAT prices (USD/tonne) and build crop->price mapping
-    # Note: These prices are averaged over 2015-2024 in nominal USD (not inflation-adjusted).
-    # For rigorous cost modeling, should be deflated to USD_2024.
-    prices_df = read_csv(snakemake.input.prices)
-    # Expect columns: crop, faostat_item, n_obs, price_usd_per_tonne
-    crop_prices = prices_df.set_index("crop")["price_usd_per_tonne"].astype(float)
+    # Read USDA production costs (USD/ha in base year dollars)
+    # Note: These costs are averaged over 2015-2024 and inflation-adjusted.
+    # Costs are per hectare of planted area, independent of yields.
+    # Costs are split into per-year (annual fixed) and per-planting (variable per crop).
+    costs_df = read_csv(snakemake.input.costs)
+    base_year = int(snakemake.config["currency_base_year"])
+    cost_per_year_column = f"cost_per_year_usd_{base_year}_per_ha"
+    cost_per_planting_column = f"cost_per_planting_usd_{base_year}_per_ha"
 
-    # Fill missing fodder crop prices with representative values from similar crops.
-    fodder_price_fallbacks = {
-        "alfalfa": "dry-pea",
-        "biomass-sorghum": "sorghum",
-    }
-    for fodder_crop, reference_crop in fodder_price_fallbacks.items():
-        if fodder_crop in crop_prices.index and not np.isfinite(
-            crop_prices.loc[fodder_crop]
-        ):
-            reference_price = crop_prices.get(reference_crop)
-            if reference_price is None or not np.isfinite(reference_price):
-                raise ValueError(
-                    f"Missing reference price for fodder crop '{fodder_crop}' "
-                    f"(fallback '{reference_crop}')"
-                )
-            logger.info(
-                "Using price %.2f USD/t from '%s' for fodder crop '%s'",
-                reference_price,
-                reference_crop,
-                fodder_crop,
-            )
-            crop_prices.loc[fodder_crop] = reference_price
+    crop_costs_per_year = costs_df.set_index("crop")[cost_per_year_column].astype(float)
+    crop_costs_per_planting = costs_df.set_index("crop")[
+        cost_per_planting_column
+    ].astype(float)
+
+    # For crops with missing cost data, default to 0 (will be flagged in logs)
+    # Fallbacks are handled in the retrieval script via crop_cost_fallbacks.yaml
 
     # Build the network (inlined)
     n = pypsa.Network()
@@ -2609,7 +2623,8 @@ if __name__ == "__main__":
         yields_data,
         region_to_country,
         set(cfg_countries),
-        crop_prices,
+        crop_costs_per_year,
+        crop_costs_per_planting,
         luc_lef_lookup,
         residue_lookup,
     )
@@ -2620,7 +2635,8 @@ if __name__ == "__main__":
             multi_cropping_cycle_df,
             region_to_country,
             set(cfg_countries),
-            crop_prices,
+            crop_costs_per_year,
+            crop_costs_per_planting,
             fertilizer_n_rates,
             residue_lookup,
             luc_lef_lookup,
