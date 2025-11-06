@@ -865,7 +865,7 @@ def add_multi_cropping_links(
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
 ) -> None:
-    """Add multi-cropping production links with multiple crop outputs."""
+    """Add multi-cropping production links with a vectorised workflow."""
 
     if eligible_area.empty or cycle_yields.empty:
         logger.info("No multi-cropping combinations with positive area; skipping")
@@ -874,160 +874,441 @@ def add_multi_cropping_links(
     residue_lookup = residue_lookup or {}
     luc_lef_lookup = luc_lef_lookup or {}
 
+    key_cols = ["combination", "region", "resource_class", "water_supply"]
+
     area_df = eligible_area.copy()
     area_df["resource_class"] = area_df["resource_class"].astype(int)
     area_df["water_supply"] = area_df["water_supply"].astype(str)
-    if "water_requirement_m3_per_ha" not in area_df.columns:
-        area_df["water_requirement_m3_per_ha"] = 0.0
+    area_df["eligible_area_ha"] = pd.to_numeric(
+        area_df["eligible_area_ha"], errors="coerce"
+    )
+    area_df["water_requirement_m3_per_ha"] = pd.to_numeric(
+        area_df.get("water_requirement_m3_per_ha", 0.0), errors="coerce"
+    )
+
+    region_to_country = region_to_country.astype(str)
+    area_df["country"] = area_df["region"].map(region_to_country)
+    area_df = area_df.dropna(subset=["eligible_area_ha", "country"])
+    area_df = area_df[area_df["eligible_area_ha"] > 0]
+    if allowed_countries:
+        area_df = area_df[area_df["country"].isin(allowed_countries)]
+
+    if area_df.empty:
+        logger.info("No eligible multi-cropping areas after filtering; skipping")
+        return
+
     cycle_df = cycle_yields.copy()
     cycle_df["resource_class"] = cycle_df["resource_class"].astype(int)
     cycle_df["water_supply"] = cycle_df["water_supply"].astype(str)
+    cycle_df["yield_t_per_ha"] = pd.to_numeric(
+        cycle_df["yield_t_per_ha"], errors="coerce"
+    )
+    cycle_df = cycle_df.dropna(subset=["yield_t_per_ha", "crop"])
+    cycle_df = cycle_df[cycle_df["yield_t_per_ha"] > 0]
+    if cycle_df.empty:
+        logger.info("No positive multi-cropping yields; skipping")
+        return
 
-    cycle_groups = cycle_df.groupby(
-        ["combination", "region", "resource_class", "water_supply"], sort=False
+    merged = cycle_df.merge(area_df, on=key_cols, how="inner")
+    if merged.empty:
+        logger.info(
+            "No overlapping multi-cropping combinations between area and yield tables"
+        )
+        return
+
+    merged = merged.sort_values([*key_cols, "cycle_index", "crop"])
+    merged["crop"] = merged["crop"].astype(str).str.strip()
+    merged["country"] = merged["country"].astype(str).str.strip()
+    merged["crop_bus"] = "crop_" + merged["crop"] + "_" + merged["country"]
+    merged["yield_efficiency"] = merged["yield_t_per_ha"] * 1e6
+    merged["output_idx"] = merged.groupby(key_cols).cumcount()
+
+    base = (
+        merged.loc[
+            :,
+            [
+                *key_cols,
+                "eligible_area_ha",
+                "water_requirement_m3_per_ha",
+                "country",
+            ],
+        ]
+        .drop_duplicates()
+        .set_index(key_cols)
     )
 
-    for row in area_df.itertuples(index=False):
-        key = (
-            row.combination,
-            row.region,
-            int(row.resource_class),
-            row.water_supply,
+    crop_counts = merged.groupby(key_cols)["crop"].size().rename("crop_count")
+    base = base.join(crop_counts)
+    base = base[base["crop_count"] > 0]
+    if base.empty:
+        logger.info(
+            "Multi-cropping combinations have no positive-yield crops; skipping"
         )
-        if key not in cycle_groups.indices:
-            continue
+        return
 
-        cycles = (
-            cycle_groups.get_group(key)
-            .sort_values("cycle_index")
-            .reset_index(drop=True)
-        )
-        if cycles.empty:
-            continue
+    cost_year_series = pd.Series(
+        {str(k): float(v) for k, v in crop_costs_per_year.items()}
+    )
+    cost_planting_series = pd.Series(
+        {str(k): float(v) for k, v in crop_costs_per_planting.items()}
+    )
+    merged["cost_per_year"] = merged["crop"].map(cost_year_series).fillna(0.0)
+    merged["cost_per_planting"] = merged["crop"].map(cost_planting_series).fillna(0.0)
 
-        eligible_ha = float(row.eligible_area_ha)
-        if not np.isfinite(eligible_ha) or eligible_ha <= 0:
-            continue
+    costs = merged.groupby(key_cols).agg(
+        total_cost_per_year=("cost_per_year", "sum"),
+        total_cost_per_planting=("cost_per_planting", "sum"),
+    )
+    base = base.join(costs)
 
-        country = region_to_country.get(row.region)
-        if not isinstance(country, str):
-            continue
-        if country not in allowed_countries:
-            continue
+    fert_series = pd.Series({str(k): float(v) for k, v in fertilizer_n_rates.items()})
+    merged["fertilizer_rate"] = merged["crop"].map(fert_series).fillna(0.0)
+    fertilizer_totals = (
+        merged.groupby(key_cols)["fertilizer_rate"].sum().rename("fertilizer_total")
+    )
+    base = base.join(fertilizer_totals)
 
-        land_bus = (
-            f"land_{row.region}_class{int(row.resource_class)}_{row.water_supply}"
-        )
-        if land_bus not in n.buses.index:
-            logger.warning(
-                "Land bus '%s' missing; skipping multi-cropping link for %s/%s",
-                land_bus,
-                row.combination,
-                row.region,
+    base[["total_cost_per_year", "total_cost_per_planting", "fertilizer_total"]] = base[
+        ["total_cost_per_year", "total_cost_per_planting", "fertilizer_total"]
+    ].fillna(0.0)
+
+    base["avg_cost_per_year"] = base["total_cost_per_year"] / base["crop_count"]
+    base["marginal_cost"] = (
+        base["avg_cost_per_year"] + base["total_cost_per_planting"]
+    ) * 1e6
+    base["p_nom_extendable"] = True
+    base["p_nom_max"] = base["eligible_area_ha"] / 1e6
+
+    residue_records: list[dict[str, object]] = []
+    for (crop, water, region, res_class), feed_dict in residue_lookup.items():
+        if not isinstance(feed_dict, Mapping):
+            continue
+        for feed_item, value in feed_dict.items():
+            residue_records.append(
+                {
+                    "crop": str(crop),
+                    "water_supply": str(water),
+                    "region": str(region),
+                    "resource_class": int(res_class),
+                    "feed_item": str(feed_item),
+                    "residue_yield": float(value),
+                }
             )
-            continue
 
-        outputs = [
-            (
-                str(cycle_row.crop),
-                float(cycle_row.yield_t_per_ha),
+    if residue_records:
+        residue_df = pd.DataFrame(residue_records)
+        residue_join = merged.merge(
+            residue_df,
+            on=["crop", "region", "resource_class", "water_supply"],
+            how="left",
+        )
+        residue_join = residue_join.dropna(subset=["feed_item", "residue_yield"])
+        residue_join = residue_join[residue_join["residue_yield"] > 0]
+        if residue_join.empty:
+            residue_agg = pd.DataFrame(
+                columns=[*key_cols, "feed_item", "country", "residue_total"],
             )
-            for cycle_row in cycles.itertuples(index=False)
-            if np.isfinite(cycle_row.yield_t_per_ha) and cycle_row.yield_t_per_ha > 0
+        else:
+            residue_agg = (
+                residue_join.groupby([*key_cols, "feed_item", "country"])[
+                    "residue_yield"
+                ]
+                .sum()
+                .rename("residue_total")
+                .reset_index()
+            )
+    else:
+        residue_agg = pd.DataFrame(
+            columns=[*key_cols, "feed_item", "country", "residue_total"],
+        )
+
+    residue_counts = (
+        residue_agg.groupby(key_cols).size().rename("residue_count")
+        if not residue_agg.empty
+        else pd.Series(dtype=int)
+    )
+    base["residue_count"] = 0
+    if not residue_counts.empty:
+        base.loc[residue_counts.index, "residue_count"] = residue_counts
+
+    index_df = base.reset_index()
+    index_df["resource_class"] = index_df["resource_class"].astype(int)
+    index_df["carrier"] = "multi_crop_" + index_df["combination"].astype(str)
+    index_df["bus0"] = (
+        "land_"
+        + index_df["region"].astype(str)
+        + "_class"
+        + index_df["resource_class"].astype(str)
+        + "_"
+        + index_df["water_supply"].astype(str)
+    )
+    index_df["link_name"] = (
+        "produce_multi_"
+        + index_df["combination"].astype(str)
+        + "_"
+        + index_df["water_supply"].astype(str)
+        + "_"
+        + index_df["region"].astype(str)
+        + "_class"
+        + index_df["resource_class"].astype(str)
+    )
+
+    missing_land = index_df[~index_df["bus0"].isin(n.buses.index)]
+    if not missing_land.empty:
+        missing_count = missing_land.shape[0]
+        missing_preview = ", ".join(missing_land["bus0"].unique()[:5])
+        logger.warning(
+            "Skipping %d multi-cropping links due to missing land buses (examples: %s)",
+            missing_count,
+            missing_preview,
+        )
+        index_df = index_df[index_df["bus0"].isin(n.buses.index)]
+
+    if index_df.empty:
+        return
+
+    water_req = index_df["water_requirement_m3_per_ha"].astype(float)
+    water_valid = (
+        index_df["water_supply"].eq("i") & np.isfinite(water_req) & (water_req > 0)
+    )
+    water_invalid = index_df["water_supply"].eq("i") & ~np.isfinite(water_req)
+    if water_invalid.any():
+        logger.warning(
+            "Ignoring invalid irrigation requirements for %d multi-cropping links",
+            int(water_invalid.sum()),
+        )
+
+    index_df["water_efficiency"] = np.where(water_valid, -water_req * 1e-3, 0.0)
+    index_df["has_water"] = water_valid.astype(int)
+
+    fert_total = index_df["fertilizer_total"].astype(float)
+    fert_valid = fert_total > 0
+    index_df["fert_efficiency"] = np.where(
+        fert_valid, -fert_total * 1e6 * KG_TO_MEGATONNE, 0.0
+    )
+    index_df["has_fertilizer"] = fert_valid.astype(int)
+
+    luc_keys = list(
+        zip(
+            index_df["region"].astype(str),
+            index_df["resource_class"].astype(int),
+            index_df["water_supply"].astype(str),
+            ["cropland"] * len(index_df),
+        )
+    )
+    luc_values = np.array([float(luc_lef_lookup.get(key, 0.0)) for key in luc_keys])
+    luc_valid = ~np.isclose(luc_values, 0.0)
+    index_df["luc_efficiency"] = luc_values * 1e6 * TONNE_TO_MEGATONNE
+    index_df["has_luc"] = luc_valid.astype(int)
+
+    outputs = merged.merge(index_df[[*key_cols, "link_name"]], on=key_cols, how="left")
+    outputs["offset"] = outputs["output_idx"] + 1
+    offset_str = outputs["offset"].astype(int).astype(str)
+    outputs["bus_col"] = "bus" + offset_str
+    outputs["eff_col"] = np.where(
+        outputs["offset"].eq(1),
+        "efficiency",
+        "efficiency" + offset_str,
+    )
+    outputs_entries = outputs[
+        [
+            "link_name",
+            "bus_col",
+            "crop_bus",
+            "eff_col",
+            "yield_efficiency",
         ]
-        if not outputs:
-            continue
+    ].rename(columns={"crop_bus": "bus_value", "yield_efficiency": "eff_value"})
 
-        link_name = f"produce_multi_{row.combination}_{row.water_supply}_{row.region}_class{int(row.resource_class)}"
+    entry_frames = [outputs_entries]
 
-        params: dict[str, object] = {
-            "carrier": f"multi_crop_{row.combination}",
-            "bus0": land_bus,
-            "p_nom_extendable": True,
-            "p_nom_max": eligible_ha / 1e6,  # ha → Mha
-        }
+    water_columns = [*key_cols, "link_name", "water_efficiency", "crop_count"]
+    water_entries = index_df.loc[index_df["has_water"] == 1, water_columns].copy()
+    if not water_entries.empty:
+        water_entries["offset"] = water_entries["crop_count"] + 1
+        offset_str = water_entries["offset"].astype(int).astype(str)
+        water_entries["bus_col"] = "bus" + offset_str
+        water_entries["eff_col"] = "efficiency" + offset_str
+        water_entries.loc[water_entries["offset"].eq(1), "eff_col"] = "efficiency"
+        water_entries["bus_value"] = "water_" + water_entries["region"].astype(str)
+        water_entries = water_entries[
+            [
+                "link_name",
+                "bus_col",
+                "bus_value",
+                "eff_col",
+                "water_efficiency",
+            ]
+        ].rename(columns={"water_efficiency": "eff_value"})
+        entry_frames.append(water_entries)
 
-        # Multiple cropping costs: average per-year costs, sum per-planting costs
-        # Per-year costs (machinery, overhead, etc.) are shared across crops
-        # Per-planting costs (labor, chemicals, etc.) are incurred for each crop
-        total_cost_per_year = 0.0
-        total_cost_per_planting = 0.0
-        n_crops = len(outputs)
-
-        for idx_output, (crop, yield_per_ha) in enumerate(outputs):
-            cost_year = float(crop_costs_per_year.get(crop, 0.0))
-            cost_planting = float(crop_costs_per_planting.get(crop, 0.0))
-
-            total_cost_per_year += cost_year
-            total_cost_per_planting += cost_planting
-
-            country_bus = f"crop_{crop}_{country}"
-            bus_key = "bus1" if idx_output == 0 else f"bus{idx_output + 1}"
-            eff_key = "efficiency" if idx_output == 0 else f"efficiency{idx_output + 1}"
-            params[bus_key] = country_bus
-            params[eff_key] = yield_per_ha * 1e6  # t/ha → t/Mha
-
-        next_bus_idx = n_crops + 1
-        # Average per-year costs across crops, sum per-planting costs
-        avg_cost_per_year = total_cost_per_year / n_crops if n_crops > 0 else 0.0
-        total_cost_per_ha = avg_cost_per_year + total_cost_per_planting
-
-        # Convert cost from USD/ha to USD/Mha
-        params["marginal_cost"] = total_cost_per_ha * 1e6
-
-        water_requirement = float(
-            getattr(row, "water_requirement_m3_per_ha", 0.0) or 0.0
+    fert_entries = index_df[index_df["has_fertilizer"] == 1][
+        [
+            *key_cols,
+            "link_name",
+            "country",
+            "fert_efficiency",
+            "crop_count",
+            "has_water",
+        ]
+    ].copy()
+    if not fert_entries.empty:
+        fert_entries["offset"] = (
+            fert_entries["crop_count"] + fert_entries["has_water"] + 1
         )
-        if row.water_supply == "i":
-            if not np.isfinite(water_requirement) or water_requirement < 0:
-                logger.warning(
-                    "Skipping multi-cropping link %s due to invalid water requirement",
-                    link_name,
-                )
-                continue
-            if water_requirement > 0:
-                params[f"bus{next_bus_idx}"] = f"water_{row.region}"
-                params[f"efficiency{next_bus_idx}"] = -water_requirement * 1e-3
-                next_bus_idx += 1
+        offset_str = fert_entries["offset"].astype(int).astype(str)
+        fert_entries["bus_col"] = "bus" + offset_str
+        fert_entries["eff_col"] = "efficiency" + offset_str
+        fert_entries.loc[fert_entries["offset"].eq(1), "eff_col"] = "efficiency"
+        fert_entries["bus_value"] = "fertilizer_" + fert_entries["country"].astype(str)
+        fert_entries = fert_entries[
+            [
+                "link_name",
+                "bus_col",
+                "bus_value",
+                "eff_col",
+                "fert_efficiency",
+            ]
+        ].rename(columns={"fert_efficiency": "eff_value"})
+        entry_frames.append(fert_entries)
 
-        total_fertilizer_rate = sum(
-            float(fertilizer_n_rates.get(crop, 0.0)) for crop, _ in outputs
+    if not residue_agg.empty:
+        residue_entries = residue_agg.merge(
+            index_df[
+                [
+                    *key_cols,
+                    "link_name",
+                    "crop_count",
+                    "has_water",
+                    "has_fertilizer",
+                ]
+            ],
+            on=key_cols,
+            how="left",
         )
-        if total_fertilizer_rate > 0:
-            params[f"bus{next_bus_idx}"] = f"fertilizer_{country}"
-            params[f"efficiency{next_bus_idx}"] = (
-                -total_fertilizer_rate * 1e6 * KG_TO_MEGATONNE
-            )  # kg N/ha → Mt N/Mha
-            next_bus_idx += 1
-
-        residue_efficiencies: dict[str, float] = {}
-        for crop, _yield in outputs:
-            residue_dict = residue_lookup.get(
-                (crop, row.water_supply, row.region, int(row.resource_class)), {}
-            )
-            for feed_item, residue_yield in residue_dict.items():
-                residue_efficiencies[feed_item] = residue_efficiencies.get(
-                    feed_item, 0.0
-                ) + float(residue_yield)
-
-        for feed_item, residue_yield in sorted(residue_efficiencies.items()):
-            if residue_yield <= 0:
-                continue
-            params[f"bus{next_bus_idx}"] = f"residue_{feed_item}_{country}"
-            params[f"efficiency{next_bus_idx}"] = residue_yield * 1e6
-            next_bus_idx += 1
-
-        luc_lef = float(
-            luc_lef_lookup.get(
-                (row.region, int(row.resource_class), row.water_supply, "cropland"),
-                0.0,
-            )
+        residue_entries = residue_entries.sort_values([*key_cols, "feed_item"])
+        residue_entries["entry_order"] = residue_entries.groupby(key_cols).cumcount()
+        residue_entries["offset"] = (
+            residue_entries["crop_count"]
+            + residue_entries["has_water"]
+            + residue_entries["has_fertilizer"]
+            + residue_entries["entry_order"]
+            + 1
         )
-        if not np.isclose(luc_lef, 0.0):
-            params[f"bus{next_bus_idx}"] = "co2"
-            params[f"efficiency{next_bus_idx}"] = luc_lef * 1e6 * TONNE_TO_MEGATONNE
+        offset_str = residue_entries["offset"].astype(int).astype(str)
+        residue_entries["bus_col"] = "bus" + offset_str
+        residue_entries["eff_col"] = "efficiency" + offset_str
+        residue_entries.loc[residue_entries["offset"].eq(1), "eff_col"] = "efficiency"
+        residue_entries["bus_value"] = (
+            "residue_"
+            + residue_entries["feed_item"].astype(str)
+            + "_"
+            + residue_entries["country"].astype(str)
+        )
+        residue_entries["eff_value"] = residue_entries["residue_total"] * 1e6
+        entry_frames.append(
+            residue_entries[
+                [
+                    "link_name",
+                    "bus_col",
+                    "bus_value",
+                    "eff_col",
+                    "eff_value",
+                ]
+            ]
+        )
 
-        n.add("Link", link_name, **params)
+    luc_entries = index_df[index_df["has_luc"] == 1][
+        [
+            *key_cols,
+            "link_name",
+            "luc_efficiency",
+            "crop_count",
+            "has_water",
+            "has_fertilizer",
+            "residue_count",
+        ]
+    ].copy()
+    if not luc_entries.empty:
+        luc_entries["offset"] = (
+            luc_entries["crop_count"]
+            + luc_entries["has_water"]
+            + luc_entries["has_fertilizer"]
+            + luc_entries["residue_count"]
+            + 1
+        )
+        offset_str = luc_entries["offset"].astype(int).astype(str)
+        luc_entries["bus_col"] = "bus" + offset_str
+        luc_entries["eff_col"] = "efficiency" + offset_str
+        luc_entries.loc[luc_entries["offset"].eq(1), "eff_col"] = "efficiency"
+        luc_entries["bus_value"] = "co2"
+        luc_entries = luc_entries[
+            [
+                "link_name",
+                "bus_col",
+                "bus_value",
+                "eff_col",
+                "luc_efficiency",
+            ]
+        ].rename(columns={"luc_efficiency": "eff_value"})
+        entry_frames.append(luc_entries)
+
+    entries = pd.concat(entry_frames, ignore_index=True)
+    bus_wide = entries.pivot_table(
+        index="link_name", columns="bus_col", values="bus_value", aggfunc="first"
+    )
+    eff_wide = entries.pivot_table(
+        index="link_name", columns="eff_col", values="eff_value", aggfunc="first"
+    )
+
+    link_df = index_df.set_index("link_name")
+    component_cols = [
+        "carrier",
+        "bus0",
+        "p_nom_extendable",
+        "p_nom_max",
+        "marginal_cost",
+    ]
+    link_df = link_df[component_cols]
+    link_df = link_df.join(bus_wide, how="left").join(eff_wide, how="left")
+
+    bus_cols = sorted(
+        [c for c in link_df.columns if c.startswith("bus") and c != "bus0"],
+        key=lambda name: int(name[3:]),
+    )
+    eff_cols = [
+        "efficiency",
+        *sorted(
+            [
+                c
+                for c in link_df.columns
+                if c.startswith("efficiency") and c != "efficiency"
+            ],
+            key=lambda name: int(name[len("efficiency") :]),
+        ),
+    ]
+
+    missing_outputs = link_df["bus1"].isna() | link_df["efficiency"].isna()
+    if missing_outputs.any():
+        logger.warning(
+            "Dropping %d multi-cropping links without valid crop outputs",
+            int(missing_outputs.sum()),
+        )
+        link_df = link_df[~missing_outputs]
+
+    if link_df.empty:
+        return
+
+    for col in bus_cols:
+        link_df[col] = link_df[col].where(link_df[col].notna(), None)
+    for col in eff_cols:
+        link_df[col] = link_df[col].fillna(0.0)
+
+    link_names = link_df.index.tolist()
+    kwargs = {
+        col: link_df[col].tolist() for col in component_cols + bus_cols + eff_cols
+    }
+    n.add("Link", link_names, **kwargs)
 
 
 def add_grassland_feed_links(
@@ -2072,11 +2353,16 @@ def _add_trade_hubs_and_links(
     centers = km.cluster_centers_
 
     hub_ids = list(range(n_hubs))
+    hub_bus_names: list[str] = []
+    hub_bus_carriers: list[str] = []
     for item in tradable_items:
         item_label = str(item)
-        hub_bus_names = [f"{hub_name_prefix}_{h}_{item_label}" for h in hub_ids]
-        hub_carriers = [f"{carrier_prefix}{item_label}"] * n_hubs
-        n.add("Bus", hub_bus_names, carrier=hub_carriers)
+        for h in hub_ids:
+            hub_bus_names.append(f"{hub_name_prefix}_{h}_{item_label}")
+            hub_bus_carriers.append(f"{carrier_prefix}{item_label}")
+
+    if hub_bus_names:
+        n.add("Bus", hub_bus_names, carrier=hub_bus_carriers)
 
     gdf_countries = gdf_ee[gdf_ee["country"].isin(countries)].dissolve(
         by="country", as_index=True
@@ -2094,67 +2380,74 @@ def _add_trade_hubs_and_links(
     }
 
     valid_countries = [c for c in countries if c in country_to_hub]
-    for item in tradable_items:
-        if not valid_countries:
-            continue
-        item_label = str(item)
-        names_from_c = [
-            f"{link_name_prefix}_{item_label}_{c}_hub{country_to_hub[c]}"
-            for c in valid_countries
-        ]
-        names_from_hub = [
-            f"{link_name_prefix}_{item_label}_hub{country_to_hub[c]}_{c}"
-            for c in valid_countries
-        ]
-        bus0 = [f"{bus_prefix}{item_label}_{c}" for c in valid_countries]
-        bus1 = [
-            f"{hub_name_prefix}_{country_to_hub[c]}_{item_label}"
-            for c in valid_countries
-        ]
-        item_cost = item_costs.get(item_label, default_cost)
-        costs = [country_to_dist_km[c] * item_cost for c in valid_countries]
+
+    link_names: list[str] = []
+    link_bus0: list[str] = []
+    link_bus1: list[str] = []
+    link_costs: list[float] = []
+
+    if valid_countries:
+        for item in tradable_items:
+            item_label = str(item)
+            item_cost = item_costs.get(item_label, default_cost)
+            for c in valid_countries:
+                hub_idx = country_to_hub[c]
+                cost = country_to_dist_km[c] * item_cost
+
+                country_bus = f"{bus_prefix}{item_label}_{c}"
+                hub_bus = f"{hub_name_prefix}_{hub_idx}_{item_label}"
+
+                link_names.append(f"{link_name_prefix}_{item_label}_{c}_hub{hub_idx}")
+                link_bus0.append(country_bus)
+                link_bus1.append(hub_bus)
+                link_costs.append(cost)
+
+                link_names.append(f"{link_name_prefix}_{item_label}_hub{hub_idx}_{c}")
+                link_bus0.append(hub_bus)
+                link_bus1.append(country_bus)
+                link_costs.append(cost)
+
+    if link_names:
         n.add(
             "Link",
-            names_from_c,
-            bus0=bus0,
-            bus1=bus1,
-            marginal_cost=costs,
-            p_nom_extendable=True,
-        )
-        n.add(
-            "Link",
-            names_from_hub,
-            bus0=bus1,
-            bus1=bus0,
-            marginal_cost=costs,
-            p_nom_extendable=True,
+            link_names,
+            bus0=link_bus0,
+            bus1=link_bus1,
+            marginal_cost=link_costs,
+            p_nom_extendable=[True] * len(link_names),
         )
 
     if n_hubs >= 2:
         H = centers
         D = np.sqrt(((H[:, None, :] - H[None, :, :]) ** 2).sum(axis=2)) / 1000.0
         ii, jj = np.where(~np.eye(n_hubs, dtype=bool))
-        dists_km = D[ii, jj].tolist()
 
-        for item in tradable_items:
-            if len(ii) == 0:
-                continue
-            item_label = str(item)
-            names = [
-                f"{link_name_prefix}_{item_label}_hub{i}_to_hub{j}"
-                for i, j in zip(ii, jj)
-            ]
-            bus0 = [f"{hub_name_prefix}_{i}_{item_label}" for i in ii]
-            bus1 = [f"{hub_name_prefix}_{j}_{item_label}" for j in jj]
-            item_cost = item_costs.get(item_label, default_cost)
-            costs = [d * item_cost for d in dists_km]
+        hub_link_names: list[str] = []
+        hub_link_bus0: list[str] = []
+        hub_link_bus1: list[str] = []
+        hub_link_costs: list[float] = []
+
+        if len(ii) > 0:
+            dists_km = D[ii, jj]
+            for item in tradable_items:
+                item_label = str(item)
+                item_cost = item_costs.get(item_label, default_cost)
+                for i, j, dist in zip(ii, jj, dists_km):
+                    hub_link_names.append(
+                        f"{link_name_prefix}_{item_label}_hub{i}_to_hub{j}"
+                    )
+                    hub_link_bus0.append(f"{hub_name_prefix}_{i}_{item_label}")
+                    hub_link_bus1.append(f"{hub_name_prefix}_{j}_{item_label}")
+                    hub_link_costs.append(float(dist) * item_cost)
+
+        if hub_link_names:
             n.add(
                 "Link",
-                names,
-                bus0=bus0,
-                bus1=bus1,
-                marginal_cost=costs,
-                p_nom_extendable=True,
+                hub_link_names,
+                bus0=hub_link_bus0,
+                bus1=hub_link_bus1,
+                marginal_cost=hub_link_costs,
+                p_nom_extendable=[True] * len(hub_link_names),
             )
 
 

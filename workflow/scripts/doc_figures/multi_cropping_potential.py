@@ -45,7 +45,7 @@ def _calculate_all_cell_areas(src: rasterio.DatasetReader) -> np.ndarray:
     pixel_width_deg = abs(src.transform.a)
     pixel_height_deg = abs(src.transform.e)
     rows, cols = src.height, src.width
-    left, bottom, right, top = src.bounds
+    left, bottom, _right, top = src.bounds
 
     lats = np.linspace(top - pixel_height_deg / 2, bottom + pixel_height_deg / 2, rows)
     geod = Geod(ellps="WGS84")
