@@ -491,6 +491,8 @@ def add_carriers_and_buses(
         n.add("Carrier", sorted(set(feed_carriers)), unit="t")
         n.add("Bus", feed_buses, carrier=feed_carriers)
 
+    n.add("Carrier", "convert_to_feed", unit="t")
+
     # Water carrier (buses added per region below)
     n.add("Carrier", "water", unit="km^3")
 
@@ -1066,6 +1068,10 @@ def add_multi_cropping_links(
 
     if index_df.empty:
         return
+
+    carriers = sorted(index_df["carrier"].unique())
+    if carriers:
+        n.add("Carrier", carriers, unit="Mha")
 
     water_req = index_df["water_requirement_m3_per_ha"].astype(float)
     water_valid = (
@@ -1847,6 +1853,10 @@ def add_feed_to_animal_product_links(
     countries : list
         List of country codes
     """
+
+    produce_carriers = sorted({f"produce_{product!s}" for product in animal_products})
+    if produce_carriers:
+        n.add("Carrier", produce_carriers, unit="t")
 
     if not animal_products:
         logger.info("No animal products configured; skipping feed→animal links")
