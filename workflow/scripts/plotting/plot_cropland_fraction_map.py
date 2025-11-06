@@ -10,6 +10,7 @@ Inputs (via snakemake):
 - input.network: solved PyPSA network (NetCDF)
 - input.regions: regions GeoJSON with a 'region' column
 - input.land_area_by_class: CSV with columns [region, water_supply, resource_class, area_ha]
+  (NOTE: no longer used for total area calculation)
 - input.resource_classes: NetCDF with variables 'resource_class' and 'region_id'
 
 Outputs:
@@ -24,14 +25,14 @@ Optional parameters (snakemake.params):
 - csv_prefix: prefix for CSV column names (default determined from `water_supply`).
 
 Notes:
-- Cropland use is computed from actual land flows supplied by land generators
-  (carrier 'land'), i.e. n.generators_t.p for generators named like
-  'land_{region}_class{k}_{ws}'. Water supply filtering (irrigated vs rainfed)
-  happens via the optional parameter above. This reflects realized land use,
-  not capacity.
-- Total land area per (region, resource class) pair comes from
-  land_area_by_class.csv, filtered to the requested water supply when
-  specified, matching the model's land availability basis.
+- Cropland use is computed from link capacities (p_nom_opt) for links that
+  consume from land buses (bus0 matching 'land_{region}_class{k}_{ws}').
+  Water supply filtering (irrigated vs rainfed) happens via the optional
+  parameter above. This reflects actual cropland allocated by the solver.
+- Total land area per (region, resource class) pair is computed directly from
+  the resource_classes grid by summing cell areas, NOT from land_area_by_class.csv
+  (which contains suitability-weighted areas). This shows actual cropland as a
+  fraction of total land area.
 - Each pixel inherits the cropland fraction of its (region, resource class)
   combination, so within-region spatial patterns remain visible.
 """
@@ -39,6 +40,10 @@ Notes:
 import logging
 from pathlib import Path
 import re
+import sys
+
+# Add parent directory to path for imports from workflow/scripts/
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -51,6 +56,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+from pyproj import Geod
 import pypsa
 from rasterio.transform import array_bounds
 import xarray as xr
@@ -62,44 +68,161 @@ _LAND_GEN_RE = re.compile(
 logger = logging.getLogger(__name__)
 
 
+def _compute_total_land_area_by_region_class(
+    classes_ds: xr.Dataset,
+    regions_gdf: gpd.GeoDataFrame,
+    region_name_to_id: dict[str, int],
+) -> pd.Series:
+    """Compute total land area per (region, resource_class) from grid.
+
+    Args:
+        classes_ds: xarray Dataset with resource_class and region_id variables
+        regions_gdf: GeoDataFrame with regions (already indexed by region name)
+        region_name_to_id: mapping from region name to integer ID
+
+    Returns:
+        Series indexed by (region, resource_class) with total area in hectares
+    """
+    class_grid = classes_ds["resource_class"].values.astype(np.int16)
+    region_grid = classes_ds["region_id"].values.astype(np.int32)
+
+    # Get transform from dataset attributes
+    transform_gdal = classes_ds.attrs.get("transform")
+    if transform_gdal is None:
+        raise ValueError("Dataset missing 'transform' attribute")
+
+    # Extract grid parameters
+    height, width = class_grid.shape
+    pixel_width_deg = abs(transform_gdal[1])
+    pixel_height_deg = abs(transform_gdal[5])
+    left = transform_gdal[0]
+    top = transform_gdal[3]
+    bottom = top + height * transform_gdal[5]  # transform[5] is negative
+
+    # Calculate cell areas per row using Geod (same approach as raster_utils)
+    lats = np.linspace(
+        top - pixel_height_deg / 2, bottom + pixel_height_deg / 2, height
+    )
+    geod = Geod(ellps="WGS84")
+    cell_areas_ha_1d = np.zeros(height, dtype=np.float32)
+
+    for i, lat in enumerate(lats):
+        lat_top = lat + pixel_height_deg / 2
+        lat_bottom = lat - pixel_height_deg / 2
+        lon_left = left
+        lon_right = left + pixel_width_deg
+        lons = [lon_left, lon_right, lon_right, lon_left, lon_left]
+        lats_poly = [lat_bottom, lat_bottom, lat_top, lat_top, lat_bottom]
+        area_m2, _ = geod.polygon_area_perimeter(lons, lats_poly)
+        cell_areas_ha_1d[i] = abs(area_m2) / 10000.0
+
+    # Broadcast to 2D for easier indexing
+    cell_areas_ha = np.repeat(cell_areas_ha_1d[:, np.newaxis], width, axis=1)
+
+    # Aggregate by (region, resource_class)
+    rows: list[tuple[str, int, float]] = []
+    valid_mask = (region_grid >= 0) & (class_grid >= 0)
+
+    if not np.any(valid_mask):
+        return pd.Series(dtype=float, name="total_ha")
+
+    # Iterate over each region and resource class
+    for region_name, region_id in region_name_to_id.items():
+        region_mask = region_grid == region_id
+        if not np.any(region_mask):
+            continue
+
+        # Get unique resource classes in this region
+        classes_in_region = np.unique(class_grid[region_mask & valid_mask])
+
+        for resource_class in classes_in_region:
+            if resource_class < 0:
+                continue
+
+            # Mask for this (region, class) combination
+            mask = region_mask & (class_grid == resource_class)
+
+            # Sum cell areas
+            total_area_ha = float(np.sum(cell_areas_ha[mask]))
+
+            if total_area_ha > 0:
+                rows.append((region_name, int(resource_class), total_area_ha))
+
+    if not rows:
+        return pd.Series(dtype=float, name="total_ha")
+
+    df = pd.DataFrame(rows, columns=["region", "resource_class", "total_ha"])
+    total_area = (
+        df.groupby(["region", "resource_class"], sort=False)["total_ha"]
+        .sum()
+        .astype(float)
+    )
+    total_area.index = total_area.index.set_levels(
+        total_area.index.levels[1].astype(int), level="resource_class"
+    )
+    return total_area
+
+
 def _used_cropland_area_by_region_class(
     n: pypsa.Network, water_supply: str | None
 ) -> pd.Series:
-    """Return used cropland area by region and resource class.
+    """Return used cropland and grassland area by region and resource class.
 
-    Extracts positive output from land generators (carrier 'land') at snapshot
-    'now'. Generator names follow the pattern
-    'land_{region}_class{resource_class}_{water_supply}'. Water supply letters
-    (e.g. r/i) are ignored for aggregation.
+    Extracts land consumption from crop production and grazing links.
+    Uses actual flow (p0) not capacity (p_nom_opt).
+
+    Includes:
+    - Crop production links (carrier starts with 'crop_')
+    - Grazing links (carrier = 'feed_ruminant_grassland')
+
+    Excludes spared land links (carrier='spared_land').
 
     Returns area in hectares.
     """
 
-    if n.generators.empty or n.generators_t.p.empty:
+    if n.links.empty:
         return pd.Series(dtype=float)
 
-    land_gen = n.generators[n.generators["carrier"] == "land"]
-    if land_gen.empty:
+    # Find all links that consume from land buses, based on carrier
+    # Include crop production and grazing, exclude spared land
+    land_links = n.links[
+        (
+            n.links["carrier"].str.startswith("crop_", na=False)
+            | (n.links["carrier"] == "feed_ruminant_grassland")
+        )
+        & (n.links["carrier"] != "spared_land")
+    ]
+
+    if land_links.empty:
         return pd.Series(dtype=float)
 
-    names = land_gen.index
-    if "now" in n.snapshots:
-        p_now = n.generators_t.p.loc["now", names]
-    else:
-        p_now = n.generators_t.p.iloc[0][names]
-    p_now = p_now.fillna(0.0)
+    # Get snapshot - use "now" if available, otherwise first snapshot
+    snapshot = "now" if "now" in n.snapshots else n.snapshots[0]
+
+    # Get actual flow on bus0 (land consumption) for all land links at this snapshot
+    p0_flows = n.links_t.p0.loc[snapshot, land_links.index]
 
     rows: list[tuple[str, int, float]] = []
-    for name, value in p_now.items():
-        match = _LAND_GEN_RE.match(str(name))
+    for idx in land_links.index:
+        link = land_links.loc[idx]
+        bus0 = str(link["bus0"])
+        match = _LAND_GEN_RE.match(bus0)
         if not match:
             continue
+
         region = match.group("region")
         resource_class = int(match.group("resource_class"))
         ws = (match.group("water_supply") or "").lower()
+
         if water_supply is not None and ws != water_supply:
             continue
-        rows.append((region, resource_class, max(float(value), 0.0) * 1e6))
+
+        # Use actual flow from bus0 (p0), not capacity (p_nom_opt)
+        # p0 is in Mha, convert to ha
+        area_mha = max(float(p0_flows.loc[idx]), 0.0)
+        area_ha = area_mha * 1e6
+
+        rows.append((region, resource_class, area_ha))
 
     if not rows:
         return pd.Series(dtype=float)
@@ -143,7 +266,6 @@ def _normalize_water_supply(value: object) -> str | None:
 def main() -> None:
     n = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
-    land_area_csv: str = snakemake.input.land_area_by_class  # type: ignore[name-defined]
     classes_path: str = snakemake.input.resource_classes  # type: ignore[name-defined]
     out_pdf = Path(snakemake.output.pdf)  # type: ignore[name-defined]
 
@@ -167,9 +289,9 @@ def main() -> None:
         "r": "Rainfed Cropland Fraction by Region and Resource Class",
     }
     default_colorbars = {
-        None: "Cropland / total model land area",
-        "i": "Irrigated cropland / irrigable land area",
-        "r": "Rainfed cropland / rainfed land area",
+        None: "Cropland / total land area",
+        "i": "Irrigated cropland / total land area",
+        "r": "Rainfed cropland / total land area",
     }
 
     title = (
@@ -189,24 +311,16 @@ def main() -> None:
     region_name_to_id = {region: idx for idx, region in enumerate(gdf["region"])}
     gdf = gdf.set_index("region", drop=False)
 
+    # Load resource class grid first (needed for total area computation)
+    classes_ds = xr.open_dataset(classes_path, mode="r")
+    if "resource_class" not in classes_ds or "region_id" not in classes_ds:
+        raise ValueError("resource_classes input must contain required variables")
+
     used_ha = _used_cropland_area_by_region_class(n, water_supply)
 
-    df_land = pd.read_csv(land_area_csv)
-    required_cols = {"region", "resource_class", "area_ha"}
-    if not required_cols.issubset(df_land.columns):
-        raise ValueError("land_area_by_class.csv must contain required columns")
-
-    df_land = df_land.dropna(subset=list(required_cols))
-    df_land["resource_class"] = df_land["resource_class"].astype(int)
-    if "water_supply" in df_land.columns:
-        df_land["water_supply"] = (
-            df_land["water_supply"].astype(str).str.strip().str.lower()
-        )
-        if water_supply is not None:
-            df_land = df_land[df_land["water_supply"] == water_supply]
-
-    total_ha = (
-        df_land.groupby(["region", "resource_class"])["area_ha"].sum().astype(float)
+    # Compute total land area (not suitability-weighted) per region/resource_class
+    total_ha = _compute_total_land_area_by_region_class(
+        classes_ds, gdf, region_name_to_id
     )
 
     classes = sorted(
@@ -228,10 +342,6 @@ def main() -> None:
         )
 
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
-
-    classes_ds = xr.open_dataset(classes_path, mode="r")
-    if "resource_class" not in classes_ds or "region_id" not in classes_ds:
-        raise ValueError("resource_classes input must contain required variables")
 
     class_grid = classes_ds["resource_class"].values.astype(np.int16)
     region_grid = classes_ds["region_id"].values.astype(np.int32)
@@ -310,15 +420,7 @@ def main() -> None:
     data = pd.DataFrame(
         {
             f"{csv_prefix}_used_ha": used_ha,
-            (
-                "land_total_ha"
-                if water_supply is None
-                else (
-                    "irrigable_land_total_ha"
-                    if water_supply == "i"
-                    else "rainfed_land_total_ha"
-                )
-            ): total_ha,
+            "total_land_area_ha": total_ha,
             f"{csv_prefix}_fraction": fractions,
         }
     )

@@ -218,7 +218,6 @@ rule plot_cropland_fraction_map:
     input:
         network=f"results/{name}/solved/model.nc",
         regions=f"processing/{name}/regions.geojson",
-        land_area_by_class=f"processing/{name}/land_area_by_class.csv",
         resource_classes=f"processing/{name}/resource_classes.nc",
     output:
         pdf=f"results/{name}/plots/cropland_fraction_map.pdf",
@@ -237,7 +236,7 @@ rule plot_irrigated_cropland_fraction_map:
     params:
         water_supply="i",
         title="Irrigated Cropland Fraction by Region and Resource Class",
-        colorbar_label="Irrigated cropland / irrigable land area",
+        colorbar_label="Irrigated cropland / total land area",
         csv_prefix="irrigated_cropland",
     script:
         "../scripts/plotting/plot_cropland_fraction_map.py"
