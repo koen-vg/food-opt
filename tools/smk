@@ -7,6 +7,7 @@ set -euo pipefail
 
 # Minimal wrapper: run Snakemake under a 10G cgroup cap, no swap.
 # Customize with SMK_MEM_MAX env (e.g., SMK_MEM_MAX=8G).
+# Use -e ENV or --env ENV to select pixi environment.
 
 MEM_MAX=${SMK_MEM_MAX:-10G}
 
@@ -15,14 +16,31 @@ mkdir -p "$PWD/.cache" "$PWD/.tmp"
 export XDG_CACHE_HOME=$PWD/.cache
 export TMPDIR=$PWD/.tmp
 
-# Check if -j argument is already specified
+# Parse environment and jobs arguments
+PIXI_ENV=""
 has_jobs_arg=false
-for arg in "$@"; do
-  if [[ "$arg" =~ ^-j ]]; then
-    has_jobs_arg=true
-    break
-  fi
+new_args=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -e|--env)
+      PIXI_ENV="$2"
+      shift 2
+      ;;
+    -j*)
+      has_jobs_arg=true
+      new_args+=("$1")
+      shift
+      ;;
+    *)
+      new_args+=("$1")
+      shift
+      ;;
+  esac
 done
+
+# Restore args without consumed -e/--env
+set -- "${new_args[@]}"
 
 # Add -j1 if not specified
 if [ "$has_jobs_arg" = false ]; then
@@ -30,9 +48,18 @@ if [ "$has_jobs_arg" = false ]; then
 fi
 
 if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
-  exec systemd-run --user --scope -p MemoryMax="${MEM_MAX}" -p MemorySwapMax=0 \
-    pixi run snakemake "$@"
+  if [ -n "$PIXI_ENV" ]; then
+    exec systemd-run --user --scope -p MemoryMax="${MEM_MAX}" -p MemorySwapMax=0 \
+      pixi run -e "$PIXI_ENV" snakemake "$@"
+  else
+    exec systemd-run --user --scope -p MemoryMax="${MEM_MAX}" -p MemorySwapMax=0 \
+      pixi run snakemake "$@"
+  fi
 fi
 
 echo "[tools/smk] systemd user scope unavailable; running without memory cap" >&2
-exec pixi run snakemake "$@"
+if [ -n "$PIXI_ENV" ]; then
+  exec pixi run -e "$PIXI_ENV" snakemake "$@"
+else
+  exec pixi run snakemake "$@"
+fi
