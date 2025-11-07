@@ -119,14 +119,17 @@ multiple_cropping:
 
 # --- section: macronutrients ---
 macronutrients:
-  carb:
-    min: 250     # g/person/day
-  protein:
-    min: 50      # g/person/day
-  fat:
-    min: 50      # g/person/day
+  # For each of "carb", "protein", "fat" and "kcal" we support "min",
+  # "max" and "equal" keywords, which are given in g/person/day; see
+  # example below.
+  # carb:
+  #   min: 250     # g/person/day
+  # protein:
+  #   min: 50      # g/person/day
+  # fat:
+  #   min: 50      # g/person/day
   kcal:
-    equal: 2400  # kcal/person/day (source: EAT/Lancet 2025)
+    min: 2000
 
 # --- section: byproducts ---
 # Foods that are not for direct human consumption (excluded from food group tracking)
@@ -198,6 +201,8 @@ grazing:
 
 # --- section: food_groups ---
 food_groups:
+  # For each of the below food groups, we support "min", "max" and
+  # "equal" keywords, which are given in g/person/day in fresh weight
   whole_grains:
     min: 0
   grain:

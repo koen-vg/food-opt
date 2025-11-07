@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Toy scenario configuration - inherits from default.yaml
+name: "validation"
+
+validation:
+  use_actual_yields: true
+  use_actual_production: true
+
+macronutrients:
+  kcal:
+    min: 0
+
+solving:
+  solver: gurobi
+
