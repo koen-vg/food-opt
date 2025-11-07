@@ -650,6 +650,7 @@ rule build_model:
         growing_season_water="processing/{name}/water/region_growing_season_water.csv",
         blue_water_availability="processing/{name}/water/blue_water_availability.csv",
         luc_carbon_coefficients=f"processing/{name}/luc/luc_carbon_coefficients.csv",
+        current_grassland_area=f"processing/{name}/luc/current_grassland_area_by_class.csv",
     params:
         crops=config["crops"],
         multiple_cropping=config["multiple_cropping"],

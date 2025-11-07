@@ -285,6 +285,10 @@ Grazing Links
 
 Grassland is routed to its own dedicated ``feed_ruminant_grassland`` pool. This separate category enables special handling of nitrogen: manure from grazing animals is deposited on pasture (not collected), so it produces N₂O emissions but does not contribute to the collected manure fertilizer pool available for cropland.
 
+.. note::
+
+   Validation runs that set ``validation.use_actual_production: true`` also pin grassland production to present-day managed areas. The dataset ``processing/{name}/luc/current_grassland_area_by_class.csv`` is derived from the land-cover fractions prepared for LUC calculations and caps each grazing link at the observed area, forcing the solver to reproduce current grazing output.
+
 Crop Residue Feed Supply
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

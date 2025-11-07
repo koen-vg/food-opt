@@ -82,6 +82,12 @@ Data Preparation Rules
   * **Script**: ``workflow/scripts/build_grassland_yields.py``
   * **Purpose**: Aggregate grassland yields for grazing production
 
+**build_current_grassland_area**
+  * **Input**: Resource classes, land-cover fractions (``processing/{name}/luc/lc_masks.nc``), regions
+  * **Output**: ``processing/{name}/luc/current_grassland_area_by_class.csv``
+  * **Script**: ``workflow/scripts/build_current_grassland_area.py``
+  * **Purpose**: Derive observed managed grassland area by region/resource class from the same land-cover fractions used for LUC calculations; clamps grazing links during validation runs
+
 **prepare_health_costs**
   * **Input**: Regions, DIA health data, population
   * **Output**: ``processing/{name}/health/*.csv`` (risk breakpoints, dose-response, clusters)

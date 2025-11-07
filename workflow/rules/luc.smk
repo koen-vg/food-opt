@@ -79,6 +79,17 @@ rule prepare_luc_inputs:
         "../scripts/prepare_luc_inputs.py"
 
 
+rule build_current_grassland_area:
+    input:
+        classes=f"processing/{name}/resource_classes.nc",
+        lc_masks=rules.prepare_luc_inputs.output.lc_masks,
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        current_area=f"processing/{name}/luc/current_grassland_area_by_class.csv",
+    script:
+        "../scripts/build_current_grassland_area.py"
+
+
 rule build_luc_carbon_coefficients:
     input:
         classes=f"processing/{name}/resource_classes.nc",

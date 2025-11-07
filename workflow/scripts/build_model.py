@@ -1362,6 +1362,8 @@ def add_grassland_feed_links(
     region_to_country: pd.Series,
     allowed_countries: set,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
+    current_grassland_area: pd.DataFrame | None = None,
+    use_actual_production: bool = False,
 ) -> None:
     """Add links supplying ruminant feed directly from rainfed land."""
 
@@ -1381,6 +1383,24 @@ def add_grassland_feed_links(
         land_rainfed[["area_ha"]].rename(columns={"area_ha": "land_area"}),
         how="inner",
     )
+    if use_actual_production:
+        if current_grassland_area is None:
+            raise ValueError(
+                "Observed grassland area data is required when use_actual_production is enabled"
+            )
+        required_cols = {"region", "resource_class", "area_ha"}
+        if not required_cols.issubset(current_grassland_area.columns):
+            raise ValueError(
+                "Current grassland area table missing required columns: "
+                + ", ".join(sorted(required_cols))
+            )
+        observed_area = (
+            current_grassland_area.set_index(["region", "resource_class"])["area_ha"]
+            .astype(float)
+            .rename("observed_area")
+        )
+        merged = merged.join(observed_area, how="left")
+
     if merged.empty:
         logger.info(
             "No overlap between grassland yields and rainfed land areas; skipping"
@@ -1391,6 +1411,13 @@ def add_grassland_feed_links(
     available_area = np.minimum(
         candidate_area.to_numpy(), merged["land_area"].to_numpy()
     )
+    if use_actual_production:
+        observed_area = merged.get("observed_area")
+        observed_vals = (
+            pd.to_numeric(observed_area, errors="coerce").fillna(0.0).to_numpy()
+        )
+        available_area = np.minimum(available_area, observed_vals)
+        merged = merged.drop(columns=["observed_area"])
     merged["available_area"] = available_area
     merged = merged[merged["available_area"] > 0]
     if merged.empty:
@@ -1433,9 +1460,15 @@ def add_grassland_feed_links(
         "bus1": merged["bus1"].tolist(),
         "efficiency": merged["yield"].to_numpy() * 1e6,  # t/ha → t/Mha
         "p_nom_max": merged["available_area"].to_numpy() / 1e6,  # ha → Mha
-        "p_nom_extendable": True,
+        "p_nom_extendable": not use_actual_production,
         "marginal_cost": 0.0,
     }
+
+    if use_actual_production:
+        fixed_area_mha = merged["available_area"].to_numpy() / 1e6
+        params["p_nom"] = fixed_area_mha
+        params["p_nom_min"] = fixed_area_mha
+        params["p_min_pu"] = 1.0
 
     if not np.allclose(luc_emissions, 0.0):
         params["bus2"] = "co2"
@@ -2759,10 +2792,13 @@ if __name__ == "__main__":
 
     land_rainfed_df = land_class_df.xs("r", level="water_supply").copy()
     grassland_df = pd.DataFrame()
+    current_grassland_area_df: pd.DataFrame | None = None
     if snakemake.params.grazing["enabled"]:
         grassland_df = read_csv(
             snakemake.input.grassland_yields, index_col=["region", "resource_class"]
         ).sort_index()
+        if use_actual_production:
+            current_grassland_area_df = read_csv(snakemake.input.current_grassland_area)
 
     blue_water_availability_df = read_csv(snakemake.input.blue_water_availability)
     monthly_region_water_df = read_csv(snakemake.input.monthly_region_water)
@@ -3019,6 +3055,8 @@ if __name__ == "__main__":
             region_to_country,
             set(cfg_countries),
             luc_lef_lookup,
+            current_grassland_area=current_grassland_area_df,
+            use_actual_production=use_actual_production,
         )
     add_food_conversion_links(
         n,
