@@ -88,6 +88,12 @@ Data Preparation Rules
   * **Script**: ``workflow/scripts/build_current_grassland_area.py``
   * **Purpose**: Derive observed managed grassland area by region/resource class from the same land-cover fractions used for LUC calculations; clamps grazing links during validation runs
 
+**build_grazing_only_land**
+  * **Input**: Resource classes, land-cover fractions (``processing/{name}/luc/lc_masks.nc``), rainfed GAEZ suitability rasters
+  * **Output**: ``processing/{name}/land_grazing_only_by_class.csv``
+  * **Script**: ``workflow/scripts/build_grazing_only_land.py``
+  * **Purpose**: Estimate marginal pasture area (grassland that is unsuitable for cropland even after accounting for convertible cropland/forest cover) so grazing can draw from a dedicated land pool without competing with cropland-suitable hectares
+
 **prepare_health_costs**
   * **Input**: Regions, DIA health data, population
   * **Output**: ``processing/{name}/health/*.csv`` (risk breakpoints, dose-response, clusters)

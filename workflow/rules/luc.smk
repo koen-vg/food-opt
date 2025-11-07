@@ -90,6 +90,18 @@ rule build_current_grassland_area:
         "../scripts/build_current_grassland_area.py"
 
 
+rule build_grazing_only_land:
+    input:
+        classes=f"processing/{name}/resource_classes.nc",
+        regions=f"processing/{name}/regions.geojson",
+        lc_masks=rules.prepare_luc_inputs.output.lc_masks,
+        suitability=[gaez_path("suitability", "r", crop) for crop in config["crops"]],
+    output:
+        grazing_area=f"processing/{name}/land_grazing_only_by_class.csv",
+    script:
+        "../scripts/build_grazing_only_land.py"
+
+
 rule build_luc_carbon_coefficients:
     input:
         classes=f"processing/{name}/resource_classes.nc",

@@ -9,6 +9,10 @@ validation:
   use_actual_yields: true
   use_actual_production: true
 
+primary:
+  land:
+    regional_limit: 1.
+
 macronutrients:
   kcal:
     min: 0

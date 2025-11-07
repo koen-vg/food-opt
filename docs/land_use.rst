@@ -159,6 +159,11 @@ The configuration parameter ``aggregation.land_limit_dataset`` controls how land
 
 The "irrigated" option is typically used when you want a uniform land base across all crops, while "suitability" is more realistic but creates more heterogeneity.
 
+Grazing-only Land
+-----------------
+
+Not all grassland can or should compete with cropland. The ``build_grazing_only_land`` rule derives a second land dataset (``processing/{name}/land_grazing_only_by_class.csv``) by combining the ESA CCI land-cover fractions with the GAEZ rainfed suitability maps. For each cell we subtract the cropland-suitable share already accounted for via GAEZ and the current cropland/forest cover reported by ESA; only the residual grassland that lies outside the cropland suitability envelope is aggregated to regions/resource classes. ``build_model`` turns these hectares into ``land_marginal_{region}_class{n}`` buses and adds mirrored ``grassland_marginal_*`` grazing links so ruminant feed can expand on marginal pasture without depleting the cropland land pool.
+
 Irrigated vs. Rainfed Land
 ---------------------------
 

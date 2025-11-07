@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 import functools
 import logging
 
@@ -1363,118 +1363,168 @@ def add_grassland_feed_links(
     allowed_countries: set,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
     current_grassland_area: pd.DataFrame | None = None,
+    pasture_land_area: pd.Series | None = None,
     use_actual_production: bool = False,
 ) -> None:
     """Add links supplying ruminant feed directly from rainfed land."""
 
     luc_lef_lookup = luc_lef_lookup or {}
 
-    df = grassland.copy()
-    df = df[np.isfinite(df["yield"]) & (df["yield"] > 0)]
-    if df.empty:
+    grass_df = grassland.copy()
+    grass_df = grass_df[np.isfinite(grass_df["yield"]) & (grass_df["yield"] > 0)]
+    if grass_df.empty:
         logger.info("Grassland yields contain no positive entries; skipping")
         return
 
-    df = df.reset_index()
-    df["resource_class"] = df["resource_class"].astype(int)
-    df = df.set_index(["region", "resource_class"])
+    grass_df = grass_df.reset_index()
+    grass_df["resource_class"] = grass_df["resource_class"].astype(int)
+    grass_df = grass_df.set_index(["region", "resource_class"])
 
-    merged = df.join(
+    base_frame = grass_df.join(
         land_rainfed[["area_ha"]].rename(columns={"area_ha": "land_area"}),
         how="inner",
     )
     if use_actual_production:
-        if current_grassland_area is None:
-            raise ValueError(
-                "Observed grassland area data is required when use_actual_production is enabled"
-            )
-        required_cols = {"region", "resource_class", "area_ha"}
-        if not required_cols.issubset(current_grassland_area.columns):
-            raise ValueError(
-                "Current grassland area table missing required columns: "
-                + ", ".join(sorted(required_cols))
-            )
         observed_area = (
             current_grassland_area.set_index(["region", "resource_class"])["area_ha"]
             .astype(float)
             .rename("observed_area")
         )
-        merged = merged.join(observed_area, how="left")
+        base_frame = base_frame.join(observed_area, how="left")
 
-    if merged.empty:
-        logger.info(
-            "No overlap between grassland yields and rainfed land areas; skipping"
-        )
-        return
+    candidate_area = base_frame["suitable_area"].fillna(base_frame["land_area"])
+    land_cap = np.minimum(candidate_area.to_numpy(), base_frame["land_area"].to_numpy())
+    base_index = base_frame.index
+    land_cap_series = pd.Series(land_cap, index=base_index, dtype=float)
 
-    candidate_area = merged["suitable_area"].fillna(merged["land_area"])
-    available_area = np.minimum(
-        candidate_area.to_numpy(), merged["land_area"].to_numpy()
-    )
+    cropland_frame = base_frame.copy()
+    marginal_frame: pd.DataFrame | None = None
+
     if use_actual_production:
-        observed_area = merged.get("observed_area")
-        observed_vals = (
-            pd.to_numeric(observed_area, errors="coerce").fillna(0.0).to_numpy()
+        # Under validation the observed harvested/grazed area is split so that
+        # marginal hectares are satisfied first (subject to the derived
+        # land_marginal potential) and only the remainder pulls from the shared
+        # cropland pool.
+        observed_series = (
+            pd.to_numeric(base_frame.get("observed_area"), errors="coerce")
+            .fillna(0.0)
+            .astype(float)
         )
-        available_area = np.minimum(available_area, observed_vals)
-        merged = merged.drop(columns=["observed_area"])
-    merged["available_area"] = available_area
-    merged = merged[merged["available_area"] > 0]
-    if merged.empty:
+        base_frame = base_frame.drop(columns=["observed_area"])
+        if pasture_land_area is not None and not pasture_land_area.empty:
+            marginal_cap_series = pasture_land_area.reindex(base_index, fill_value=0.0)
+        else:
+            marginal_cap_series = pd.Series(0.0, index=base_index, dtype=float)
+        observed_aligned = observed_series.reindex(base_index)
+        marginal_alloc = np.minimum(
+            observed_aligned.to_numpy(), marginal_cap_series.to_numpy()
+        )
+        cropland_observed = np.maximum(
+            observed_aligned.to_numpy() - marginal_alloc, 0.0
+        )
+        cropland_available = np.minimum(land_cap_series.to_numpy(), cropland_observed)
+        cropland_frame["available_area"] = cropland_available
+        cropland_frame = cropland_frame[cropland_frame["available_area"] > 0]
+
+        if np.any(marginal_alloc > 0.0):
+            marginal_series = pd.Series(
+                marginal_alloc,
+                index=base_index,
+                name="available_area",
+            )
+            marginal_frame = grass_df.join(marginal_series, how="inner")
+            marginal_frame = marginal_frame[marginal_frame["available_area"] > 0]
+    else:
+        cropland_frame["available_area"] = land_cap_series.reindex(
+            cropland_frame.index
+        ).to_numpy()
+        cropland_frame = cropland_frame[cropland_frame["available_area"] > 0]
+        if pasture_land_area is not None and not pasture_land_area.empty:
+            marginal_frame = grass_df.join(
+                pasture_land_area.rename("available_area"), how="inner"
+            )
+            marginal_frame = marginal_frame[marginal_frame["available_area"] > 0]
+
+    # Helper to convert a per-region/class frame into Link components. The caller
+    # passes a name prefix so we can distinguish cropland-competing vs.
+    # marginal-only grassland in the network outputs.
+    def _add_links_for_frame(
+        frame: pd.DataFrame,
+        name_prefix: str,
+        bus0_builder: Callable[[pd.Series], str],
+    ) -> bool:
+        if frame is None or frame.empty:
+            return False
+        work = frame.reset_index()
+        work["country"] = work["region"].map(region_to_country)
+        work = work[work["country"].isin(allowed_countries)]
+        work = work.dropna(subset=["country"])
+        if work.empty:
+            return False
+        work["name"] = work.apply(
+            lambda r: f"{name_prefix}_{r['region']}_class{int(r['resource_class'])}",
+            axis=1,
+        )
+        work["bus0"] = work.apply(bus0_builder, axis=1)
+        work["bus1"] = work["country"].apply(lambda c: f"feed_ruminant_grassland_{c}")
+
+        luc_emissions = (
+            np.array(
+                [
+                    luc_lef_lookup.get(
+                        (row["region"], int(row["resource_class"]), "r", "pasture"), 0.0
+                    )
+                    for _, row in work.iterrows()
+                ],
+                dtype=float,
+            )
+            * 1e6
+            * TONNE_TO_MEGATONNE
+        )
+
+        available_mha = work["available_area"].to_numpy() / 1e6
+        params = {
+            "carrier": "feed_ruminant_grassland",
+            "bus0": work["bus0"].tolist(),
+            "bus1": work["bus1"].tolist(),
+            "efficiency": work["yield"].to_numpy() * 1e6,
+            "p_nom_max": available_mha,
+            "p_nom_extendable": not use_actual_production,
+            "marginal_cost": 0.0,
+        }
+        if use_actual_production:
+            params["p_nom"] = available_mha
+            params["p_nom_min"] = available_mha
+            params["p_min_pu"] = 1.0
+        if not np.allclose(luc_emissions, 0.0):
+            params["bus2"] = "co2"
+            params["efficiency2"] = luc_emissions
+
+        n.add("Link", work["name"].tolist(), **params)
+        return True
+
+    link_added = False
+
+    # Standard grassland links consume land from the same rainfed cropland pool
+    # that crops use, so they continue to compete for those hectares when
+    # optimisation is unconstrained.
+    link_added |= _add_links_for_frame(
+        cropland_frame,
+        "grassland",
+        lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_r",
+    )
+
+    if marginal_frame is not None and not marginal_frame.empty:
+        # Marginal grassland links tap into the exclusive land_marginal buses so
+        # grazing can expand without reducing cropland-suitable land.
+        link_added |= _add_links_for_frame(
+            marginal_frame,
+            "grassland_marginal",
+            lambda r: f"land_marginal_{r['region']}_class{int(r['resource_class'])}",
+        )
+
+    if not link_added:
         logger.info("Grassland entries have zero available area; skipping")
-        return
-
-    merged = merged.reset_index()
-    merged["country"] = merged["region"].map(region_to_country)
-    merged = merged[merged["country"].isin(allowed_countries)]
-    merged = merged.dropna(subset=["country"])
-    if merged.empty:
-        logger.info("No grassland regions map to configured countries; skipping")
-        return
-
-    merged["name"] = merged.apply(
-        lambda r: f"graze_{r['region']}_class{int(r['resource_class'])}", axis=1
-    )
-    merged["bus0"] = merged.apply(
-        lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_r", axis=1
-    )
-    merged["bus1"] = merged["country"].apply(lambda c: f"feed_ruminant_grassland_{c}")
-
-    luc_emissions = (
-        np.array(
-            [
-                luc_lef_lookup.get(
-                    (row["region"], int(row["resource_class"]), "r", "pasture"), 0.0
-                )
-                for _, row in merged.iterrows()
-            ],
-            dtype=float,
-        )
-        * 1e6
-        * TONNE_TO_MEGATONNE
-    )  # tCO2/ha/yr → MtCO2/Mha/yr
-
-    params = {
-        "carrier": "feed_ruminant_grassland",
-        "bus0": merged["bus0"].tolist(),
-        "bus1": merged["bus1"].tolist(),
-        "efficiency": merged["yield"].to_numpy() * 1e6,  # t/ha → t/Mha
-        "p_nom_max": merged["available_area"].to_numpy() / 1e6,  # ha → Mha
-        "p_nom_extendable": not use_actual_production,
-        "marginal_cost": 0.0,
-    }
-
-    if use_actual_production:
-        fixed_area_mha = merged["available_area"].to_numpy() / 1e6
-        params["p_nom"] = fixed_area_mha
-        params["p_nom_min"] = fixed_area_mha
-        params["p_min_pu"] = 1.0
-
-    if not np.allclose(luc_emissions, 0.0):
-        params["bus2"] = "co2"
-        params["efficiency2"] = luc_emissions
-
-    n.add("Link", merged["name"].tolist(), **params)
 
 
 def add_spared_land_links(
@@ -2189,26 +2239,32 @@ def _build_food_group_equals_from_baseline(
 
 def add_macronutrient_loads(
     n: pypsa.Network,
+    all_nutrients: list,
     macronutrients_config: dict,
     countries: list,
     population: pd.Series,
     nutrient_units: dict[str, str],
 ) -> None:
-    """Add per-country loads and stores for macronutrient bounds."""
+    """Add per-country loads and stores for macronutrient tracking and bounds.
 
-    if not macronutrients_config:
-        return
+    All nutrients get extendable Stores (to absorb flows from consumption links).
+    Only configured nutrients get Loads (min/equal constraints) and e_nom_max (max constraints).
+    """
 
-    logger.info("Adding macronutrient constraints per country...")
+    logger.info("Adding macronutrient stores and constraints per country...")
 
-    for nutrient, nutrient_config in macronutrients_config.items():
+    for nutrient in all_nutrients:
         unit = nutrient_units[nutrient]
+        names = [f"{nutrient}_{c}" for c in countries]
+        carriers = [nutrient] * len(countries)
+
+        # Get configuration for this nutrient (if any)
+        nutrient_config = (
+            macronutrients_config.get(nutrient, {}) if macronutrients_config else {}
+        )
         equal_value = nutrient_config.get("equal")
         min_value = nutrient_config.get("min")
         max_value = nutrient_config.get("max")
-
-        names = [f"{nutrient}_{c}" for c in countries]
-        carriers = [nutrient] * len(countries)
 
         # Handle equality constraint
         if equal_value is not None:
@@ -2217,6 +2273,7 @@ def add_macronutrient_loads(
                 for c in countries
             ]
             n.add("Load", names, bus=names, carrier=carriers, p_set=p_set)
+            # For equality constraints, we don't need a Store (Load fixes the flow)
             continue
 
         # Handle min constraint with Load
@@ -2228,33 +2285,33 @@ def add_macronutrient_loads(
             ]
             n.add("Load", names, bus=names, carrier=carriers, p_set=min_totals)
 
-        # Handle max constraint with Store
-        if max_value is not None or min_value is not None:
-            store_names = [f"store_{nutrient}_{c}" for c in countries]
+        # Always add Store (to absorb consumption flows)
+        # Only set e_nom_max if max constraint is configured
+        store_names = [f"store_{nutrient}_{c}" for c in countries]
 
-            e_nom_max = None
-            if max_value is not None:
-                max_totals = [
-                    _per_capita_to_bus_units(max_value, float(population[c]), unit)
-                    for c in countries
+        e_nom_max = None
+        if max_value is not None:
+            max_totals = [
+                _per_capita_to_bus_units(max_value, float(population[c]), unit)
+                for c in countries
+            ]
+            if min_totals is not None:
+                e_nom_max = [
+                    max(max_t - min_t, 0.0)
+                    for max_t, min_t in zip(max_totals, min_totals)
                 ]
-                if min_totals is not None:
-                    e_nom_max = [
-                        max(max_t - min_t, 0.0)
-                        for max_t, min_t in zip(max_totals, min_totals)
-                    ]
-                else:
-                    e_nom_max = max_totals
+            else:
+                e_nom_max = max_totals
 
-            n.add(
-                "Store",
-                store_names,
-                bus=names,
-                carrier=carriers,
-                e_nom_extendable=True,
-                e_cyclic=False,
-                **({"e_nom_max": e_nom_max} if e_nom_max is not None else {}),
-            )
+        n.add(
+            "Store",
+            store_names,
+            bus=names,
+            carrier=carriers,
+            e_nom_extendable=True,
+            e_cyclic=False,
+            **({"e_nom_max": e_nom_max} if e_nom_max is not None else {}),
+        )
 
 
 def add_food_nutrition_links(
@@ -2793,12 +2850,20 @@ if __name__ == "__main__":
     land_rainfed_df = land_class_df.xs("r", level="water_supply").copy()
     grassland_df = pd.DataFrame()
     current_grassland_area_df: pd.DataFrame | None = None
+    grazing_only_area_series: pd.Series | None = None
     if snakemake.params.grazing["enabled"]:
         grassland_df = read_csv(
             snakemake.input.grassland_yields, index_col=["region", "resource_class"]
         ).sort_index()
         if use_actual_production:
             current_grassland_area_df = read_csv(snakemake.input.current_grassland_area)
+        grazing_only_area_df = read_csv(snakemake.input.grazing_only_land)
+        if not grazing_only_area_df.empty:
+            grazing_only_area_series = (
+                grazing_only_area_df.set_index(["region", "resource_class"])["area_ha"]
+                .astype(float)
+                .sort_index()
+            )
 
     blue_water_availability_df = read_csv(snakemake.input.blue_water_availability)
     monthly_region_water_df = read_csv(snakemake.input.monthly_region_water)
@@ -2973,6 +3038,9 @@ if __name__ == "__main__":
         .set_index("nutrient")["unit"]
         .to_dict()
     )
+    # All nutrients from nutrition data get buses (tracked but not necessarily constrained)
+    all_nutrient_names = list(nutrient_units.keys())
+    # Only configured macronutrients get constraints applied
     macronutrient_names = list(macronutrient_cfg.keys()) if macronutrient_cfg else []
 
     add_carriers_and_buses(
@@ -2981,7 +3049,7 @@ if __name__ == "__main__":
         food_list,
         residue_feed_items,
         food_group_list,
-        macronutrient_names,
+        all_nutrient_names,
         nutrient_units,
         cfg_countries,
         regions,
@@ -3015,6 +3083,26 @@ if __name__ == "__main__":
         p_nom_extendable=[True] * len(bus_names),
         p_nom_max=(reg_limit * land_class_df["area_ha"] / 1e6).values,  # ha → Mha
     )
+
+    # Land that is unsuitable for crop production but usable for grazing-only
+    # expansion. Derived from the ESA/GAEZ overlay prepared by
+    # build_grazing_only_land.
+    marginal_bus_names: list[str] = []
+    if grazing_only_area_series is not None and not grazing_only_area_series.empty:
+        marginal_bus_names = [
+            f"land_marginal_{region}_class{int(cls)}"
+            for region, cls in grazing_only_area_series.index
+        ]
+        n.add("Bus", marginal_bus_names, carrier=["land"] * len(marginal_bus_names))
+        n.add(
+            "Generator",
+            marginal_bus_names,
+            bus=marginal_bus_names,
+            carrier=["land"] * len(marginal_bus_names),
+            p_nom_extendable=[True] * len(marginal_bus_names),
+            p_nom_max=(reg_limit * grazing_only_area_series.values / 1e6),
+        )
+
     add_spared_land_links(n, land_class_df, luc_lef_lookup)
     add_regional_crop_production_links(
         n,
@@ -3056,6 +3144,7 @@ if __name__ == "__main__":
             set(cfg_countries),
             luc_lef_lookup,
             current_grassland_area=current_grassland_area_df,
+            pasture_land_area=grazing_only_area_series,
             use_actual_production=use_actual_production,
         )
     add_food_conversion_links(
@@ -3102,6 +3191,7 @@ if __name__ == "__main__":
     )
     add_macronutrient_loads(
         n,
+        all_nutrient_names,
         macronutrient_cfg,
         cfg_countries,
         population,

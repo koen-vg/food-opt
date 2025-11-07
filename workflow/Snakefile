@@ -50,7 +50,6 @@ def get_gaez_code(crop_name: str, module: str) -> str:
 
 
 include: "rules/retrieve.smk"
-include: "rules/luc.smk"
 include: "rules/plotting.smk"
 include: "rules/yield_gaps.smk"
 include: "rules/documentation.smk"
@@ -353,6 +352,9 @@ def gaez_path(kind: str, water_supply: str, crop: str) -> str:
     return f"{prefix}_{climate}_{period}_{scenario}_{input_level}_{ws}_{crop}.tif"
 
 
+include: "rules/luc.smk"
+
+
 rule compute_resource_classes:
     input:
         yields=(
@@ -651,6 +653,7 @@ rule build_model:
         blue_water_availability="processing/{name}/water/blue_water_availability.csv",
         luc_carbon_coefficients=f"processing/{name}/luc/luc_carbon_coefficients.csv",
         current_grassland_area=f"processing/{name}/luc/current_grassland_area_by_class.csv",
+        grazing_only_land=f"processing/{name}/land_grazing_only_by_class.csv",
     params:
         crops=config["crops"],
         multiple_cropping=config["multiple_cropping"],
