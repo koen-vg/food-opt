@@ -18,6 +18,7 @@ GRASSH2,grassland,forage,ruminant,Hay from adjacent areas (same as GRASSF)
 GRASSLEGF,alfalfa,crop,ruminant,Fresh grass-legume mixture → alfalfa
 GRASSLEGH,alfalfa,crop,ruminant,Hay/silage from grass-legume → alfalfa
 FDDRSIL,silage-maize,crop,ruminant,Fodder crops silage → silage-maize
+FDDRSIL,biomass-sorghum,crop,ruminant,Approximate match though sorghum has lower nitrogen content than assumed for FDDRSIL
 RSTRAW,rice-straw,residue,ruminant,Rice straw and residues
 WSTRAW,wheat-straw,residue,ruminant,Wheat straw and residues
 BSTRAW,barley-straw,residue,ruminant,Barley/rye/oat straw

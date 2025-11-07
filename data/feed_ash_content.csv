@@ -31,6 +31,7 @@ rapeseed-meal,7.6,"Rapeseed meal, oil < 5%",Rapeseed/canola meal
 rice-straw,6.6,Wheat straw,No rice straw - using wheat straw as cereal residue proxy
 silage-maize,1.4,Maize,Using maize grain as proxy for whole plant silage
 sorghum,2.1,Sorghum,Sorghum grain
+biomass-sorghum,2.1,Sorghum,Using grain sorghum ash as closest available entry on feedtables.com
 sorghum-stover,6.6,Wheat straw,No sorghum stover - using wheat straw as cereal residue proxy
 soybean,5.7,"Soybean, whole, extruded",Soybean grain
 soybean-oil,0.0,Soybean oil,Soybean oil (processed)
