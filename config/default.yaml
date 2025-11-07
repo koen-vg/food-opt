@@ -11,6 +11,11 @@ currency_base_year: 2024  # Base year for inflation-adjusted USD values
 downloads:
   show_progress: true
 
+# --- section: validation ---
+validation:
+  use_actual_yields: false
+  use_actual_production: false
+
 # --- section: primary ---
 primary:
   land:

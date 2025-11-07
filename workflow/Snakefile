@@ -315,7 +315,7 @@ rule prepare_health_costs:
 def gaez_path(kind: str, water_supply: str, crop: str) -> str:
     """Return GAEZ v5 raster path for a given kind and water supply.
 
-    kind: one of {"yield", "suitability", "water_requirement", "growing_season_start", "growing_season_length", "actual_yield"}
+    kind: one of {"yield", "suitability", "water_requirement", "growing_season_start", "growing_season_length", "actual_yield", "harvested_area"}
     water_supply: "i" (irrigated) or "r" (rainfed)
     crop: crop name (e.g., "wheat")
     """
@@ -325,6 +325,8 @@ def gaez_path(kind: str, water_supply: str, crop: str) -> str:
 
     if kind == "actual_yield":
         return f"data/downloads/gaez_actual_yield_{ws}_{crop}.tif"
+    if kind == "harvested_area":
+        return f"data/downloads/gaez_harvested_area_{ws}_{crop}.tif"
 
     climate = gaez_cfg["climate_model"]
     period = gaez_cfg["period"]
@@ -391,9 +393,11 @@ def yield_and_suitability_for_crop(w):
     """
     crop = w.crop
     ws = w.water_supply
+    use_actual = config.get("validation", {}).get("use_actual_yields", False)
+    yield_kind = "actual_yield" if use_actual else "yield"
 
     inputs = {
-        "yield_raster": gaez_path("yield", ws, crop),
+        "yield_raster": gaez_path(yield_kind, ws, crop),
         "suitability_raster": gaez_path("suitability", ws, crop),
         "growing_season_start_raster": gaez_path("growing_season_start", ws, crop),
         "growing_season_length_raster": gaez_path("growing_season_length", ws, crop),
@@ -401,6 +405,20 @@ def yield_and_suitability_for_crop(w):
     if ws == "i":
         inputs["water_requirement_raster"] = gaez_path("water_requirement", ws, crop)
     return inputs
+
+
+def harvested_area_inputs(w):
+    """Get input files for build_harvested_area rule."""
+
+    crop = w.crop
+    ws = w.water_supply
+    return {
+        "harvested_area_raster": gaez_path("harvested_area", ws, crop),
+        "classes": f"processing/{name}/resource_classes.nc",
+        "regions": f"processing/{name}/regions.geojson",
+        "crop_mapping": "data/gaez_crop_code_mapping.csv",
+        "faostat_production": f"processing/{name}/faostat_crop_production.csv",
+    }
 
 
 rule build_crop_yields:
@@ -413,6 +431,15 @@ rule build_crop_yields:
         f"processing/{name}/crop_yields/{{crop}}_{{water_supply}}.csv",
     script:
         "scripts/build_crop_yields.py"
+
+
+rule build_harvested_area:
+    input:
+        unpack(harvested_area_inputs),
+    output:
+        f"processing/{name}/harvested_area/{{crop}}_{{water_supply}}.csv",
+    script:
+        "scripts/build_harvested_area.py"
 
 
 def multi_cropping_inputs(_wildcards):
@@ -544,6 +571,27 @@ def yield_inputs(wildcards):
     }
 
 
+def harvested_area_model_inputs(_wildcards):
+    """Return harvested area files when actual production mode is enabled."""
+
+    if not config.get("validation", {}).get("use_actual_production", False):
+        return {}
+
+    irr_cfg = config["irrigation"]["irrigated_crops"]
+    if irr_cfg == "all":
+        irrigated_crops = config["crops"]
+    else:
+        irrigated_crops = list(irr_cfg)
+
+    inputs = {
+        f"{crop}_harvested_r": f"processing/{name}/harvested_area/{crop}_r.csv"
+        for crop in config["crops"]
+    }
+    for crop in irrigated_crops:
+        inputs[f"{crop}_harvested_i"] = f"processing/{name}/harvested_area/{crop}_i.csv"
+    return inputs
+
+
 rule build_crop_residue_yields:
     input:
         yield_r=lambda wildcards: f"processing/{wildcards.name}/crop_yields/{wildcards.crop}_r.csv",
@@ -576,6 +624,7 @@ rule build_model:
     input:
         unpack(yield_inputs),
         unpack(residue_yield_inputs),
+        unpack(harvested_area_model_inputs),
         fertilizer_n_rates="processing/{name}/global_fertilizer_n_rates.csv",
         foods="data/foods.csv",
         moisture_content="data/crop_moisture_content.csv",

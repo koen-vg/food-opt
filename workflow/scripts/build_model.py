@@ -533,27 +533,32 @@ def add_primary_resources(
     co2_price: float,
     ch4_to_co2_factor: float,
     n2o_to_co2_factor: float,
+    use_actual_production: bool,
 ) -> None:
     """Add primary resource components and emissions bookkeeping."""
-    # Filter to positive water limits and build stores
-    df = region_water_limits[region_water_limits > 0].to_frame("limit_m3")
-    df["limit_km3"] = df["limit_m3"] * KM3_PER_M3
-    store_names = [f"water_store_{region}" for region in df.index]
-    bus_names = [f"water_{region}" for region in df.index]
-    limit_km3 = df["limit_km3"].tolist()
-
+    # Water limits
+    water_limits = region_water_limits * KM3_PER_M3
     n.add(
         "Store",
-        store_names,
-        bus=bus_names,
+        "water_store_" + water_limits.index,
+        bus="water_" + water_limits.index,
         carrier="water",
-        e_nom=limit_km3,
-        e_initial=limit_km3,
+        e_nom=water_limits.values,
+        e_initial=water_limits.values,
         e_nom_extendable=False,
         e_cyclic=False,
-        p_nom=limit_km3,
-        p_nom_extendable=False,
     )
+
+    # Slack in water limits when using actual (current) production
+    if use_actual_production:
+        n.add(
+            "Generator",
+            "water_slack_" + water_limits.index,
+            bus="water_" + water_limits.index,
+            carrier="water",
+            marginal_cost=1e-6,
+            p_nom_extendable=True,
+        )
 
     scale_meta = n.meta.setdefault("carrier_unit_scale", {})
     scale_meta["water_km3_per_m3"] = KM3_PER_M3
@@ -649,6 +654,8 @@ def add_regional_crop_production_links(
     crop_costs_per_planting: pd.Series,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
+    harvested_area_data: Mapping[str, pd.DataFrame] | None = None,
+    use_actual_production: bool = False,
 ) -> None:
     """Add crop production links per region/resource class and water supply.
 
@@ -658,6 +665,7 @@ def add_regional_crop_production_links(
     """
     luc_lef_lookup = luc_lef_lookup or {}
     residue_lookup = residue_lookup or {}
+    harvested_area_data = harvested_area_data or {}
 
     for crop in crop_list:
         # Get fertilizer N application rate (kg N/ha/year) for this crop
@@ -678,6 +686,23 @@ def add_regional_crop_production_links(
             key = f"{crop}_yield_{ws}"
             crop_yields = yields_data[key].copy()
 
+            if use_actual_production:
+                harvest_key = f"{crop}_harvested_{ws}"
+                try:
+                    harvest_table = harvested_area_data[harvest_key]
+                except KeyError as exc:
+                    raise ValueError(
+                        f"Missing harvested area data for crop '{crop}' ({'irrigated' if ws == 'i' else 'rainfed'})"
+                    ) from exc
+                if "harvested_area" not in harvest_table.columns:
+                    raise ValueError(
+                        f"Harvested area table for crop '{crop}' ({ws}) missing 'harvested_area' column"
+                    )
+                crop_yields = crop_yields.join(
+                    harvest_table["harvested_area"].rename("harvested_area"),
+                    how="left",
+                )
+
             # Add a unique name per link including water supply and class
             crop_yields["name"] = crop_yields.index.map(
                 lambda x,
@@ -694,6 +719,12 @@ def add_regional_crop_production_links(
 
             # Filter out rows with zero suitable area or zero yield
             df = df[(df["suitable_area"] > 0) & (df["yield"] > 0)]
+
+            if use_actual_production:
+                df["harvested_area"] = pd.to_numeric(
+                    df.get("harvested_area"), errors="coerce"
+                )
+                df = df[df["harvested_area"] > 0]
 
             # Map regions to countries and filter to allowed countries
             df["country"] = df["region"].map(region_to_country)
@@ -758,8 +789,15 @@ def add_regional_crop_production_links(
                 # Link marginal_cost is per unit of bus0 flow (now Mha).
                 "marginal_cost": base_cost,
                 "p_nom_max": df["suitable_area"] / 1e6,  # ha → Mha
-                "p_nom_extendable": True,
+                "p_nom_extendable": not use_actual_production,
             }
+
+            if use_actual_production:
+                fixed_area_mha = df["harvested_area"] / 1e6
+                link_params["p_nom"] = fixed_area_mha
+                link_params["p_nom_max"] = fixed_area_mha
+                link_params["p_nom_min"] = fixed_area_mha
+                link_params["p_min_pu"] = 1.0
 
             if ws == "i":
                 if "water_requirement_m3_per_ha" not in df.columns:
@@ -2522,6 +2560,9 @@ def add_animal_product_trade_hubs_and_links(
 if __name__ == "__main__":
     read_csv = functools.partial(pd.read_csv, comment="#")
 
+    validation_cfg = snakemake.config.get("validation", {})  # type: ignore[attr-defined]
+    use_actual_production = bool(validation_cfg.get("use_actual_production", False))
+
     # Read fertilizer N application rates (kg N/ha/year for high-input agriculture)
     fertilizer_n_rates = read_csv(snakemake.input.fertilizer_n_rates, index_col="crop")[
         "n_rate_kg_per_ha"
@@ -2650,6 +2691,34 @@ if __name__ == "__main__":
                 len(yields_df),
             )
 
+    harvested_area_data: dict[str, pd.DataFrame] = {}
+    if use_actual_production:
+        for crop in snakemake.params.crops:
+            expected_supplies = ["r"]
+            if crop in expected_irrigated_crops:
+                expected_supplies.append("i")
+            for ws in expected_supplies:
+                harvest_key = f"{crop}_harvested_{ws}"
+                path = getattr(snakemake.input, harvest_key, None)
+                if path is None:
+                    raise ValueError(
+                        f"Missing harvested area input for crop '{crop}' ({'irrigated' if ws == 'i' else 'rainfed'}). "
+                        "Ensure the harvested area preprocessing step produced the expected files."
+                    )
+                harvest_df, harvest_units = _load_crop_yield_table(path)
+                area_unit = harvest_units.get("harvested_area")
+                if area_unit != "ha":
+                    raise ValueError(
+                        f"Unexpected unit for 'harvested_area' in '{path}': expected 'ha', found '{area_unit}'"
+                    )
+                harvested_area_data[harvest_key] = harvest_df
+                logger.info(
+                    "Loaded harvested area for %s (%s): %d rows",
+                    crop,
+                    "irrigated" if ws == "i" else "rainfed",
+                    len(harvest_df),
+                )
+
     # Read regions
     regions_df = gpd.read_file(snakemake.input.regions)
 
@@ -2772,8 +2841,6 @@ if __name__ == "__main__":
         .fillna(0.0)
     )
 
-    positive_water_limits = region_water_limits[region_water_limits > 0].copy()
-
     irrigated_regions: set[str] = set()
     for key, df in yields_data.items():
         if key.endswith("_yield_i"):
@@ -2781,18 +2848,10 @@ if __name__ == "__main__":
 
     land_regions = set(land_class_df.index.get_level_values("region"))
     water_bus_regions = sorted(
-        set(positive_water_limits.index)
+        set(region_water_limits.index)
         .union(irrigated_regions)
         .intersection(land_regions)
     )
-
-    missing_water_regions = [r for r in regions if region_water_limits.loc[r] <= 0]
-    if missing_water_regions:
-        logger.warning(
-            "Regions without growing-season water availability data: %s",
-            ", ".join(missing_water_regions[:10])
-            + ("..." if len(missing_water_regions) > 10 else ""),
-        )
 
     logger.debug("Foods data:\n%s", foods.head())
     logger.debug("Food groups data:\n%s", food_groups.head())
@@ -2895,10 +2954,11 @@ if __name__ == "__main__":
     add_primary_resources(
         n,
         snakemake.params.primary,
-        positive_water_limits,
+        region_water_limits,
         carbon_price,
         ch4_to_co2_factor,
         n2o_to_co2_factor,
+        use_actual_production=use_actual_production,
     )
     synthetic_n2o_factor = float(
         snakemake.params.primary["fertilizer"].get("synthetic_n2o_factor", 0.010)
@@ -2930,8 +2990,13 @@ if __name__ == "__main__":
         crop_costs_per_planting,
         luc_lef_lookup,
         residue_lookup,
+        harvested_area_data=harvested_area_data if use_actual_production else None,
+        use_actual_production=use_actual_production,
     )
-    if snakemake.params.multiple_cropping:
+    enable_multiple_cropping = (
+        bool(snakemake.params.multiple_cropping) and not use_actual_production
+    )
+    if enable_multiple_cropping:
         add_multi_cropping_links(
             n,
             multi_cropping_area_df,
@@ -2944,6 +3009,8 @@ if __name__ == "__main__":
             residue_lookup,
             luc_lef_lookup,
         )
+    elif use_actual_production:
+        logger.info("Skipping multiple cropping links under actual production mode")
     if snakemake.params.grazing["enabled"]:
         add_grassland_feed_links(
             n,

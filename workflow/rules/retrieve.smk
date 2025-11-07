@@ -62,6 +62,18 @@ rule retrieve_usda_costs:
         "../scripts/retrieve_usda_costs.py"
 
 
+rule retrieve_faostat_crop_production:
+    input:
+        mapping="data/faostat_item_map.csv",
+    params:
+        countries=config["countries"],
+        production_year=config.get("validation", {}).get("production_year", 2019),
+    output:
+        f"processing/{name}/faostat_crop_production.csv",
+    script:
+        "../scripts/retrieve_faostat_crop_production.py"
+
+
 rule download_gaez_yield_data:
     output:
         "data/downloads/gaez_yield_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
@@ -160,7 +172,22 @@ rule download_gaez_actual_yield:
         # Note: Uses different input naming convention than RES05
         gcs_url=lambda w: (
             f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES06-YLD/"
-            f"GAEZ-V5.RES06-YLD.{get_gaez_code(w.crop, 'res06').lower()}."
+            f"GAEZ-V5.RES06-YLD.{get_gaez_code(w.crop, 'res06')}."
+            f"WS{w.water_supply.upper()}.tif"
+        ),
+    shell:
+        "uv run gsutil cp {params.gcs_url} {output}"
+
+
+rule download_gaez_harvested_area:
+    output:
+        "data/downloads/gaez_harvested_area_{water_supply}_{crop}.tif",
+    params:
+        # RES06-HAR: Harvested area (2010-2019 average)
+        # INPUT codes: WSI (irrigated), WSR (rainfed), WST (total)
+        gcs_url=lambda w: (
+            f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES06-HAR/"
+            f"GAEZ-V5.RES06-HAR.{get_gaez_code(w.crop, 'res06')}."
             f"WS{w.water_supply.upper()}.tif"
         ),
     shell:

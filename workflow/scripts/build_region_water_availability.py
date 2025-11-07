@@ -54,11 +54,9 @@ def compute_month_overlaps(start_day: float, length_days: float) -> np.ndarray:
 
 def build_basin_region_shares(
     basins_path: str,
-    regions_path: str,
+    regions: gpd.GeoDataFrame,
 ) -> pd.DataFrame:
     basins = gpd.read_file(basins_path)[["BASIN_ID", "geometry"]]
-    regions = gpd.read_file(regions_path)[["region", "geometry"]]
-
     if basins.crs != regions.crs:
         regions = regions.to_crs(basins.crs)
 
@@ -85,9 +83,21 @@ def build_basin_region_shares(
     return shares
 
 
+def _zeros_for_regions(regions: list[str]) -> pd.DataFrame:
+    if not regions:
+        return pd.DataFrame(columns=["region", "month", "water_available_m3"])
+    records = [
+        {"region": region, "month": month, "water_available_m3": 0.0}
+        for region in regions
+        for month in range(1, 13)
+    ]
+    return pd.DataFrame(records)
+
+
 def compute_region_monthly_water(
     shares: pd.DataFrame,
     monthly_basin: pd.DataFrame,
+    regions: list[str],
 ) -> pd.DataFrame:
     required = {"basin_id", "month", "blue_water_availability_m3"}
     missing = required - set(monthly_basin.columns)
@@ -97,7 +107,7 @@ def compute_region_monthly_water(
         )
     df = shares.merge(monthly_basin, on="basin_id", how="inner")
     if df.empty:
-        return pd.DataFrame(columns=["region", "month", "water_available_m3"])
+        return _zeros_for_regions(regions)
     df["weighted"] = df["share"] * df["blue_water_availability_m3"]
     region_month = (
         df.groupby(["region", "month"], as_index=False)["weighted"]
@@ -105,7 +115,18 @@ def compute_region_monthly_water(
         .rename(columns={"weighted": "water_available_m3"})
         .sort_values(["region", "month"])
     )
-    return region_month
+    region_month = region_month.set_index(["region", "month"])
+    for region in regions:
+        if region not in region_month.index.get_level_values("region"):
+            filler = pd.DataFrame(
+                {
+                    "region": region,
+                    "month": range(1, 13),
+                    "water_available_m3": 0.0,
+                }
+            ).set_index(["region", "month"])
+            region_month = pd.concat([region_month, filler])
+    return region_month.reset_index().sort_values(["region", "month"])
 
 
 def load_crop_growing_seasons(
@@ -188,21 +209,27 @@ def load_crop_growing_seasons(
 def compute_region_growing_water(
     region_month_water: pd.DataFrame,
     crop_seasons: pd.DataFrame,
+    regions: list[str],
 ) -> pd.DataFrame:
     if region_month_water.empty:
-        return pd.DataFrame(
-            columns=[
-                "region",
-                "annual_water_available_m3",
-                "growing_season_water_available_m3",
-            ]
-        )
+        it = []
+        for region in regions:
+            it.append(
+                {
+                    "region": region,
+                    "annual_water_available_m3": 0.0,
+                    "growing_season_water_available_m3": 0.0,
+                    "reference_irrigated_area": 0.0,
+                }
+            )
+        return pd.DataFrame(it)
 
     monthly = region_month_water.set_index(["region", "month"])  # MultiIndex
 
     annual = (
         region_month_water.groupby("region")["water_available_m3"]
         .sum()
+        .reindex(regions, fill_value=0.0)
         .rename("annual_water_available_m3")
     )
 
@@ -272,7 +299,19 @@ def compute_region_growing_water(
     combined["reference_irrigated_area"] = combined["reference_irrigated_area"].fillna(
         0.0
     )
-    return combined
+    # Ensure every region appears even if absent in both annual and growing_df
+    missing = [region for region in regions if region not in combined["region"].values]
+    if missing:
+        filler = pd.DataFrame(
+            {
+                "region": missing,
+                "annual_water_available_m3": 0.0,
+                "growing_season_water_available_m3": 0.0,
+                "reference_irrigated_area": 0.0,
+            }
+        )
+        combined = pd.concat([combined, filler], ignore_index=True, sort=False)
+    return combined.sort_values("region").reset_index(drop=True)
 
 
 if __name__ == "__main__":
@@ -282,11 +321,17 @@ if __name__ == "__main__":
     crop_files = list(snakemake.input.crop_yields)  # type: ignore[name-defined]
 
     monthly_basin_df = pd.read_csv(monthly_csv)
-    shares_df = build_basin_region_shares(shapefile_path, regions_path)
-    region_month_df = compute_region_monthly_water(shares_df, monthly_basin_df)
+    regions_gdf = gpd.read_file(regions_path)[["region", "geometry"]]
+    regions_list = regions_gdf["region"].tolist()
+    shares_df = build_basin_region_shares(shapefile_path, regions_gdf)
+    region_month_df = compute_region_monthly_water(
+        shares_df, monthly_basin_df, regions_list
+    )
 
     crop_seasons_df = load_crop_growing_seasons(crop_files)
-    region_growing_df = compute_region_growing_water(region_month_df, crop_seasons_df)
+    region_growing_df = compute_region_growing_water(
+        region_month_df, crop_seasons_df, regions_list
+    )
 
     monthly_out = Path(snakemake.output.monthly_region)  # type: ignore[name-defined]
     monthly_out.parent.mkdir(parents=True, exist_ok=True)
