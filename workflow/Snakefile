@@ -584,6 +584,7 @@ rule build_model:
         multiple_cropping=config["multiple_cropping"],
         countries=config["countries"],
         primary=config["primary"],
+        biomass=config["biomass"],
         emissions=config["emissions"],
         food_groups=config["food_groups"],
         macronutrients=config["macronutrients"],

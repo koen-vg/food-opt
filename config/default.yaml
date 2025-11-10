@@ -233,6 +233,16 @@ diet:
   baseline_age: "All ages"
   baseline_reference_year: null  # falls back to health.reference_year when null
 
+# --- section: biomass ---
+biomass:
+  enabled: true
+  crops:
+  - maize
+  - oil-palm
+  - sugarcane
+  - biomass-sorghum
+  marginal_cost: 50  # USD_2024 per tonne dry matter exported to the energy sector
+
 # --- section: trade ---
 trade:
   crop_hubs: 20

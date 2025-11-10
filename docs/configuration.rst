@@ -179,11 +179,25 @@ Diet Controls
 .. literalinclude:: ../config/default.yaml
    :language: yaml
    :start-after: # --- section: diet ---
-   :end-before: # --- section: trade ---
+   :end-before: # --- section: biomass ---
 
 Enable ``enforce_gdd_baseline`` to force the optimization to match baseline
 consumption from the processed GDD file. Override ``baseline_age`` or
 ``baseline_reference_year`` if you pre-process alternative cohorts or years.
+
+Biomass
+~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: biomass ---
+   :end-before: # --- section: trade ---
+
+Set ``enabled: true`` to create a per-country ``biomass`` bus that tracks dry-matter
+exports to the energy sector. All foods listed under ``byproducts`` gain optional links
+to this bus, and any crops listed in ``biomass.crops`` can be diverted directly as
+feedstocks. The ``marginal_cost`` parameter (USD\ :sub:`2024` per tonne dry matter) sets
+the price received when biomass leaves the food system.
 
 Animal Products
 ~~~~~~~~~~~~~~~

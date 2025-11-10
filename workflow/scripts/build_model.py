@@ -526,14 +526,96 @@ def add_carriers_and_buses(
         n.add("Bus", bus_name, carrier="water")
 
 
+def add_biomass_infrastructure(
+    n: pypsa.Network, countries: Iterable[str], biomass_cfg: Mapping[str, object]
+) -> bool:
+    """Create biomass buses and sinks for optional exports to the energy sector."""
+
+    marginal_cost = float(biomass_cfg["marginal_cost"])
+    biomass_carrier = "biomass"
+    n.add("Carrier", biomass_carrier, unit="tDM")
+
+    biomass_buses = [f"biomass_{country}" for country in countries]
+    n.add("Bus", biomass_buses, carrier=biomass_carrier)
+
+    n.add(
+        "Generator",
+        [f"biomass_for_energy_{country}" for country in countries],
+        bus=biomass_buses,
+        carrier=biomass_carrier,
+        p_nom_extendable=True,
+        marginal_cost=marginal_cost,
+        p_min_pu=-1,  # Allow consumption, not generation of biomass
+        p_max_pu=0,
+    )
+
+
+def add_biomass_byproduct_links(
+    n: pypsa.Network, countries: Iterable[str], byproducts: Iterable[str]
+) -> None:
+    """Allow food byproducts to be routed to biomass buses."""
+    combos = pd.MultiIndex.from_product(
+        [byproducts, countries], names=["item", "country"]
+    ).to_frame(index=False)
+    combos["bus0"] = "food_" + combos["item"] + "_" + combos["country"]
+    combos["bus1"] = "biomass_" + combos["country"]
+    bus_index = pd.Index(n.buses.index)
+    combos = combos[combos["bus0"].isin(bus_index) & combos["bus1"].isin(bus_index)]
+    if combos.empty:
+        return
+
+    combos["name"] = "byproduct_to_biomass_" + combos["item"] + "_" + combos["country"]
+    combos = combos.set_index("name")
+
+    carrier = "byproduct_to_biomass"
+    n.add("Carrier", carrier, unit="tDM")
+
+    n.add(
+        "Link",
+        combos.index,
+        bus0=combos["bus0"],
+        bus1=combos["bus1"],
+        carrier=carrier,
+        p_nom_extendable=True,
+    )
+
+
+def add_biomass_crop_links(
+    n: pypsa.Network, countries: Iterable[str], crops: Iterable[str]
+) -> None:
+    """Route configured crops to biomass buses (dry-matter accounting)."""
+    combos = pd.MultiIndex.from_product(
+        [crops, countries], names=["crop", "country"]
+    ).to_frame(index=False)
+    combos["bus0"] = "crop_" + combos["crop"] + "_" + combos["country"]
+    combos["bus1"] = "biomass_" + combos["country"]
+    bus_index = pd.Index(n.buses.index)
+    combos = combos[combos["bus0"].isin(bus_index) & combos["bus1"].isin(bus_index)]
+    if combos.empty:
+        return
+
+    combos["name"] = "crop_to_biomass_" + combos["crop"] + "_" + combos["country"]
+    combos = combos.set_index("name")
+
+    carrier = "crop_to_biomass"
+    n.add("Carrier", carrier, unit="tDM")
+    n.add(
+        "Link",
+        combos.index,
+        bus0=combos["bus0"],
+        bus1=combos["bus1"],
+        carrier=carrier,
+        p_nom_extendable=True,
+    )
+
+
 def _add_land_slack_generators(
     n: pypsa.Network, bus_names: list[str], marginal_cost: float
 ) -> None:
     """Attach slack generators to the provided land buses."""
 
-    if not bus_names:
-        return
-
+    if "land_slack" not in n.carriers.index:
+        n.add("Carrier", "land_slack", unit="Mha")
     n.add(
         "Generator",
         [f"{bus}_slack" for bus in bus_names],
@@ -3022,6 +3104,20 @@ if __name__ == "__main__":
     crop_list = snakemake.params.crops
     animal_products_cfg = snakemake.params.animal_products
     animal_product_list = list(animal_products_cfg["include"])
+    biomass_cfg = snakemake.params.get("biomass", {})
+    biomass_enabled = bool(biomass_cfg.get("enabled", False))
+    biomass_crop_targets_cfg = [
+        str(crop).strip() for crop in biomass_cfg.get("crops", [])
+    ]
+    biomass_crop_targets = sorted(
+        {crop for crop in biomass_crop_targets_cfg if crop in crop_list}
+    )
+    missing_biomass_crops = sorted(set(biomass_crop_targets_cfg).difference(crop_list))
+    if biomass_enabled and missing_biomass_crops:
+        logger.warning(
+            "Biomass crops not found in scenario crop list: %s",
+            ", ".join(missing_biomass_crops),
+        )
 
     # Validate foods.csv structure
     if "pathway" not in foods.columns:
@@ -3094,6 +3190,10 @@ if __name__ == "__main__":
         regions,
         water_bus_regions,
     )
+
+    if biomass_cfg["enabled"]:
+        add_biomass_infrastructure(n, cfg_countries, biomass_cfg)
+
     add_primary_resources(
         n,
         snakemake.params.primary,
@@ -3120,8 +3220,8 @@ if __name__ == "__main__":
         "Generator",
         bus_names,
         bus=bus_names,
-        carrier=["land"] * len(bus_names),
-        p_nom_extendable=[True] * len(bus_names),
+        carrier="land",
+        p_nom_extendable=True,
         p_nom_max=(reg_limit * land_class_df["area_ha"] / 1e6).values,  # ha → Mha
     )
     if use_actual_production:
@@ -3205,6 +3305,9 @@ if __name__ == "__main__":
         snakemake.params.crops,
         snakemake.params.byproducts,
     )
+    if biomass_cfg["enabled"]:
+        add_biomass_byproduct_links(n, cfg_countries, snakemake.params.byproducts)
+        add_biomass_crop_links(n, cfg_countries, biomass_crop_targets)
     add_feed_supply_links(
         n,
         ruminant_feed_categories,
