@@ -67,6 +67,10 @@ def categorize_bus(bus_name: str, carrier: str) -> str | None:
             return "Food Byproducts"
         return "Food"
 
+    # Biomass for energy sector
+    if carrier == "biomass" or bus_name.startswith("biomass_"):
+        return "Biomass"
+
     # Nutrients
     if any(x in bus_name for x in ["carb_", "fat_", "protein_", "kcal_"]):
         return "Nutrients"
@@ -237,6 +241,7 @@ def build_topology_graph(network_path: str) -> graphviz.Digraph:
         "Food": food_color,
         "Food Byproducts": food_color,
         "Manure": food_color,
+        "Biomass": "#FF9800",  # orange (energy sector export)
         "Nutrients": "#4CAF50",  # darker green (final nutrition)
         # Emissions (all the same color)
         "CO2": emission_color,
@@ -266,8 +271,8 @@ def build_topology_graph(network_path: str) -> graphviz.Digraph:
     col5_nodes = {"Manure", "Animal Products"}
     # Column 6: Individual emissions
     col6_nodes = {"CO2", "CH4", "N2O"}
-    # Column 7: Final outputs (nutrients and aggregated emissions)
-    col7_nodes = {"Nutrients", "GHG"}
+    # Column 7: Final outputs (nutrients, biomass exports, and aggregated emissions)
+    col7_nodes = {"Nutrients", "Biomass", "GHG"}
 
     # Add nodes to appropriate subgraphs for ranking
     all_rank_nodes = (
