@@ -57,7 +57,7 @@ rule all:
         f"results/{name}/plots/irrigated_cropland_fraction_map.pdf",
         f"results/{name}/plots/crop_use_breakdown.pdf",
         f"results/{name}/plots/crop_use_breakdown.csv",
-        f"results/{name}/plots/water_value_map.pdf",
+        # f"results/{name}/plots/water_value_map.pdf",   # Current not working (see issue #1)
         f"results/{name}/plots/food_consumption.pdf",
         f"results/{name}/plots/food_consumption_map.pdf",
         f"results/{name}/plots/food_consumption_baseline_map.pdf",
