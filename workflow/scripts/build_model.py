@@ -1531,6 +1531,7 @@ def add_spared_land_links(
     n: pypsa.Network,
     land_class_df: pd.DataFrame,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float],
+    grazing_only_area: pd.Series | None = None,
 ) -> None:
     """Add optional links to allocate spared land and credit CO2 sinks.
 
@@ -1552,17 +1553,32 @@ def add_spared_land_links(
         logger.info("No LUC LEF entries available for spared land; skipping")
         return
 
-    # Build DataFrame with LEF values
-    df = land_class_df.reset_index()
-    df["resource_class"] = df["resource_class"].astype(int)
+    frames: list[pd.DataFrame] = []
+
+    base_df = land_class_df.reset_index()
+    base_df["resource_class"] = base_df["resource_class"].astype(int)
+    base_df["water_supply"] = base_df["water_supply"].astype(str)
+    base_df["lookup_ws"] = base_df["water_supply"]
+    frames.append(base_df)
+
+    if grazing_only_area is not None and not grazing_only_area.empty:
+        marginal_df = (
+            grazing_only_area.rename("area_ha")
+            .reset_index()
+            .astype({"resource_class": int})
+        )
+        marginal_df["water_supply"] = "m"
+        marginal_df["lookup_ws"] = "r"
+        frames.append(marginal_df)
+
+    df = pd.concat(frames, ignore_index=True)
     df["lef"] = df.apply(
         lambda r: luc_lef_lookup.get(
-            (r["region"], int(r["resource_class"]), r["water_supply"], "spared"), 0.0
+            (r["region"], int(r["resource_class"]), r["lookup_ws"], "spared"), 0.0
         ),
         axis=1,
     )
 
-    # Filter to entries with positive LEF and area
     filtered_count = (df["lef"] == 0.0).sum()
     df = df[(df["lef"] != 0.0) & (df["area_ha"] > 0)].copy()
 
@@ -1573,19 +1589,24 @@ def add_spared_land_links(
         logger.info("No eligible spared land entries; skipping spared links")
         return
 
-    # Build bus and link names
-    df["link_name"] = df.apply(
-        lambda r: f"spare_{r['region']}_class{r['resource_class']}_{r['water_supply']}",
-        axis=1,
-    )
-    df["bus0"] = df.apply(
-        lambda r: f"land_{r['region']}_class{r['resource_class']}_{r['water_supply']}",
-        axis=1,
-    )
-    df["sink_bus"] = df.apply(
-        lambda r: f"land_spared_{r['region']}_class{r['resource_class']}_{r['water_supply']}",
-        axis=1,
-    )
+    def _bus0(row: pd.Series) -> str:
+        if row["water_supply"] == "m":
+            return f"land_marginal_{row['region']}_class{int(row['resource_class'])}"
+        return f"land_{row['region']}_class{int(row['resource_class'])}_{row['water_supply']}"
+
+    def _sink_bus(row: pd.Series) -> str:
+        if row["water_supply"] == "m":
+            return f"land_spared_marginal_{row['region']}_class{int(row['resource_class'])}"
+        return f"land_spared_{row['region']}_class{int(row['resource_class'])}_{row['water_supply']}"
+
+    def _link_name(row: pd.Series) -> str:
+        if row["water_supply"] == "m":
+            return f"spare_marginal_{row['region']}_class{int(row['resource_class'])}"
+        return f"spare_{row['region']}_class{int(row['resource_class'])}_{row['water_supply']}"
+
+    df["bus0"] = df.apply(_bus0, axis=1)
+    df["sink_bus"] = df.apply(_sink_bus, axis=1)
+    df["link_name"] = df.apply(_link_name, axis=1)
     df["area_mha"] = df["area_ha"] / 1e6
 
     # Add carrier and sink buses
@@ -3103,7 +3124,9 @@ if __name__ == "__main__":
             p_nom_max=(reg_limit * grazing_only_area_series.values / 1e6),
         )
 
-    add_spared_land_links(n, land_class_df, luc_lef_lookup)
+    add_spared_land_links(
+        n, land_class_df, luc_lef_lookup, grazing_only_area=grazing_only_area_series
+    )
     add_regional_crop_production_links(
         n,
         crop_list,
