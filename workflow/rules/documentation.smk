@@ -23,6 +23,7 @@ DOC_FIGURES = [
     "land_resource_classes",
     "environment_luc_inputs",
     "environment_luc_lef",
+    "grazing_only_land_fraction",
     # Crop production figures
     "crop_yield_wheat",
     "crop_yield_wetland-rice",
@@ -206,6 +207,20 @@ rule doc_fig_grassland_yield:
         png="docs/_static/figures/grassland_yield.png",
     script:
         "../scripts/doc_figures/grassland_yield_map.py"
+
+
+rule doc_fig_grazing_only_land_fraction:
+    """Visualise grazing-only land availability."""
+    input:
+        classes=f"processing/{DOC_FIG_NAME}/resource_classes.nc",
+        lc_masks=f"processing/{DOC_FIG_NAME}/luc/lc_masks.nc",
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+        suitability=[gaez_path("suitability", "r", crop) for crop in config["crops"]],
+    output:
+        svg="docs/_static/figures/grazing_only_land_fraction.svg",
+        png="docs/_static/figures/grazing_only_land_fraction.png",
+    script:
+        "../scripts/doc_figures/grazing_only_land_fraction.py"
 
 
 rule doc_fig_trade_network:

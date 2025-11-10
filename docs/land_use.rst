@@ -164,6 +164,14 @@ Grazing-only Land
 
 Not all grassland can or should compete with cropland. The ``build_grazing_only_land`` rule derives a second land dataset (``processing/{name}/land_grazing_only_by_class.csv``) by combining the ESA CCI land-cover fractions with the GAEZ rainfed suitability maps. For each cell we subtract the cropland-suitable share already accounted for via GAEZ and the current cropland/forest cover reported by ESA; only the residual grassland that lies outside the cropland suitability envelope is aggregated to regions/resource classes. ``build_model`` turns these hectares into ``land_marginal_{region}_class{n}`` buses and adds mirrored ``grassland_marginal_*`` grazing links so ruminant feed can expand on marginal pasture without depleting the cropland land pool.
 
+.. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/grazing_only_land_fraction.png
+   :width: 100%
+   :alt: Fraction of each gridcell and region classified as grazing-only land
+
+   Global grazing-only land availability. Left panel: fraction of each gridcell that is currently grassland yet unsuitable for any crop, so it can host grazing without competing for cropland. Right panel: share of each optimization region's modeled land budget that falls into this grazing-only pool.
+
+These marginal ``land_marginal_*`` buses feed both grazing links and the ``spared_land`` carrier created by ``workflow.scripts.build_model.add_spared_land_links``. When the optimisation releases marginal pasture, those hectares can be routed through ``spare_marginal_*`` links to earn regrowth credits without competing with cropland-suitable land, ensuring that every hectare is accounted for exactly once.
+
 Irrigated vs. Rainfed Land
 ---------------------------
 

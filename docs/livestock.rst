@@ -291,6 +291,8 @@ Grassland is routed to its own dedicated ``feed_ruminant_grassland`` pool. This 
 
 In standard optimisation runs we also expose a dedicated land pool for grazing-only hectares. The preprocessing rule ``build_grazing_only_land`` combines the ESA CCI land-cover fractions with the GAEZ rainfed suitability maps to identify grassland that lies outside the cropland suitability envelope (after accounting for existing cropland and forest shares). These marginal hectares become ``land_marginal_{region}_class{n}`` buses in ``build_model`` and feed mirrored ``grassland_marginal_*`` links, so grazing can expand on land that crops cannot use without drawing down the cropland land budget.
 
+When demand falls and marginal grazing links release land, the same buses connect to the ``spared_land`` carrier through ``spare_marginal_*`` links. This means the model can rewild formerly grazing-only hectares and credit the associated CO₂ removal using the same LUC emission factors that apply to cropland-suitable land.
+
 Crop Residue Feed Supply
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
