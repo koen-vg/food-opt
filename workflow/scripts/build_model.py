@@ -526,6 +526,24 @@ def add_carriers_and_buses(
         n.add("Bus", bus_name, carrier="water")
 
 
+def _add_land_slack_generators(
+    n: pypsa.Network, bus_names: list[str], marginal_cost: float
+) -> None:
+    """Attach slack generators to the provided land buses."""
+
+    if not bus_names:
+        return
+
+    n.add(
+        "Generator",
+        [f"{bus}_slack" for bus in bus_names],
+        bus=bus_names,
+        carrier="land_slack",
+        p_nom_extendable=True,
+        marginal_cost=marginal_cost,
+    )
+
+
 def add_primary_resources(
     n: pypsa.Network,
     primary_config: dict,
@@ -3092,7 +3110,9 @@ if __name__ == "__main__":
 
     # Add class-level land buses and generators (shared pools), replacing region-level caps
     # Apply same regional_limit factor per class pool
-    reg_limit = float(snakemake.params.primary["land"]["regional_limit"])
+    land_cfg = snakemake.params.primary["land"]
+    reg_limit = float(land_cfg["regional_limit"])
+    land_slack_cost = float(land_cfg.get("slack_marginal_cost", 5e9))
     # Build all unique class buses
     bus_names = [f"land_{r}_class{int(k)}_{ws}" for (r, ws, k) in land_class_df.index]
     n.add("Bus", bus_names, carrier=["land"] * len(bus_names))
@@ -3104,6 +3124,8 @@ if __name__ == "__main__":
         p_nom_extendable=[True] * len(bus_names),
         p_nom_max=(reg_limit * land_class_df["area_ha"] / 1e6).values,  # ha → Mha
     )
+    if use_actual_production:
+        _add_land_slack_generators(n, bus_names, land_slack_cost)
 
     # Land that is unsuitable for crop production but usable for grazing-only
     # expansion. Derived from the ESA/GAEZ overlay prepared by
@@ -3123,6 +3145,8 @@ if __name__ == "__main__":
             p_nom_extendable=[True] * len(marginal_bus_names),
             p_nom_max=(reg_limit * grazing_only_area_series.values / 1e6),
         )
+        if use_actual_production:
+            _add_land_slack_generators(n, marginal_bus_names, land_slack_cost)
 
     add_spared_land_links(
         n, land_class_df, luc_lef_lookup, grazing_only_area=grazing_only_area_series

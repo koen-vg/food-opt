@@ -20,6 +20,7 @@ validation:
 primary:
   land:
     regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
+    slack_marginal_cost: 5e9 # USD per Mha when validation slack land is used
   fertilizer:
     limit: 2e11 # kg (200 Mt total NPK - realistic global scale; converted to Mt inside the model)
     # High-input agriculture N application rates (percentile of global FUBC data)

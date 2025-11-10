@@ -25,6 +25,7 @@ Instead of modifying the default configuration file, it is recommended to explor
    primary:
      land:
        regional_limit: 0.6       # Tighten land availability
+       slack_marginal_cost: 1e10  # Optional: raise slack penalty during validation
    emissions:
      ghg_price: 250              # Raise the carbon price above the default
 
