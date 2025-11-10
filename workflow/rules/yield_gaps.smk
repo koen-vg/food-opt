@@ -5,10 +5,10 @@
 
 def yield_gap_raster_inputs(wildcards):
     return {
-        "potential_yield": _gaez_path(
+        "potential_yield": gaez_path(
             "yield", gaez_cfg["water_supply"], gaez_cfg["crops"][wildcards.crop]
         ),
-        "actual_yield": _gaez_path(
+        "actual_yield": gaez_path(
             "actual_yield", gaez_cfg["water_supply"], gaez_cfg["crops"][wildcards.crop]
         ),
     }
