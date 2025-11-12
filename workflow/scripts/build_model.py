@@ -2204,14 +2204,21 @@ def add_food_group_buses_and_loads(
     population: pd.Series,
     *,
     per_country_equal: dict[str, dict[str, float]] | None = None,
+    add_slack_for_fixed_consumption: bool = False,
+    slack_marginal_cost: float | None = None,
 ) -> None:
     """Add carriers, buses, and loads for food groups defined in the CSV.
 
     Supports min/max/equal per-person-per-day targets per food group. Country-level
-    equality overrides can be supplied via ``per_country_equal``.
+    equality overrides can be supplied via ``per_country_equal``. When
+    ``add_slack_for_fixed_consumption`` is set, groups that are fully fixed via
+    equality constraints receive high-cost slack generators (cost set by
+    ``slack_marginal_cost``) so validation runs stay feasible while reporting
+    shortages explicitly.
     """
 
     per_country_equal = per_country_equal or {}
+    countries_index = pd.Index(countries, dtype="object")
 
     logger.info("Adding food group loads based on nutrition requirements...")
     for group in food_group_list:
@@ -2221,8 +2228,8 @@ def add_food_group_buses_and_loads(
         equal_value = group_config.get("equal")
         equal_overrides = per_country_equal.get(group, {})
 
-        names = [f"{group}_{c}" for c in countries]
-        buses = [f"group_{group}_{c}" for c in countries]
+        names = f"{group}_" + countries_index
+        buses = f"group_{group}_" + countries_index
         carriers = [f"group_{group}"] * len(countries)
 
         def _value_list(
@@ -2247,6 +2254,25 @@ def add_food_group_buses_and_loads(
                 for value, country in zip(equal_values, countries)
             ]
             n.loads.add(names, bus=buses, carrier=carriers, p_set=equal_totals)
+            if add_slack_for_fixed_consumption:
+                n.carriers.add("slack_positive_group_" + group, unit="t")
+                n.carriers.add("slack_negative_group_" + group, unit="t")
+                n.generators.add(
+                    f"slack_positive_{group}_" + countries_index,
+                    bus=buses,
+                    carrier=f"slack_negative_group_{group}",
+                    p_nom_extendable=True,
+                    marginal_cost=slack_marginal_cost,
+                )
+                n.generators.add(
+                    f"slack_negative_{group}_" + countries_index,
+                    bus=buses,
+                    carrier=f"slack_positive_group_{group}",
+                    p_nom_extendable=True,
+                    p_min_pu=-1,
+                    p_max_pu=0,
+                    marginal_cost=-slack_marginal_cost,
+                )
             # Equality constraint fixes consumption; no additional stores required
             continue
 
@@ -2268,7 +2294,7 @@ def add_food_group_buses_and_loads(
                 for v, country in zip(max_values, countries)
             ]
 
-        store_names = [f"store_{group}_{c}" for c in countries]
+        store_names = "store_" + names
         store_kwargs: dict[str, Iterable[float]] = {}
         if max_totals is not None:
             if min_totals is not None:
@@ -2757,8 +2783,15 @@ if __name__ == "__main__":
 
     read_csv = functools.partial(pd.read_csv, comment="#")
 
-    validation_cfg = snakemake.config.get("validation", {})  # type: ignore[attr-defined]
-    use_actual_production = bool(validation_cfg.get("use_actual_production", False))
+    validation_cfg = snakemake.config["validation"]  # type: ignore[attr-defined]
+    use_actual_production = bool(validation_cfg["use_actual_production"])
+    enforce_baseline = bool(validation_cfg["enforce_gdd_baseline"])
+    slack_food_group_cost_raw = validation_cfg["food_group_slack_marginal_cost"]
+    slack_food_group_cost = (
+        float(slack_food_group_cost_raw)
+        if slack_food_group_cost_raw is not None
+        else None
+    )
 
     # Read fertilizer N application rates (kg N/ha/year for high-input agriculture)
     fertilizer_n_rates = read_csv(snakemake.input.fertilizer_n_rates, index_col="crop")[
@@ -3320,6 +3353,8 @@ if __name__ == "__main__":
         cfg_countries,
         population,
         per_country_equal=baseline_equals,
+        add_slack_for_fixed_consumption=enforce_baseline,
+        slack_marginal_cost=slack_food_group_cost,
     )
     add_macronutrient_loads(
         n,

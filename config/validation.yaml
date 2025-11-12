@@ -8,6 +8,8 @@ name: "validation"
 validation:
   use_actual_yields: true
   use_actual_production: true
+  enforce_gdd_baseline: true
+  food_group_slack_marginal_cost: 1e9
 
 primary:
   land:

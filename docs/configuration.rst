@@ -37,6 +37,22 @@ To build and solve the model based on the above example configuration, you would
 
   tools/smk -j4 --configfile config/my_scenario.yaml
 
+Validation Options
+~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: validation ---
+   :end-before: # --- section: primary ---
+
+Set ``validation.enforce_gdd_baseline`` to ``true`` to force the optimizer to match
+baseline consumption derived from the processed GDD file. When this flag is active,
+the ``diet.baseline_age`` and ``diet.baseline_reference_year`` settings determine which
+cohort/year is enforced. Use ``validation.food_group_slack_marginal_cost`` to set the
+penalty (USD\ :sub:`2024` per Mt) for the slack generators that backstop those fixed
+food-group loads. Keep the value high so slack only activates when recorded production
+cannot meet the enforced demand targets.
+
 Configuration sections
 ----------------------
 
@@ -181,9 +197,9 @@ Diet Controls
    :start-after: # --- section: diet ---
    :end-before: # --- section: biomass ---
 
-Enable ``enforce_gdd_baseline`` to force the optimization to match baseline
-consumption from the processed GDD file. Override ``baseline_age`` or
-``baseline_reference_year`` if you pre-process alternative cohorts or years.
+Customize ``baseline_age`` or ``baseline_reference_year`` if you pre-process alternative
+cohorts or years for the baseline diet. These values are used whenever
+``validation.enforce_gdd_baseline`` is set to ``true``.
 
 Biomass
 ~~~~~~~~~~~~~~~
