@@ -39,10 +39,12 @@ Notes
 from io import StringIO
 import logging
 
+from logging_config import setup_script_logging
 import pandas as pd
 import requests
 import yaml
 
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 # Years to average over
@@ -300,4 +302,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     main()

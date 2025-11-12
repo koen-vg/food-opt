@@ -6,6 +6,8 @@ from collections import defaultdict
 import logging
 import math
 
+from linopy.constraints import print_single_constraint
+from logging_config import setup_script_logging
 import numpy as np
 import pandas as pd
 import pypsa
@@ -93,6 +95,7 @@ def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list
 
 OBJECTIVE_COEFF_TARGET = 1e8
 
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 
@@ -460,15 +463,7 @@ def add_health_objective(
 
 if __name__ == "__main__":
     # Configure logging to write to Snakemake log file
-    log_file = snakemake.log[0]
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(),  # Also keep console output
-        ],
-    )
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
 
     n = pypsa.Network(snakemake.input.network)
 
@@ -481,10 +476,10 @@ if __name__ == "__main__":
     solver_options = snakemake.params.solver_options or {}
 
     # Configure Gurobi to write detailed logs to the same file
-    if solver_name.lower() == "gurobi":
+    if solver_name.lower() == "gurobi" and snakemake.log:
         solver_options = dict(solver_options)  # Make a copy to avoid modifying config
         if "LogFile" not in solver_options:
-            solver_options["LogFile"] = log_file
+            solver_options["LogFile"] = snakemake.log[0]
         if "LogToConsole" not in solver_options:
             solver_options["LogToConsole"] = 1  # Also print to console
 
@@ -536,10 +531,31 @@ if __name__ == "__main__":
         if solver_name.lower() == "gurobi":
             try:
                 logger.error("Computing IIS (Irreducible Inconsistent Subsystem)...")
-                # Note: print_infeasibilities() outputs to stdout, which Snakemake
-                # redirects to the log file automatically
-                n.model.print_infeasibilities()
-                logger.error("IIS computation complete (see above output)")
+
+                # Get infeasible constraint labels
+                infeasible_labels = n.model.compute_infeasibilities()
+
+                if not infeasible_labels:
+                    logger.error("No infeasible constraints found in IIS")
+                else:
+                    logger.error(
+                        "Found %d infeasible constraints:", len(infeasible_labels)
+                    )
+
+                    constraint_details = []
+                    for label in infeasible_labels:
+                        try:
+                            detail = print_single_constraint(n.model, label)
+                            constraint_details.append(detail)
+                        except Exception as e:
+                            constraint_details.append(
+                                f"Label {label}: <error formatting: {e}>"
+                            )
+
+                    # Log all infeasible constraints
+                    iis_output = "\n".join(constraint_details)
+                    logger.error("IIS constraints:\n%s", iis_output)
+
             except Exception as exc:
                 logger.error("Could not compute infeasibilities: %s", exc)
         else:

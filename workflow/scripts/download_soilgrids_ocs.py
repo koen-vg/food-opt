@@ -13,9 +13,14 @@ Snakemake passes the ``snakemake`` object into this module; no standalone CLI
 usage is supported.
 """
 
+import logging
 from pathlib import Path
 
+from logging_config import setup_script_logging
 import requests
+
+# Logger will be configured in __main__ block
+logger = logging.getLogger(__name__)
 
 
 def download_via_wcs(
@@ -52,10 +57,12 @@ def download_via_wcs(
     output_width = int(native_width / scale_factor)
     output_height = int(native_height / scale_factor)
 
-    print(f"Downloading {coverage_id} from ISRIC WCS...")
-    print(f"Native resolution: {native_res_m}m, target: {target_resolution_m}m")
-    print(f"Scale factor: {scale_factor:.2f}x")
-    print(f"Output dimensions: {output_width} x {output_height} pixels")
+    logger.info("Downloading %s from ISRIC WCS...", coverage_id)
+    logger.info(
+        "Native resolution: %dm, target: %dm", native_res_m, target_resolution_m
+    )
+    logger.info("Scale factor: %.2fx", scale_factor)
+    logger.info("Output dimensions: %d x %d pixels", output_width, output_height)
 
     # WCS 2.0 ScaleSize parameter to request at specific dimensions
     params = {
@@ -75,20 +82,23 @@ def download_via_wcs(
     }
 
     # Download the coverage
-    print("Requesting data from WCS...")
+    logger.info("Requesting data from WCS...")
     response = requests.get(wcs_url, params=params, stream=True, timeout=1200)
     response.raise_for_status()
 
     # Save directly to output
-    print(f"Saving to {output_path}...")
+    logger.info("Saving to %s...", output_path)
     with open(output_path, "wb") as f:
         for chunk in response.iter_content(chunk_size=8192):
             f.write(chunk)
 
-    print(f"Downloaded and saved {output_path}")
+    logger.info("Downloaded and saved %s", output_path)
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     download_via_wcs(
         coverage_id=snakemake.params.coverage_id,
         target_resolution_m=snakemake.params.target_resolution_m,

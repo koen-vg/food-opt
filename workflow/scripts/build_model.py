@@ -7,6 +7,7 @@ import functools
 import logging
 
 import geopandas as gpd
+from logging_config import setup_script_logging
 import numpy as np
 import pandas as pd
 import pypsa
@@ -2751,6 +2752,9 @@ def add_animal_product_trade_hubs_and_links(
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     read_csv = functools.partial(pd.read_csv, comment="#")
 
     validation_cfg = snakemake.config.get("validation", {})  # type: ignore[attr-defined]

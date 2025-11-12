@@ -28,6 +28,7 @@ from pathlib import Path
 from exactextract import exact_extract
 from exactextract.raster import NumPyRasterSource
 import geopandas as gpd
+from logging_config import setup_script_logging
 import numpy as np
 import pandas as pd
 import rasterio
@@ -36,6 +37,7 @@ from rasterio.enums import Resampling
 from rasterio.transform import Affine
 from rasterio.warp import reproject
 
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 
@@ -170,6 +172,9 @@ def compute_fraction_mean_by_country(
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     df = compute_fraction_mean_by_country(
         snakemake.input.potential_yield,
         snakemake.input.actual_yield,

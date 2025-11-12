@@ -10,10 +10,15 @@ showing major material flows between conceptual nodes (land, crops, feed,
 animal products, food, nutrients, emissions).
 """
 
+import logging
 from pathlib import Path
 
 import graphviz
+from logging_config import setup_script_logging
 import pypsa
+
+# Logger will be configured in __main__ block
+logger = logging.getLogger(__name__)
 
 # Enable new PyPSA components API
 pypsa.options.api.new_components_api = True
@@ -327,25 +332,28 @@ def main(network_path: str, svg_output_path: str, png_output_path: str):
         svg_output_path: Path for output SVG file
         png_output_path: Path for output PNG file
     """
-    print(f"Loading network from {network_path}")
+    logger.info("Loading network from %s", network_path)
     dot = build_topology_graph(network_path)
 
     # Render SVG
-    print(f"Rendering topology to {svg_output_path}")
+    logger.info("Rendering topology to %s", svg_output_path)
     svg_dir = Path(svg_output_path).parent
     svg_name = Path(svg_output_path).stem
     dot.render(svg_name, directory=svg_dir, format="svg", cleanup=True)
 
     # Render PNG
-    print(f"Rendering topology to {png_output_path}")
+    logger.info("Rendering topology to %s", png_output_path)
     png_dir = Path(png_output_path).parent
     png_name = Path(png_output_path).stem
     dot.render(png_name, directory=png_dir, format="png", cleanup=True)
 
-    print("Topology visualization complete!")
+    logger.info("Topology visualization complete!")
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)  # type: ignore[name-defined]
+
     # Snakemake integration
     main(
         network_path=snakemake.input.model,  # type: ignore[name-defined]

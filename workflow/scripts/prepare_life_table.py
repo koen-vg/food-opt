@@ -16,10 +16,15 @@ Output format:
 """
 
 import contextlib
+import logging
 from pathlib import Path
 import re
 
+from logging_config import setup_script_logging
 import pandas as pd
+
+# Logger will be configured in __main__ block
+logger = logging.getLogger(__name__)
 
 # Standard age buckets used across the model
 AGE_BUCKETS = [
@@ -90,7 +95,7 @@ def main() -> None:
     output_path = snakemake.output["life_table"]
     reference_year = int(snakemake.params["reference_year"])
 
-    print(f"[prepare_life_table] Reading WPP life table from {input_path}")
+    logger.info("Reading WPP life table from %s", input_path)
     df = pd.read_csv(input_path, low_memory=False)
 
     if df.empty:
@@ -115,7 +120,7 @@ def main() -> None:
         raise ValueError("WPP life table missing valid 'Time' values")
 
     available_years = sorted({int(value) for value in df["Time"].unique()})
-    print(f"[prepare_life_table] Available years: {available_years}")
+    logger.info("Available years: %s", available_years)
 
     if reference_year in available_years:
         target_year = reference_year
@@ -123,9 +128,10 @@ def main() -> None:
         target_year = min(
             available_years, key=lambda year: (abs(year - reference_year), year)
         )
-        print(
-            f"[prepare_life_table] Reference year {reference_year} not found; "
-            f"using closest year {target_year}"
+        logger.info(
+            "Reference year %d not found; using closest year %d",
+            reference_year,
+            target_year,
         )
 
     df = df[df["Time"].astype(int) == int(target_year)]
@@ -176,13 +182,17 @@ def main() -> None:
     # Save with header
     output.to_csv(output_path, index=False)
 
-    print(f"[prepare_life_table] Wrote {len(output)} age groups to {output_path}")
-    print(f"[prepare_life_table] Year: {target_year}")
-    print(
-        f"[prepare_life_table] Life expectancy range: "
-        f"{output['life_exp'].min():.1f} - {output['life_exp'].max():.1f} years"
+    logger.info("Wrote %d age groups to %s", len(output), output_path)
+    logger.info("Year: %d", target_year)
+    logger.info(
+        "Life expectancy range: %.1f - %.1f years",
+        output["life_exp"].min(),
+        output["life_exp"].max(),
     )
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     main()

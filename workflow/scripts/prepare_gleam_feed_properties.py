@@ -11,9 +11,10 @@ a unified feed properties database with energy and nitrogen content.
 
 import logging
 
+from logging_config import setup_script_logging
 import pandas as pd
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 
@@ -265,6 +266,9 @@ def create_feed_properties(
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     create_feed_properties(
         gleam_supplement=snakemake.input.gleam_supplement,
         gleam_mapping=snakemake.input.gleam_mapping,

@@ -18,9 +18,10 @@ country-specific and region-specific emission factors.
 
 import logging
 
+from logging_config import setup_script_logging
 import pandas as pd
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 # Urinary energy excretion fractions (as fraction of gross energy intake)
@@ -234,6 +235,9 @@ def calculate_manure_ch4_for_product(
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     # Read inputs
     ruminant_categories = pd.read_csv(snakemake.input.ruminant_feed_categories)
     monogastric_categories = pd.read_csv(snakemake.input.monogastric_feed_categories)

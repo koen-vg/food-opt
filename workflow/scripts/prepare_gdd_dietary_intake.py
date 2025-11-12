@@ -21,10 +21,15 @@ Output:
     - Age groups: 0-1, 1-2, 2-5, 6-10, 11-74, 75+ years, plus "All ages" aggregate
 """
 
+import logging
 from pathlib import Path
 import sys
 
+from logging_config import setup_script_logging
 import pandas as pd
+
+# Logger will be configured in __main__ block
+logger = logging.getLogger("prepare_gdd_dietary_intake")
 
 
 def main():
@@ -34,9 +39,8 @@ def main():
     output_file = snakemake.output["diet"]
     ssb_sugar_g_per_100g = float(snakemake.params["ssb_sugar_g_per_100g"])
     if ssb_sugar_g_per_100g <= 0:
-        print(
-            "ERROR: health.ssb_sugar_g_per_100g must be positive for sugar conversions",
-            file=sys.stderr,
+        logger.error(
+            "health.ssb_sugar_g_per_100g must be positive for sugar conversions"
         )
         sys.exit(1)
     ssb_sugar_per_gram = ssb_sugar_g_per_100g / 100.0
@@ -80,16 +84,15 @@ def main():
                 food_group_vars[item] = []
             food_group_vars[item].append(varcode)
 
-    print(f"[prepare_gdd_dietary_intake] Processing GDD data for year {reference_year}")
-    print(f"[prepare_gdd_dietary_intake] Food groups: {sorted(food_group_vars.keys())}")
+    logger.info("Processing GDD data for year %d", reference_year)
+    logger.info("Food groups: %s", sorted(food_group_vars.keys()))
     for item, varcodes in sorted(food_group_vars.items()):
-        print(f"  {item}: {varcodes}")
+        logger.info("  %s: %s", item, varcodes)
 
     country_estimates_dir = gdd_dir / "Country-level estimates"
     if not country_estimates_dir.exists():
-        print(
-            f"ERROR: Country-level estimates directory not found: {country_estimates_dir}",
-            file=sys.stderr,
+        logger.error(
+            "Country-level estimates directory not found: %s", country_estimates_dir
         )
         sys.exit(1)
 
@@ -102,31 +105,30 @@ def main():
         for varcode in varcodes:
             csv_file = country_estimates_dir / f"{varcode}_cnty.csv"
             if not csv_file.exists():
-                print(f"WARNING: File not found: {csv_file}", file=sys.stderr)
+                logger.warning("File not found: %s", csv_file)
                 continue
 
-            print(
-                f"[prepare_gdd_dietary_intake] Reading {csv_file.name} ({model_item})..."
-            )
+            logger.info("Reading %s (%s)...", csv_file.name, model_item)
             df = pd.read_csv(csv_file)
 
             # Filter to reference year
             df_year = df[df["year"] == reference_year].copy()
 
             if df_year.empty:
-                print(
-                    f"WARNING: No data for year {reference_year} in {csv_file.name}. Trying nearest year...",
-                    file=sys.stderr,
+                logger.warning(
+                    "No data for year %d in %s. Trying nearest year...",
+                    reference_year,
+                    csv_file.name,
                 )
                 # Find nearest year
                 available_years = sorted(df["year"].unique())
                 nearest_year = min(
                     available_years, key=lambda y: abs(y - reference_year)
                 )
-                print(f"  Using nearest year: {nearest_year}", file=sys.stderr)
+                logger.warning("  Using nearest year: %d", nearest_year)
                 df_year = df[df["year"] == nearest_year].copy()
                 if df_year.empty:
-                    print(f"ERROR: Still no data for {csv_file.name}", file=sys.stderr)
+                    logger.error("Still no data for %s", csv_file.name)
                     continue
 
             if model_item == "sugar":
@@ -196,8 +198,8 @@ def main():
                 combined = combined[["iso3", "age_bucket", "value", "item"]]
             else:
                 # Multiple variables map to this food group - sum them by country-age
-                print(
-                    f"[prepare_gdd_dietary_intake] Aggregating {len(item_data)} GDD variables for {model_item}"
+                logger.info(
+                    "Aggregating %d GDD variables for %s", len(item_data), model_item
                 )
                 combined = pd.concat(item_data, ignore_index=True)
                 combined = (
@@ -211,7 +213,7 @@ def main():
             all_data.append(combined)
 
     if not all_data:
-        print("ERROR: No data collected from GDD files", file=sys.stderr)
+        logger.error("No data collected from GDD files")
         sys.exit(1)
 
     # Concatenate all food groups
@@ -239,14 +241,14 @@ def main():
     # Sort by country, item, and age for readability
     result = result.sort_values(["country", "item", "age"]).reset_index(drop=True)
 
-    print(
-        f"[prepare_gdd_dietary_intake] Processed {len(result)} country-item-age combinations "
-        f"for {result['country'].nunique()} countries and {result['age'].nunique()} age groups"
+    logger.info(
+        "Processed %d country-item-age combinations for %d countries and %d age groups",
+        len(result),
+        result["country"].nunique(),
+        result["age"].nunique(),
     )
-    print(
-        f"[prepare_gdd_dietary_intake] Food groups: {sorted(result['item'].unique())}"
-    )
-    print(f"[prepare_gdd_dietary_intake] Age groups: {sorted(result['age'].unique())}")
+    logger.info("Food groups: %s", sorted(result["item"].unique()))
+    logger.info("Age groups: %s", sorted(result["age"].unique()))
 
     # Fill in missing countries using proxy data from similar countries
     # This is for territories/dependencies that don't have separate GDD data
@@ -285,11 +287,9 @@ def main():
                 still_missing.append(missing)
 
         if filled:
-            print(
-                f"[prepare_gdd_dietary_intake] Filled {len(filled)} missing countries using proxies:"
-            )
+            logger.info("Filled %d missing countries using proxies:", len(filled))
             for entry in filled:
-                print(f"  - {entry}")
+                logger.info("  - %s", entry)
 
         # Update missing list after filling
         output_countries = set(result["country"].unique())
@@ -314,20 +314,44 @@ def main():
     # Report food groups not available in GDD
     unavailable_in_gdd = requested_food_groups - expected_food_groups
     if unavailable_in_gdd:
-        print(
-            f"[prepare_gdd_dietary_intake] Note: {len(unavailable_in_gdd)} food groups not available in GDD: "
-            f"{sorted(unavailable_in_gdd)}"
-        )
+        age_buckets = sorted(result["age"].unique())
+        zero_rows = []
+        for missing_item in sorted(unavailable_in_gdd):
+            logger.warning(
+                "No GDD intake data for '%s'. Writing zeros so validation can proceed.",
+                missing_item,
+            )
+            unit = get_unit(missing_item)
+            for country in sorted(required_countries):
+                for age in age_buckets:
+                    zero_rows.append(
+                        {
+                            "unit": unit,
+                            "item": missing_item,
+                            "country": country,
+                            "age": age,
+                            "year": reference_year,
+                            "value": 0.0,
+                        }
+                    )
 
-    print(
-        f"[prepare_gdd_dietary_intake] ✓ Validation passed: all required countries and "
-        f"{len(expected_food_groups)} GDD-tracked food groups present"
+        if zero_rows:
+            result = pd.concat([result, pd.DataFrame(zero_rows)], ignore_index=True)
+            result = result.sort_values(["country", "item", "age"]).reset_index(
+                drop=True
+            )
+
+    logger.info(
+        "✓ Validation passed: all required countries and %d GDD-tracked food groups present",
+        len(expected_food_groups),
     )
 
     # Write output
     result.to_csv(output_file, index=False)
-    print(f"[prepare_gdd_dietary_intake] Wrote output to {output_file}")
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     main()

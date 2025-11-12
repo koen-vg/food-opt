@@ -13,10 +13,15 @@ Downloads from IHME GBD Results Tool should include:
 - Metric: Rate (per 100,000)
 """
 
+import logging
 from pathlib import Path
 
+from logging_config import setup_script_logging
 import pandas as pd
 import pycountry
+
+# Logger will be configured in __main__ block
+logger = logging.getLogger(__name__)
 
 # Manual overrides for country names that pycountry can't match
 COUNTRY_NAME_OVERRIDES = {
@@ -113,7 +118,7 @@ def main() -> None:
     set(snakemake.params["countries"])
     set(snakemake.params["causes"])
 
-    print(f"[prepare_gbd_mortality] Reading GBD mortality data from {input_path}")
+    logger.info("Reading GBD mortality data from %s", input_path)
     df = pd.read_csv(input_path)
 
     # Validate expected columns
@@ -136,13 +141,14 @@ def main() -> None:
 
     # Check available years
     available_years = sorted(df["year"].unique())
-    print(f"[prepare_gbd_mortality] Available years: {available_years}")
+    logger.info("Available years: %s", available_years)
 
     if reference_year not in available_years:
         closest_year = min(available_years, key=lambda y: abs(y - reference_year))
-        print(
-            f"[prepare_gbd_mortality] Reference year {reference_year} not found; "
-            f"using closest year {closest_year}"
+        logger.info(
+            "Reference year %d not found; using closest year %d",
+            reference_year,
+            closest_year,
         )
         target_year = closest_year
     else:
@@ -151,21 +157,18 @@ def main() -> None:
     df = df[df["year"] == target_year].copy()
 
     # Map country names to ISO3 (cache unique values to avoid repeated fuzzy searches)
-    print("[prepare_gbd_mortality] Mapping country names to ISO3 codes...")
+    logger.info("Mapping country names to ISO3 codes...")
     unique_countries = df["location_name"].unique()
     country_map = {name: map_country_name_to_iso3(name) for name in unique_countries}
     df["country_iso3"] = df["location_name"].map(country_map)
 
     unmapped = df[df["country_iso3"].isna()]["location_name"].unique()
     if len(unmapped) > 0:
-        print(
-            f"[prepare_gbd_mortality] Warning: {len(unmapped)} countries could not be "
-            "mapped to ISO3:"
-        )
+        logger.warning("%d countries could not be mapped to ISO3:", len(unmapped))
         for name in sorted(unmapped)[:10]:
-            print(f"  - {name}")
+            logger.warning("  - %s", name)
         if len(unmapped) > 10:
-            print(f"  ... and {len(unmapped) - 10} more")
+            logger.warning("  ... and %d more", len(unmapped) - 10)
 
     # Drop unmapped countries
     df = df[df["country_iso3"].notna()].copy()
@@ -174,11 +177,9 @@ def main() -> None:
     df["cause_code"] = df["cause_name"].map(CAUSE_MAP)
     unmapped_causes = df[df["cause_code"].isna()]["cause_name"].unique()
     if len(unmapped_causes) > 0:
-        print(
-            f"[prepare_gbd_mortality] Warning: {len(unmapped_causes)} causes not mapped:"
-        )
+        logger.warning("%d causes not mapped:", len(unmapped_causes))
         for cause in sorted(unmapped_causes):
-            print(f"  - {cause}")
+            logger.warning("  - %s", cause)
 
     df = df[df["cause_code"].notna()].copy()
 
@@ -186,11 +187,9 @@ def main() -> None:
     df["age_code"] = df["age_name"].map(AGE_MAP)
     unmapped_ages = df[df["age_code"].isna()]["age_name"].unique()
     if len(unmapped_ages) > 0:
-        print(
-            f"[prepare_gbd_mortality] Warning: {len(unmapped_ages)} age groups not mapped:"
-        )
+        logger.warning("%d age groups not mapped:", len(unmapped_ages))
         for age in sorted(unmapped_ages):
-            print(f"  - {age}")
+            logger.warning("  - %s", age)
 
     df = df[df["age_code"].notna()].copy()
 
@@ -198,18 +197,17 @@ def main() -> None:
     # We need to aggregate them by taking population-weighted average
     # For death rates, we'll compute a simple average as an approximation
     # (ideally would weight by age-specific population, but we don't have that here)
-    print("[prepare_gbd_mortality] Checking for age bucket aggregation needs...")
+    logger.info("Checking for age bucket aggregation needs...")
     duplicate_keys = df.groupby(["country_iso3", "cause_code", "age_code"]).size()
     needs_aggregation = duplicate_keys[duplicate_keys > 1]
 
     if len(needs_aggregation) > 0:
-        print(
-            f"[prepare_gbd_mortality] Found {len(needs_aggregation)} age buckets "
-            "needing aggregation (multiple IHME ages -> single model age)"
+        logger.info(
+            "Found %d age buckets needing aggregation (multiple IHME ages -> single model age)",
+            len(needs_aggregation),
         )
-        print(
-            "[prepare_gbd_mortality] Aggregating by simple average "
-            "(assumes roughly equal population in sub-buckets)"
+        logger.info(
+            "Aggregating by simple average (assumes roughly equal population in sub-buckets)"
         )
 
         # Group and average
@@ -264,11 +262,9 @@ def main() -> None:
                 still_missing.append(missing)
 
         if filled:
-            print(
-                f"[prepare_gbd_mortality] Filled {len(filled)} missing countries using proxies:"
-            )
+            logger.info("Filled %d missing countries using proxies:", len(filled))
             for entry in filled:
-                print(f"  - {entry}")
+                logger.info("  - %s", entry)
 
         # Update missing list after filling
         output_countries = set(output["country"].unique())
@@ -292,9 +288,7 @@ def main() -> None:
             f"Please ensure the IHME GBD download includes all causes listed in config.health.causes."
         )
 
-    print(
-        "[prepare_gbd_mortality] ✓ Validation passed: all required countries and causes present"
-    )
+    logger.info("✓ Validation passed: all required countries and causes present")
 
     # Ensure output directory exists
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -302,11 +296,14 @@ def main() -> None:
     # Save without header to match old format
     output.to_csv(output_path, index=False, header=False)
 
-    print(f"[prepare_gbd_mortality] Wrote {len(output)} rows to {output_path}")
-    print(f"[prepare_gbd_mortality] Countries: {output['country'].nunique()}")
-    print(f"[prepare_gbd_mortality] Causes: {sorted(output['cause'].unique())}")
-    print(f"[prepare_gbd_mortality] Age groups: {sorted(output['age'].unique())}")
+    logger.info("Wrote %d rows to %s", len(output), output_path)
+    logger.info("Countries: %d", output["country"].nunique())
+    logger.info("Causes: %s", sorted(output["cause"].unique()))
+    logger.info("Age groups: %s", sorted(output["age"].unique()))
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     main()

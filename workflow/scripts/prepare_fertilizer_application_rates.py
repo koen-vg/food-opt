@@ -27,10 +27,11 @@ Data source: Report 9 covers the 2017-18 period with data for 64 countries and 3
 
 import logging
 
+from logging_config import setup_script_logging
 import pandas as pd
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 
@@ -248,6 +249,9 @@ def apply_fallbacks(df):
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     # Load data
     fubc_df = load_fubc_data(snakemake.input["fubc_data"])
     mapping_df = load_crop_mapping(snakemake.input["mapping"])

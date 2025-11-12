@@ -24,8 +24,10 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from logging_config import setup_script_logging
 from openpyxl import load_workbook
 
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 ALTERNATE_ITEM_NAMES: dict[str, str] = {
@@ -228,4 +230,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     main()

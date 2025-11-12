@@ -11,9 +11,10 @@ then computes category-level average nutritional properties for use in the model
 
 import logging
 
+from logging_config import setup_script_logging
 import pandas as pd
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 
@@ -243,6 +244,9 @@ def add_methane_yields(
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     # Read inputs
     ruminant_props = pd.read_csv(snakemake.input.ruminant_feed_properties)
     monogastric_props = pd.read_csv(snakemake.input.monogastric_feed_properties)

@@ -58,11 +58,16 @@ corresponding entries in data/usda_food_mapping.csv. The script will fail if any
 foods are missing from the mapping file.
 """
 
+import logging
 from pathlib import Path
 import time
 
+from logging_config import setup_script_logging
 import pandas as pd
 import requests
+
+# Logger will be configured in __main__ block
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 
@@ -144,14 +149,16 @@ def main():
         "KJ": "kcal/100g",  # Will convert from kJ to kcal
     }
 
-    print("Retrieving nutrition data from USDA FoodData Central...")
-    print(f"Processing {len(mapping_df)} foods...")
+    logger.info("Retrieving nutrition data from USDA FoodData Central...")
+    logger.info("Processing %d foods...", len(mapping_df))
 
     for idx, row in mapping_df.iterrows():
         food_name = row["food"]
         fdc_id = int(row["fdc_id"])
 
-        print(f"  [{idx + 1}/{len(mapping_df)}] {food_name} (FDC {fdc_id})")
+        logger.info(
+            "  [%d/%d] %s (FDC %d)", idx + 1, len(mapping_df), food_name, fdc_id
+        )
 
         try:
             nutrients = get_food_nutrients(fdc_id, api_key)
@@ -181,15 +188,15 @@ def main():
                         }
                     )
                 else:
-                    print(
-                        f"    Warning: {usda_nutrient_name} not found for {food_name}"
+                    logger.warning(
+                        "    %s not found for %s", usda_nutrient_name, food_name
                     )
 
             # Be polite to the API
             time.sleep(0.5)
 
         except Exception as e:
-            print(f"    Error retrieving data for {food_name}: {e}")
+            logger.error("    Error retrieving data for %s: %s", food_name, e)
             continue
 
     # Write output
@@ -202,8 +209,11 @@ def main():
     # Write output
     output_df.to_csv(output_path, index=False)
 
-    print(f"\nWrote {len(output_rows)} nutrient entries to {output_path}")
+    logger.info("\nWrote %d nutrient entries to %s", len(output_rows), output_path)
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     main()

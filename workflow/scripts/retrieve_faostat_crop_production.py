@@ -6,12 +6,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 from pathlib import Path
-import sys
 
 import faostat
+from logging_config import setup_script_logging
 import numpy as np
 import pandas as pd
 
+# Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
 
@@ -213,5 +214,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+    # Configure logging
+    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
     main()
