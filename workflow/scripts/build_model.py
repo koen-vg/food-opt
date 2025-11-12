@@ -2108,8 +2108,8 @@ def add_feed_to_animal_product_links(
     df["efficiency"] = df["efficiency"].astype(float)
 
     # Get config parameters
-    manure_n_to_fert = fertilizer_config.get("manure_n_to_fertilizer", 0.75)
-    manure_n2o_factor = fertilizer_config.get("manure_n2o_factor", 0.01)
+    manure_n_to_fert = fertilizer_config["manure_n_to_fertilizer"]
+    manure_n2o_factor = fertilizer_config["manure_n2o_factor"]
 
     # Build all link names and buses (expand each row for all countries)
     all_names = []
@@ -2392,9 +2392,7 @@ def add_macronutrient_loads(
         carriers = [nutrient] * len(countries)
 
         # Get configuration for this nutrient (if any)
-        nutrient_config = (
-            macronutrients_config.get(nutrient, {}) if macronutrients_config else {}
-        )
+        nutrient_config = macronutrients_config.get(nutrient, {}) or {}
         equal_value = nutrient_config.get("equal")
         min_value = nutrient_config.get("min")
         max_value = nutrient_config.get("max")
@@ -2534,10 +2532,10 @@ def _resolve_trade_costs(
         return item_costs, default_cost
 
     # Override with category-specific costs
-    categories = trade_config.get(categories_key, {})
+    categories = trade_config[categories_key]
     for _category, cfg in categories.items():
-        category_cost = float(cfg.get("cost_per_km", default_cost))
-        configured_items = cfg.get(category_item_key, [])
+        category_cost = float(cfg["cost_per_km"])
+        configured_items = cfg[category_item_key]
 
         for item in configured_items:
             item_label = str(item)
@@ -2659,7 +2657,7 @@ def _add_trade_hubs_and_links(
     if valid_countries:
         for item in tradable_items:
             item_label = str(item)
-            item_cost = item_costs.get(item_label, default_cost)
+            item_cost = item_costs[item_label]
             for c in valid_countries:
                 hub_idx = country_to_hub[c]
                 cost = country_to_dist_km[c] * item_cost
@@ -2700,7 +2698,7 @@ def _add_trade_hubs_and_links(
             dists_km = D[ii, jj]
             for item in tradable_items:
                 item_label = str(item)
-                item_cost = item_costs.get(item_label, default_cost)
+                item_cost = item_costs[item_label]
                 for i, j, dist in zip(ii, jj, dists_km):
                     hub_link_names.append(
                         f"{link_name_prefix}_{item_label}_hub{i}_to_hub{j}"
@@ -2942,12 +2940,6 @@ if __name__ == "__main__":
                         f"Unexpected unit for 'harvested_area' in '{path}': expected 'ha', found '{area_unit}'"
                     )
                 harvested_area_data[harvest_key] = harvest_df
-                logger.info(
-                    "Loaded harvested area for %s (%s): %d rows",
-                    crop,
-                    "irrigated" if ws == "i" else "rainfed",
-                    len(harvest_df),
-                )
 
     # Read regions
     regions_df = gpd.read_file(snakemake.input.regions)
@@ -3034,13 +3026,12 @@ if __name__ == "__main__":
     # population series indexed by country code (ISO3)
     population = pop_map.astype(float)
 
-    diet_cfg = snakemake.params.get("diet", {})
+    diet_cfg = snakemake.params.diet
     health_reference_year = int(snakemake.params.health_reference_year)
-    enforce_baseline = bool(diet_cfg.get("enforce_gdd_baseline", False))
     baseline_equals: dict[str, dict[str, float]] = {}
     if enforce_baseline:
-        baseline_age = str(diet_cfg.get("baseline_age", "All ages"))
-        baseline_year = diet_cfg.get("baseline_reference_year", health_reference_year)
+        baseline_age = str(diet_cfg["baseline_age"])
+        baseline_year = diet_cfg["baseline_reference_year"]
         if baseline_year is not None:
             baseline_year = int(baseline_year)
         diet_table_path = snakemake.input.get("baseline_diet")
@@ -3123,11 +3114,9 @@ if __name__ == "__main__":
     crop_list = snakemake.params.crops
     animal_products_cfg = snakemake.params.animal_products
     animal_product_list = list(animal_products_cfg["include"])
-    biomass_cfg = snakemake.params.get("biomass", {})
-    biomass_enabled = bool(biomass_cfg.get("enabled", False))
-    biomass_crop_targets_cfg = [
-        str(crop).strip() for crop in biomass_cfg.get("crops", [])
-    ]
+    biomass_cfg = snakemake.params.biomass
+    biomass_enabled = bool(biomass_cfg["enabled"])
+    biomass_crop_targets_cfg = [str(crop).strip() for crop in biomass_cfg["crops"]]
     biomass_crop_targets = sorted(
         {crop for crop in biomass_crop_targets_cfg if crop in crop_list}
     )
@@ -3221,7 +3210,7 @@ if __name__ == "__main__":
         use_actual_production=use_actual_production,
     )
     synthetic_n2o_factor = float(
-        snakemake.params.primary["fertilizer"].get("synthetic_n2o_factor", 0.010)
+        snakemake.params.primary["fertilizer"]["synthetic_n2o_factor"]
     )
     add_fertilizer_distribution_links(n, cfg_countries, synthetic_n2o_factor)
 
@@ -3229,7 +3218,7 @@ if __name__ == "__main__":
     # Apply same regional_limit factor per class pool
     land_cfg = snakemake.params.primary["land"]
     reg_limit = float(land_cfg["regional_limit"])
-    land_slack_cost = float(land_cfg.get("slack_marginal_cost", 5e9))
+    land_slack_cost = float(land_cfg["slack_marginal_cost"])
     # Build all unique class buses
     bus_names = [f"land_{r}_class{int(k)}_{ws}" for (r, ws, k) in land_class_df.index]
     n.buses.add(bus_names, carrier=["land"] * len(bus_names))
