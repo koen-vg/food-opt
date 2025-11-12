@@ -15,6 +15,9 @@ from pathlib import Path
 import graphviz
 import pypsa
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 
 def categorize_bus(bus_name: str, carrier: str) -> str | None:
     """Categorize a bus into a high-level node type.
@@ -109,21 +112,21 @@ def build_topology_graph(network_path: str) -> graphviz.Digraph:
     # - bus1 is always an output
     # - bus2, bus3, etc. are inputs if efficiency < 0, outputs otherwise
     # - All inputs connect to all outputs
-    for _idx, link in n.links.iterrows():
+    for _idx, link in n.links.static.iterrows():
         # Collect all input and output buses for this link
         inputs = []
         outputs = []
 
         # bus0 is always an input
-        if link["bus0"] in n.buses.index:
-            bus0_carrier = n.buses.loc[link["bus0"], "carrier"]
+        if link["bus0"] in n.buses.static.index:
+            bus0_carrier = n.buses.static.loc[link["bus0"], "carrier"]
             cat0 = categorize_bus(link["bus0"], bus0_carrier)
             if cat0:
                 inputs.append(cat0)
 
         # bus1 is always an output
-        if link["bus1"] in n.buses.index:
-            bus1_carrier = n.buses.loc[link["bus1"], "carrier"]
+        if link["bus1"] in n.buses.static.index:
+            bus1_carrier = n.buses.static.loc[link["bus1"], "carrier"]
             cat1 = categorize_bus(link["bus1"], bus1_carrier)
             if cat1:
                 outputs.append(cat1)
@@ -132,8 +135,8 @@ def build_topology_graph(network_path: str) -> graphviz.Digraph:
         for bus_key, eff_key in [("bus2", "efficiency2"), ("bus3", "efficiency3")]:
             if bus_key in link.index and link[bus_key] and link[bus_key] != "":
                 bus_name = link[bus_key]
-                if bus_name in n.buses.index:
-                    bus_carrier = n.buses.loc[bus_name, "carrier"]
+                if bus_name in n.buses.static.index:
+                    bus_carrier = n.buses.static.loc[bus_name, "carrier"]
                     cat = categorize_bus(bus_name, bus_carrier)
                     if cat:
                         # Negative efficiency = input, positive = output

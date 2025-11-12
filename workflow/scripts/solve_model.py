@@ -20,8 +20,8 @@ except Exception:  # pragma: no cover - documentation build without linopy
             pass
 
 
-from pypsa._options import options
-from pypsa.optimization.optimize import _optimize_guard
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
 
 HEALTH_AUX_MAP: dict[int, set[str]] = {}
 
@@ -510,9 +510,6 @@ if __name__ == "__main__":
         finally:
             if removed:
                 variables_container.data.update(removed)
-
-        if options.debug.runtime_verification:
-            _optimize_guard(n)
 
         n.export_to_netcdf(snakemake.output.network)
     elif condition in {"infeasible", "infeasible_or_unbounded"}:

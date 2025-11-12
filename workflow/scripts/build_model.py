@@ -12,6 +12,9 @@ import pandas as pd
 import pypsa
 from sklearn.cluster import KMeans
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 KM3_PER_M3 = 1e-9  # convert cubic metres to cubic kilometres
 TONNE_TO_MEGATONNE = 1e-6  # convert tonnes to megatonnes
 KG_TO_MEGATONNE = 1e-9  # convert kilograms to megatonnes
@@ -391,7 +394,7 @@ def add_carriers_and_buses(
     - Fertilizer has a global supply bus with per-country delivery buses.
     """
     # Land carrier (class-level buses are added later)
-    n.add("Carrier", "land", unit="Mha")
+    n.carriers.add("land", unit="Mha")
 
     # Crops per country
     crop_buses = [
@@ -399,8 +402,8 @@ def add_carriers_and_buses(
     ]
     crop_carriers = [f"crop_{crop}" for country in countries for crop in crop_list]
     if crop_buses:
-        n.add("Carrier", sorted({f"crop_{crop}" for crop in crop_list}), unit="t")
-        n.add("Bus", crop_buses, carrier=crop_carriers)
+        n.carriers.add(sorted({f"crop_{crop}" for crop in crop_list}), unit="t")
+        n.buses.add(crop_buses, carrier=crop_carriers)
 
     # Residues per country
     residue_items_sorted = sorted(dict.fromkeys(residue_feed_items))
@@ -413,8 +416,8 @@ def add_carriers_and_buses(
         residue_carriers = [
             f"residue_{item}" for country in countries for item in residue_items_sorted
         ]
-        n.add("Carrier", sorted(set(residue_carriers)), unit="t")
-        n.add("Bus", residue_buses, carrier=residue_carriers)
+        n.carriers.add(sorted(set(residue_carriers)), unit="t")
+        n.buses.add(residue_buses, carrier=residue_carriers)
 
     # Foods per country
     food_buses = [
@@ -422,8 +425,8 @@ def add_carriers_and_buses(
     ]
     food_carriers = [f"food_{food}" for country in countries for food in food_list]
     if food_buses:
-        n.add("Carrier", sorted({f"food_{food}" for food in food_list}), unit="t")
-        n.add("Bus", food_buses, carrier=food_carriers)
+        n.carriers.add(sorted({f"food_{food}" for food in food_list}), unit="t")
+        n.buses.add(food_buses, carrier=food_carriers)
 
     # Food groups per country
     group_buses = [
@@ -433,12 +436,11 @@ def add_carriers_and_buses(
         f"group_{group}" for country in countries for group in food_group_list
     ]
     if group_buses:
-        n.add(
-            "Carrier",
+        n.carriers.add(
             sorted({f"group_{group}" for group in food_group_list}),
             unit="Mt",
         )
-        n.add("Bus", group_buses, carrier=group_carriers)
+        n.buses.add(group_buses, carrier=group_carriers)
         scale_meta = n.meta.setdefault("carrier_unit_scale", {})
         scale_meta["food_group_t_to_Mt"] = TONNE_TO_MEGATONNE
 
@@ -447,8 +449,8 @@ def add_carriers_and_buses(
     for nutrient in nutrient_list_sorted:
         unit = nutrient_units[nutrient]
         carrier_unit = _carrier_unit_for_nutrient(unit)
-        if nutrient not in n.carriers.index:
-            n.add("Carrier", nutrient, unit=carrier_unit)
+        if nutrient not in n.carriers.static.index:
+            n.carriers.add(nutrient, unit=carrier_unit)
 
     if nutrient_list_sorted:
         nutrient_buses = [
@@ -457,7 +459,7 @@ def add_carriers_and_buses(
         nutrient_carriers = [
             nut for country in countries for nut in nutrient_list_sorted
         ]
-        n.add("Bus", nutrient_buses, carrier=nutrient_carriers)
+        n.buses.add(nutrient_buses, carrier=nutrient_carriers)
 
         scale_meta = n.meta.setdefault("carrier_unit_scale", {})
         if any(
@@ -488,13 +490,13 @@ def add_carriers_and_buses(
     ]
     feed_carriers = [f"feed_{fc}" for country in countries for fc in feed_categories]
     if feed_buses:
-        n.add("Carrier", sorted(set(feed_carriers)), unit="t")
-        n.add("Bus", feed_buses, carrier=feed_carriers)
+        n.carriers.add(sorted(set(feed_carriers)), unit="t")
+        n.buses.add(feed_buses, carrier=feed_carriers)
 
-    n.add("Carrier", "convert_to_feed", unit="t")
+    n.carriers.add("convert_to_feed", unit="t")
 
     # Water carrier (buses added per region below)
-    n.add("Carrier", "water", unit="km^3")
+    n.carriers.add("water", unit="km^3")
 
     # Global emission and resource carriers with buses
     for carrier, unit in [
@@ -504,12 +506,11 @@ def add_carriers_and_buses(
         ("n2o", "MtN2O"),
         ("ghg", "MtCO2e"),
     ]:
-        n.add("Carrier", carrier, unit=unit)
-        n.add("Bus", carrier, carrier=carrier)
+        n.carriers.add(carrier, unit=unit)
+        n.buses.add(carrier, carrier=carrier)
 
     fert_country_buses = [f"fertilizer_{country}" for country in countries]
-    n.add(
-        "Bus",
+    n.buses.add(
         fert_country_buses,
         carrier="fertilizer",
     )
@@ -523,7 +524,7 @@ def add_carriers_and_buses(
 
     for region in water_regions:
         bus_name = f"water_{region}"
-        n.add("Bus", bus_name, carrier="water")
+        n.buses.add(bus_name, carrier="water")
 
 
 def add_biomass_infrastructure(
@@ -533,13 +534,12 @@ def add_biomass_infrastructure(
 
     marginal_cost = float(biomass_cfg["marginal_cost"])
     biomass_carrier = "biomass"
-    n.add("Carrier", biomass_carrier, unit="tDM")
+    n.carriers.add(biomass_carrier, unit="tDM")
 
     biomass_buses = [f"biomass_{country}" for country in countries]
-    n.add("Bus", biomass_buses, carrier=biomass_carrier)
+    n.buses.add(biomass_buses, carrier=biomass_carrier)
 
-    n.add(
-        "Generator",
+    n.generators.add(
         [f"biomass_for_energy_{country}" for country in countries],
         bus=biomass_buses,
         carrier=biomass_carrier,
@@ -559,7 +559,7 @@ def add_biomass_byproduct_links(
     ).to_frame(index=False)
     combos["bus0"] = "food_" + combos["item"] + "_" + combos["country"]
     combos["bus1"] = "biomass_" + combos["country"]
-    bus_index = pd.Index(n.buses.index)
+    bus_index = n.buses.static.index
     combos = combos[combos["bus0"].isin(bus_index) & combos["bus1"].isin(bus_index)]
     if combos.empty:
         return
@@ -568,10 +568,9 @@ def add_biomass_byproduct_links(
     combos = combos.set_index("name")
 
     carrier = "byproduct_to_biomass"
-    n.add("Carrier", carrier, unit="tDM")
+    n.carriers.add(carrier, unit="tDM")
 
-    n.add(
-        "Link",
+    n.links.add(
         combos.index,
         bus0=combos["bus0"],
         bus1=combos["bus1"],
@@ -589,7 +588,7 @@ def add_biomass_crop_links(
     ).to_frame(index=False)
     combos["bus0"] = "crop_" + combos["crop"] + "_" + combos["country"]
     combos["bus1"] = "biomass_" + combos["country"]
-    bus_index = pd.Index(n.buses.index)
+    bus_index = n.buses.static.index
     combos = combos[combos["bus0"].isin(bus_index) & combos["bus1"].isin(bus_index)]
     if combos.empty:
         return
@@ -598,9 +597,8 @@ def add_biomass_crop_links(
     combos = combos.set_index("name")
 
     carrier = "crop_to_biomass"
-    n.add("Carrier", carrier, unit="tDM")
-    n.add(
-        "Link",
+    n.carriers.add(carrier, unit="tDM")
+    n.links.add(
         combos.index,
         bus0=combos["bus0"],
         bus1=combos["bus1"],
@@ -614,10 +612,9 @@ def _add_land_slack_generators(
 ) -> None:
     """Attach slack generators to the provided land buses."""
 
-    if "land_slack" not in n.carriers.index:
-        n.add("Carrier", "land_slack", unit="Mha")
-    n.add(
-        "Generator",
+    if "land_slack" not in n.carriers.static.index:
+        n.carriers.add("land_slack", unit="Mha")
+    n.generators.add(
         [f"{bus}_slack" for bus in bus_names],
         bus=bus_names,
         carrier="land_slack",
@@ -638,8 +635,7 @@ def add_primary_resources(
     """Add primary resource components and emissions bookkeeping."""
     # Water limits
     water_limits = region_water_limits * KM3_PER_M3
-    n.add(
-        "Store",
+    n.stores.add(
         "water_store_" + water_limits.index,
         bus="water_" + water_limits.index,
         carrier="water",
@@ -651,8 +647,7 @@ def add_primary_resources(
 
     # Slack in water limits when using actual (current) production
     if use_actual_production:
-        n.add(
-            "Generator",
+        n.generators.add(
             "water_slack_" + water_limits.index,
             bus="water_" + water_limits.index,
             carrier="water",
@@ -666,8 +661,7 @@ def add_primary_resources(
     co2_price_per_mt = co2_price / TONNE_TO_MEGATONNE
 
     # Fertilizer remains global (no regionalization yet)
-    n.add(
-        "Generator",
+    n.generators.add(
         "fertilizer",
         bus="fertilizer",
         carrier="fertilizer",
@@ -676,8 +670,7 @@ def add_primary_resources(
     )
 
     # Add GHG aggregation store and links from individual gases
-    n.add(
-        "Store",
+    n.stores.add(
         "ghg",
         bus="ghg",
         carrier="ghg",
@@ -686,8 +679,7 @@ def add_primary_resources(
         e_min_pu=-1.0,
         marginal_cost_storage=co2_price_per_mt,
     )
-    n.add(
-        "Link",
+    n.links.add(
         "convert_co2_to_ghg",
         bus0="co2",
         bus1="ghg",
@@ -696,8 +688,7 @@ def add_primary_resources(
         p_min_pu=-1.0,  # allow negative emissions flow
         p_nom_extendable=True,
     )
-    n.add(
-        "Link",
+    n.links.add(
         "convert_ch4_to_ghg",
         bus0="ch4",
         bus1="ghg",
@@ -705,8 +696,7 @@ def add_primary_resources(
         efficiency=ch4_to_co2_factor,
         p_nom_extendable=True,
     )
-    n.add(
-        "Link",
+    n.links.add(
         "convert_n2o_to_ghg",
         bus0="n2o",
         bus1="ghg",
@@ -741,7 +731,7 @@ def add_fertilizer_distribution_links(
         params["bus2"] = ["n2o"] * len(country_list)
         params["efficiency2"] = [emission_mt_per_mt] * len(country_list)
 
-    n.add("Link", names, **params)
+    n.links.add(names, **params)
 
 
 def add_regional_crop_production_links(
@@ -990,7 +980,7 @@ def add_regional_crop_production_links(
                 link_params[key_eff] = values
                 next_bus_idx += 1
 
-            n.add("Link", **link_params)
+            n.links.add(**link_params)
 
 
 def add_multi_cropping_links(
@@ -1193,7 +1183,7 @@ def add_multi_cropping_links(
         + index_df["resource_class"].astype(str)
     )
 
-    missing_land = index_df[~index_df["bus0"].isin(n.buses.index)]
+    missing_land = index_df[~index_df["bus0"].isin(n.buses.static.index)]
     if not missing_land.empty:
         missing_count = missing_land.shape[0]
         missing_preview = ", ".join(missing_land["bus0"].unique()[:5])
@@ -1202,14 +1192,14 @@ def add_multi_cropping_links(
             missing_count,
             missing_preview,
         )
-        index_df = index_df[index_df["bus0"].isin(n.buses.index)]
+        index_df = index_df[index_df["bus0"].isin(n.buses.static.index)]
 
     if index_df.empty:
         return
 
     carriers = sorted(index_df["carrier"].unique())
     if carriers:
-        n.add("Carrier", carriers, unit="Mha")
+        n.carriers.add(carriers, unit="Mha")
 
     water_req = index_df["water_requirement_m3_per_ha"].astype(float)
     water_valid = (
@@ -1452,7 +1442,7 @@ def add_multi_cropping_links(
     kwargs = {
         col: link_df[col].tolist() for col in component_cols + bus_cols + eff_cols
     }
-    n.add("Link", link_names, **kwargs)
+    n.links.add(link_names, **kwargs)
 
 
 def add_grassland_feed_links(
@@ -1600,7 +1590,7 @@ def add_grassland_feed_links(
             params["bus2"] = "co2"
             params["efficiency2"] = luc_emissions
 
-        n.add("Link", work["name"].tolist(), **params)
+        n.links.add(work["name"].tolist(), **params)
         return True
 
     link_added = False
@@ -1710,13 +1700,12 @@ def add_spared_land_links(
     df["area_mha"] = df["area_ha"] / 1e6
 
     # Add carrier and sink buses
-    n.add("Carrier", "spared_land", unit="Mha")
-    n.add("Bus", df["sink_bus"].tolist(), carrier="spared_land")
+    n.carriers.add("spared_land", unit="Mha")
+    n.buses.add(df["sink_bus"].tolist(), carrier="spared_land")
 
     # Add stores for sink buses
     store_names = [f"{bus}_store" for bus in df["sink_bus"]]
-    n.add(
-        "Store",
+    n.stores.add(
         store_names,
         bus=df["sink_bus"].tolist(),
         carrier="spared_land",
@@ -1724,8 +1713,7 @@ def add_spared_land_links(
     )
 
     # Add spared land links
-    n.add(
-        "Link",
+    n.links.add(
         df["link_name"].tolist(),
         carrier="spared_land",
         bus0=df["bus0"].tolist(),
@@ -1875,7 +1863,7 @@ def add_food_conversion_links(
 
             link_params[eff_key] = efficiencies
 
-        n.add("Link", names, **link_params)
+        n.links.add(names, **link_params)
 
     # Warnings
     if invalid_pathways:
@@ -2020,8 +2008,7 @@ def add_feed_supply_links(
         logger.info("No feed supply links to create; check crop/food lists")
         return
 
-    n.add(
-        "Link",
+    n.links.add(
         all_names,
         bus0=all_bus0,
         bus1=all_bus1,
@@ -2098,7 +2085,7 @@ def add_feed_to_animal_product_links(
 
     produce_carriers = sorted({f"produce_{product!s}" for product in animal_products})
     if produce_carriers:
-        n.add("Carrier", produce_carriers, unit="t")
+        n.carriers.add(produce_carriers, unit="t")
 
     if not animal_products:
         logger.info("No animal products configured; skipping feed→animal links")
@@ -2140,7 +2127,10 @@ def add_feed_to_animal_product_links(
             # Check if required buses exist
             feed_bus = f"feed_{row['feed_category']}_{country}"
             food_bus = f"food_{row['product']}_{country}"
-            if feed_bus not in n.buses.index or food_bus not in n.buses.index:
+            if (
+                feed_bus not in n.buses.static.index
+                or food_bus not in n.buses.static.index
+            ):
                 skipped_count += 1
                 continue
 
@@ -2180,8 +2170,7 @@ def add_feed_to_animal_product_links(
 
     # All animal production links now have multiple outputs:
     # bus1: animal product, bus2: CH4, bus3: manure N fertilizer (country-specific), bus4: N2O
-    n.add(
-        "Link",
+    n.links.add(
         all_names,
         bus0=all_bus0,
         bus1=all_bus1,
@@ -2259,7 +2248,7 @@ def add_food_group_buses_and_loads(
                 _per_capita_food_group_to_mt(value, float(population[country]))
                 for value, country in zip(equal_values, countries)
             ]
-            n.add("Load", names, bus=buses, carrier=carriers, p_set=equal_totals)
+            n.loads.add(names, bus=buses, carrier=carriers, p_set=equal_totals)
             # Equality constraint fixes consumption; no additional stores required
             continue
 
@@ -2272,7 +2261,7 @@ def add_food_group_buses_and_loads(
                 _per_capita_food_group_to_mt(v or 0.0, float(population[country]))
                 for v, country in zip(min_values, countries)
             ]
-            n.add("Load", names, bus=buses, carrier=carriers, p_set=min_totals)
+            n.loads.add(names, bus=buses, carrier=carriers, p_set=min_totals)
 
         max_totals: list[float] | None = None
         if any(v is not None for v in max_values):
@@ -2293,8 +2282,7 @@ def add_food_group_buses_and_loads(
                 e_nom_max = max_totals
             store_kwargs["e_nom_max"] = e_nom_max
 
-        n.add(
-            "Store",
+        n.stores.add(
             store_names,
             bus=buses,
             carrier=carriers,
@@ -2393,7 +2381,7 @@ def add_macronutrient_loads(
                 _per_capita_to_bus_units(equal_value, float(population[c]), unit)
                 for c in countries
             ]
-            n.add("Load", names, bus=names, carrier=carriers, p_set=p_set)
+            n.loads.add(names, bus=names, carrier=carriers, p_set=p_set)
             # For equality constraints, we don't need a Store (Load fixes the flow)
             continue
 
@@ -2404,7 +2392,7 @@ def add_macronutrient_loads(
                 _per_capita_to_bus_units(min_value, float(population[c]), unit)
                 for c in countries
             ]
-            n.add("Load", names, bus=names, carrier=carriers, p_set=min_totals)
+            n.loads.add(names, bus=names, carrier=carriers, p_set=min_totals)
 
         # Always add Store (to absorb consumption flows)
         # Only set e_nom_max if max constraint is configured
@@ -2424,8 +2412,7 @@ def add_macronutrient_loads(
             else:
                 e_nom_max = max_totals
 
-        n.add(
-            "Store",
+        n.stores.add(
             store_names,
             bus=names,
             carrier=carriers,
@@ -2497,7 +2484,7 @@ def add_food_nutrition_links(
             params[f"bus{idx}"] = [f"group_{group_val}_{c}" for c in countries]
             params[f"efficiency{idx}"] = TONNE_TO_MEGATONNE
 
-        n.add("Link", names, p_nom_extendable=True, **params)
+        n.links.add(names, p_nom_extendable=True, **params)
 
 
 def _resolve_trade_costs(
@@ -2621,7 +2608,7 @@ def _add_trade_hubs_and_links(
             hub_bus_carriers.append(f"{carrier_prefix}{item_label}")
 
     if hub_bus_names:
-        n.add("Bus", hub_bus_names, carrier=hub_bus_carriers)
+        n.buses.add(hub_bus_names, carrier=hub_bus_carriers)
 
     gdf_countries = gdf_ee[gdf_ee["country"].isin(countries)].dissolve(
         by="country", as_index=True
@@ -2667,8 +2654,7 @@ def _add_trade_hubs_and_links(
                 link_costs.append(cost)
 
     if link_names:
-        n.add(
-            "Link",
+        n.links.add(
             link_names,
             bus0=link_bus0,
             bus1=link_bus1,
@@ -2700,8 +2686,7 @@ def _add_trade_hubs_and_links(
                     hub_link_costs.append(float(dist) * item_cost)
 
         if hub_link_names:
-            n.add(
-                "Link",
+            n.links.add(
                 hub_link_names,
                 bus0=hub_link_bus0,
                 bus1=hub_link_bus1,
@@ -3215,9 +3200,8 @@ if __name__ == "__main__":
     land_slack_cost = float(land_cfg.get("slack_marginal_cost", 5e9))
     # Build all unique class buses
     bus_names = [f"land_{r}_class{int(k)}_{ws}" for (r, ws, k) in land_class_df.index]
-    n.add("Bus", bus_names, carrier=["land"] * len(bus_names))
-    n.add(
-        "Generator",
+    n.buses.add(bus_names, carrier=["land"] * len(bus_names))
+    n.generators.add(
         bus_names,
         bus=bus_names,
         carrier="land",
@@ -3236,9 +3220,8 @@ if __name__ == "__main__":
             f"land_marginal_{region}_class{int(cls)}"
             for region, cls in grazing_only_area_series.index
         ]
-        n.add("Bus", marginal_bus_names, carrier=["land"] * len(marginal_bus_names))
-        n.add(
-            "Generator",
+        n.buses.add(marginal_bus_names, carrier=["land"] * len(marginal_bus_names))
+        n.generators.add(
             marginal_bus_names,
             bus=marginal_bus_names,
             carrier=["land"] * len(marginal_bus_names),
@@ -3371,9 +3354,9 @@ if __name__ == "__main__":
     )
 
     logger.info("Network summary:")
-    logger.info("Carriers: %d", len(n.carriers))
-    logger.info("Buses: %d", len(n.buses))
-    logger.info("Stores: %d", len(n.stores))
-    logger.info("Links: %d", len(n.links))
+    logger.info("Carriers: %d", len(n.carriers.static))
+    logger.info("Buses: %d", len(n.buses.static))
+    logger.info("Stores: %d", len(n.stores.static))
+    logger.info("Links: %d", len(n.links.static))
 
     n.export_to_netcdf(snakemake.output.network)
