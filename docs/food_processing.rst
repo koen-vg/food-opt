@@ -52,7 +52,7 @@ The two files below, created and distributed for internal food-opt use, define p
 
   **Coverage**: This file must include all foods that can be produced according to ``data/foods.csv`` pathways, including byproducts (bran, meal, hulls, etc.). Foods without group assignments will generate warnings and will not contribute to food group constraints or health impact calculations.
 
-  **Food groups**: Standard groups include grains, whole_grains, legumes, nuts_seeds, oil, starchy_vegetable, fruits, vegetables, sugar, byproduct, red_meat, poultry, dairy, and eggs. Additional groups can be defined in the config file under ``food_groups``.
+  **Food groups**: Standard groups include grains, whole_grains, legumes, nuts_seeds, oil, starchy_vegetable, fruits, vegetables, sugar, byproduct, red_meat, poultry, dairy, and eggs. Additional groups can be defined by extending ``config.food_groups.included``.
 
   **Byproduct handling**: Foods assigned to the ``byproduct`` group (such as wheat-bran, rice-bran, oat-bran, wheat-germ, sunflower-meal, rapeseed-meal, and buckwheat-hulls) are **excluded from direct human consumption**. Instead, these byproducts can be utilized as animal feed (see :ref:`byproduct-feed-conversion`), making them available for livestock production systems. When ``biomass.enabled`` is set in the scenario configuration, the same byproducts also gain optional links to the per-country ``biomass`` buses so surplus residues can be exported to the energy sector at the configured marginal cost.
 

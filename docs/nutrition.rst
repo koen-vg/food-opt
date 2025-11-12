@@ -51,6 +51,11 @@ Configuration
    :start-after: # --- section: food_groups ---
    :end-before: # --- section: diet ---
 
+List the active groups under ``food_groups.included`` and only specify
+constraints for the ones that need limits (``min``, ``max``, or ``equal`` in
+g/person/day). Leaving ``constraints`` empty allows the optimizer to choose any
+mix of foods that satisfies macronutrient and other requirements.
+
 Foods are assigned to groups in ``data/food_groups.csv``. Example:
 
 .. TODO: refine this section

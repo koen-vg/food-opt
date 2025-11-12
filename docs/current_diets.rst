@@ -183,7 +183,7 @@ Workflow Integration
 
 **Configuration parameters**:
   * ``config.countries``: List of countries to process
-  * ``config.food_groups``: Food group definitions (keys used to filter GDD data)
+  * ``config.food_groups.included``: Food groups to filter and aggregate in GDD data
   * ``config.health.reference_year``: Year for dietary intake data
 
 **Output**:

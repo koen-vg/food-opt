@@ -168,10 +168,10 @@ Food Groups
    :start-after: # --- section: food_groups ---
    :end-before: # --- section: diet ---
 
-Each food group may specify ``min_per_person_per_day``, ``max_per_person_per_day``,
-and ``equal_per_person_per_day``. The defaults leave minima at zero so food group
-constraints stay inactive; tighten minima or maxima to guide intakes, or use the
-``equal`` field for equality targets.
+``included`` lists the food groups tracked by the model. ``constraints`` is an
+optional mapping where any included group may define ``min``, ``max``, or
+``equal`` targets in g/person/day. Leaving ``constraints`` empty disables all
+food group limits; add entries only for the groups you want to control.
 
 Diet Controls
 ~~~~~~~~~~~~~

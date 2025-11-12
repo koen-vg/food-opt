@@ -12,6 +12,7 @@ gurobi.log
 /.pixi/
 vendor
 /.codex/
+/.serena/
 /.cache/
 /.tmp/
 docs/_static/figures/*

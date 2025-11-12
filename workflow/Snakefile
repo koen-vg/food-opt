@@ -211,7 +211,7 @@ rule prepare_gdd_dietary_intake:
         gdd_dir="data/manually_downloaded/GDD-dietary-intake",
     params:
         countries=config["countries"],
-        food_groups=list(config["food_groups"].keys()),
+        food_groups=config["food_groups"]["included"],
         reference_year=config["health"]["reference_year"],
         ssb_sugar_g_per_100g=config["health"]["ssb_sugar_g_per_100g"],
     output:
@@ -225,7 +225,7 @@ rule prepare_food_loss_waste:
         m49="data/M49-codes.csv",
     params:
         countries=config["countries"],
-        food_groups=list(config["food_groups"].keys()),
+        food_groups=config["food_groups"]["included"],
         health_reference_year=config["health"]["reference_year"],
     output:
         food_loss_waste="processing/{name}/food_loss_waste.csv",
@@ -239,7 +239,7 @@ rule prepare_relative_risks:
     params:
         risk_factors=config["health"]["risk_factors"],
         causes=config["health"]["causes"],
-        omega3_per_100g=config["health"].get("omega3_per_100g_fish", 1.5),
+        omega3_per_100g=config["health"]["omega3_per_100g_fish"],
         ssb_sugar_g_per_100g=config["health"]["ssb_sugar_g_per_100g"],
     output:
         relative_risks=f"processing/{name}/health/relative_risks.csv",
@@ -303,9 +303,7 @@ rule aggregate_class_areas:
         irrigated_share="data/downloads/gaez_land_equipped_for_irrigation_share.tif",
         regions=f"processing/{name}/regions.geojson",
     params:
-        land_limit_dataset=config["aggregation"].get(
-            "land_limit_dataset", "suitability"
-        ),
+        land_limit_dataset=config["aggregation"]["land_limit_dataset"],
     output:
         f"processing/{name}/land_area_by_class.csv",
     script:
@@ -320,8 +318,9 @@ def yield_and_suitability_for_crop(w):
     """
     crop = w.crop
     ws = w.water_supply
-    use_actual = config.get("validation", {}).get("use_actual_yields", False)
-    yield_kind = "actual_yield" if use_actual else "yield"
+    yield_kind = (
+        "actual_yield" if config["validation"]["use_actual_yields"] else "yield"
+    )
 
     inputs = {
         "yield_raster": gaez_path(yield_kind, ws, crop),
@@ -373,25 +372,11 @@ def multi_cropping_inputs(_wildcards):
     combos_cfg = config["multiple_cropping"]
     crops_by_supply: dict[str, set[str]] = {"r": set(), "i": set()}
     for combo_name, entry in combos_cfg.items():
-        if not isinstance(entry, dict):
-            raise ValueError(
-                f"multiple_cropping['{combo_name}'] must be a mapping with 'crops' and optional 'water_supplies'"
-            )
-        crops = entry.get("crops")
-        if not crops:
-            raise ValueError(
-                f"multiple_cropping['{combo_name}'] must define a non-empty 'crops' list"
-            )
         water_supplies = entry.get("water_supplies", ["r"])
-        if isinstance(water_supplies, (str, int)):
+        if isinstance(water_supplies, str):
             water_supplies = [water_supplies]
         for ws in water_supplies:
-            ws_str = str(ws).lower()
-            if ws_str not in crops_by_supply:
-                raise ValueError(
-                    f"multiple_cropping['{combo_name}'] has unsupported water supply '{ws}'"
-                )
-            crops_by_supply[ws_str].update(str(crop) for crop in crops)
+            crops_by_supply[ws].update(entry["crops"])
     inputs = {
         "classes": f"processing/{name}/resource_classes.nc",
         "regions": f"processing/{name}/regions.geojson",
@@ -501,7 +486,7 @@ def yield_inputs(wildcards):
 def harvested_area_model_inputs(_wildcards):
     """Return harvested area files when actual production mode is enabled."""
 
-    if not config.get("validation", {}).get("use_actual_production", False):
+    if not config["validation"]["use_actual_production"]:
         return {}
 
     irr_cfg = config["irrigation"]["irrigated_crops"]
@@ -586,7 +571,8 @@ rule build_model:
         primary=config["primary"],
         biomass=config["biomass"],
         emissions=config["emissions"],
-        food_groups=config["food_groups"],
+        food_groups=config["food_groups"]["included"],
+        food_group_constraints=config["food_groups"].get("constraints", {}),
         macronutrients=config["macronutrients"],
         diet=config["diet"],
         byproducts=config["byproducts"],

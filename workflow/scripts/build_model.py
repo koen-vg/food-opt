@@ -2198,7 +2198,7 @@ def add_food_group_buses_and_loads(
     n: pypsa.Network,
     food_group_list: list,
     food_groups: pd.DataFrame,
-    food_groups_config: dict,
+    food_group_constraints: dict,
     countries: list,
     population: pd.Series,
     *,
@@ -2210,14 +2210,11 @@ def add_food_group_buses_and_loads(
     equality overrides can be supplied via ``per_country_equal``.
     """
 
-    if not food_groups_config:
-        return
-
     per_country_equal = per_country_equal or {}
 
     logger.info("Adding food group loads based on nutrition requirements...")
     for group in food_group_list:
-        group_config = food_groups_config.get(group, {}) or {}
+        group_config = food_group_constraints.get(group, {}) or {}
         min_value = group_config.get("min")
         max_value = group_config.get("max")
         equal_value = group_config.get("equal")
@@ -3134,9 +3131,7 @@ if __name__ == "__main__":
         .set_index("food")["group"]
         .to_dict()
     )
-    food_group_list = food_groups_clean.loc[
-        food_groups_clean["food"].isin(food_list), "group"
-    ].unique()
+    food_group_list = list(snakemake.params.food_groups)
 
     if enforce_baseline:
         missing_pairs = [
@@ -3317,7 +3312,7 @@ if __name__ == "__main__":
         n,
         food_group_list,
         food_groups,
-        snakemake.params.food_groups,
+        snakemake.params.food_group_constraints,
         cfg_countries,
         population,
         per_country_equal=baseline_equals,

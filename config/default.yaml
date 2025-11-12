@@ -202,30 +202,22 @@ grazing:
 
 # --- section: food_groups ---
 food_groups:
-  # For each of the below food groups, we support "min", "max" and
-  # "equal" keywords, which are given in g/person/day in fresh weight
-  whole_grains:
-    min: 0
-  grain:
-    min: 0
-  fruits:
-    min: 0
-  vegetables:
-    min: 0
-  legumes:
-    min: 0
-  nuts_seeds:
-    min: 0
-  starchy_vegetable:
-    min: 0
-  oil:
-    min: 0
-  red_meat:
-    min: 0
-  dairy:
-    min: 0
-  sugar:
-    min: 0
+  included:
+  - whole_grains
+  - grain
+  - fruits
+  - vegetables
+  - legumes
+  - nuts_seeds
+  - starchy_vegetable
+  - oil
+  - red_meat
+  - poultry
+  - dairy
+  - eggs
+  - sugar
+  # Optional per-group constraints with "min", "max" or "equal" in g/person/day
+  constraints: {}
 
 # --- section: diet ---
 diet:
