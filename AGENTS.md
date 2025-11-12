@@ -40,7 +40,7 @@ Provide clear expectations and a safe, efficient workflow so agents can make sma
 - Do not add `from __future__ import annotations`; type checkers and tooling already expect
   runtime string annotations, so this import is unnecessary and should be avoided.
 - Documentation-first interfaces: If you change a script’s inputs/outputs, update inline docstrings and any referenced docs/config keys.
-- Mock data: Several CSVs ship with placeholder values to keep the workflow runnable (`README.md` lists them). When touching those files, state clearly that values are mock and confirm with the user before treating them as final data.
+- Never use `config.get(<attr>, <default>)` or similar with a hardcoded default value in any script; we always assume that the configuration is well-formed and complete, so we can just index directly (`config[<attr>]`).
 
 ## Environment & Tooling
 
@@ -116,6 +116,7 @@ Notes:
   - `bus1` is the (first) output bus; `efficiency` governs bus0→bus1.
   - `bus2`, `bus3`, … are additional legs with `efficiency2`, `efficiency3`, …
     - Positive efficiency ⇒ output; negative ⇒ input (relative to `bus0`).
+- When adding components multiple components (e.g. `n.generators.add(name=[...])`), PyPSA will automatically expand constant arguments, so you can write e.g. `marginal_cost=1` instead of `marginal_cost=[1] * len(...)`.
 
 ## When Implementing Changes
 
