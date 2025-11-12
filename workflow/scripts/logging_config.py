@@ -52,7 +52,12 @@ def setup_script_logging(log_file=None, level=logging.INFO):
 
     frame = inspect.currentframe()
     if frame and frame.f_back:
-        caller_module = frame.f_back.f_globals.get("__name__", __name__)
+        caller_globals = frame.f_back.f_globals
+        caller_module = caller_globals.get("__name__", __name__)
+        if caller_module == "__main__":
+            caller_file = caller_globals.get("__file__")
+            if caller_file:
+                caller_module = Path(caller_file).stem
     else:
         caller_module = __name__
 
