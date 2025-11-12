@@ -224,7 +224,7 @@ food_groups:
 # --- section: diet ---
 diet:
   baseline_age: "All ages"
-  baseline_reference_year: null  # falls back to health.reference_year when null
+  baseline_reference_year: 2018 # Keeping this the same as the health reference year makes sense
 
 # --- section: biomass ---
 biomass:

@@ -166,26 +166,9 @@ def _fresh_mass_conversion_factors(
         if pd.isna(moisture_fraction):
             missing_moisture.append(crop)
             continue
-        if not (0 < edible_coeff <= 1):
-            raise ValueError(
-                f"Invalid edible portion coefficient {edible_coeff} for crop '{crop}'"
-            )
-        if moisture_fraction < 0 or moisture_fraction >= 1:
-            raise ValueError(
-                f"Moisture fraction for crop '{crop}' must be in [0, 1); found {moisture_fraction}"
-            )
 
         dry_fraction = 1 - moisture_fraction
-        if dry_fraction <= 0:
-            raise ValueError(
-                f"Dry matter fraction for crop '{crop}' must be positive; moisture={moisture_fraction}"
-            )
         factor = edible_coeff / dry_fraction
-
-        if not np.isfinite(factor) or factor <= 0:
-            raise ValueError(
-                f"Computed non-positive fresh mass factor {factor} for crop '{crop}'"
-            )
         factors[crop] = factor
 
     if missing_edible:
@@ -767,28 +750,13 @@ def add_regional_crop_production_links(
             ws for ws in ("r", "i") if f"{crop}_yield_{ws}" in yields_data
         ]
 
-        if "r" not in available_supplies:
-            raise ValueError(
-                f"Rainfed yield data missing for crop '{crop}'; ensure build_crop_yields ran"
-            )
-
         # Process available water supplies (rainfed always first for stability)
         for ws in available_supplies:
             key = f"{crop}_yield_{ws}"
             crop_yields = yields_data[key].copy()
 
             if use_actual_production:
-                harvest_key = f"{crop}_harvested_{ws}"
-                try:
-                    harvest_table = harvested_area_data[harvest_key]
-                except KeyError as exc:
-                    raise ValueError(
-                        f"Missing harvested area data for crop '{crop}' ({'irrigated' if ws == 'i' else 'rainfed'})"
-                    ) from exc
-                if "harvested_area" not in harvest_table.columns:
-                    raise ValueError(
-                        f"Harvested area table for crop '{crop}' ({ws}) missing 'harvested_area' column"
-                    )
+                harvest_table = harvested_area_data[f"{crop}_harvested_{ws}"]
                 crop_yields = crop_yields.join(
                     harvest_table["harvested_area"].rename("harvested_area"),
                     how="left",
@@ -891,32 +859,9 @@ def add_regional_crop_production_links(
                 link_params["p_min_pu"] = 1.0
 
             if ws == "i":
-                if "water_requirement_m3_per_ha" not in df.columns:
-                    raise ValueError(
-                        "Missing GAEZ water requirement column for irrigated crop "
-                        f"'{crop}'"
-                    )
-
                 water_requirement = pd.to_numeric(
                     df["water_requirement_m3_per_ha"], errors="coerce"
                 )
-                invalid = (~np.isfinite(water_requirement)) | (water_requirement < 0)
-                if invalid.any():
-                    invalid_rows = df.loc[invalid, ["region", "resource_class"]]
-                    sample = (
-                        invalid_rows.head(5)
-                        .apply(
-                            lambda r: f"{r['region']}#class{int(r['resource_class'])}",
-                            axis=1,
-                        )
-                        .tolist()
-                    )
-                    raise ValueError(
-                        "Invalid irrigated water requirement for crop "
-                        f"'{crop}' in {invalid_rows.shape[0]} rows (examples: "
-                        + ", ".join(sample)
-                        + ")"
-                    )
 
                 link_params["bus2"] = df["region"].apply(lambda r: f"water_{r}")
                 # Convert m³/ha to km³/Mha for compatibility with scaled water units
@@ -1748,13 +1693,6 @@ def add_food_conversion_links(
     Foods flagged as byproducts are ignored when checking for food-group mappings.
     """
 
-    # Validate that foods.csv has the new pathway column
-    if "pathway" not in foods.columns:
-        raise ValueError(
-            "foods.csv must contain a 'pathway' column. "
-            "See data/foods.csv for the expected format with pathway-based structure."
-        )
-
     # Filter foods DataFrame to only include configured crops
     foods = foods[foods["crop"].isin(crop_list)].copy()
 
@@ -1790,18 +1728,8 @@ def add_food_conversion_links(
         output_foods = []
         output_factors = []
         for _, row in pathway_df.iterrows():
-            food = str(row["food"]).strip()
-            if pd.isna(row["factor"]):
-                raise ValueError(
-                    f"Missing conversion factor in pathway '{pathway}' for crop '{crop}' to food '{food}'"
-                )
-            factor = float(row["factor"])
-            if not np.isfinite(factor) or factor <= 0:
-                raise ValueError(
-                    f"Invalid conversion factor {factor} in pathway '{pathway}' for crop '{crop}' to food '{food}'"
-                )
-            output_foods.append(food)
-            output_factors.append(factor)
+            output_foods.append(str(row["food"]))
+            output_factors.append(float(row["factor"]))
 
         # Verify mass balance (sum of factors should be ≤ 1.0)
         total_factor = sum(output_factors)
@@ -1809,16 +1737,10 @@ def add_food_conversion_links(
             invalid_pathways.append(f"{pathway} ({crop}): sum={total_factor:.3f}")
 
         # Get conversion factor (dry matter → fresh edible)
-        try:
-            conversion_factor = crop_to_fresh_factor[crop]
-        except KeyError as exc:
-            raise ValueError(
-                f"Missing moisture/edible conversion data for crop '{crop}' in pathway '{pathway}'"
-            ) from exc
+        conversion_factor = crop_to_fresh_factor[crop]
 
         # Create multi-output link names (one per country)
-        safe_pathway_name = pathway.replace(" ", "_").replace("(", "").replace(")", "")
-        names = [f"pathway_{safe_pathway_name}_{c}" for c in normalized_countries]
+        names = [f"pathway_{pathway}_{c}" for c in normalized_countries]
         bus0 = [f"crop_{crop}_{c}" for c in normalized_countries]
 
         # Build parameters for multi-output link
@@ -2475,10 +2397,7 @@ def add_food_nutrition_links(
     nutrients = list(nutrition.index.get_level_values("nutrient").unique())
     for food in consumable_foods:
         group_val = food_to_group.get(food, None)
-        names = [
-            f"consume_{food.replace(' ', '_').replace('(', '').replace(')', '')}_{c}"
-            for c in countries
-        ]
+        names = [f"consume_{food}_{c}" for c in countries]
         bus0 = [f"food_{food}_{c}" for c in countries]
 
         # macronutrient outputs
@@ -2784,12 +2703,7 @@ if __name__ == "__main__":
     validation_cfg = snakemake.config["validation"]  # type: ignore[attr-defined]
     use_actual_production = bool(validation_cfg["use_actual_production"])
     enforce_baseline = bool(validation_cfg["enforce_gdd_baseline"])
-    slack_food_group_cost_raw = validation_cfg["food_group_slack_marginal_cost"]
-    slack_food_group_cost = (
-        float(slack_food_group_cost_raw)
-        if slack_food_group_cost_raw is not None
-        else None
-    )
+    slack_food_group_cost = float(validation_cfg["food_group_slack_marginal_cost"])
 
     # Read fertilizer N application rates (kg N/ha/year for high-input agriculture)
     fertilizer_n_rates = read_csv(snakemake.input.fertilizer_n_rates, index_col="crop")[
@@ -2884,40 +2798,8 @@ if __name__ == "__main__":
 
         for ws in expected_supplies:
             yields_key = f"{crop}_yield_{ws}"
-            try:
-                path = snakemake.input[yields_key]
-            except AttributeError as exc:
-                supply_label = "irrigated" if ws == "i" else "rainfed"
-                raise ValueError(
-                    f"Missing {supply_label} yield input for crop '{crop}'. Ensure the crop yield preprocessing "
-                    f"step produced '{yields_key}'."
-                ) from exc
-
-            yields_df, var_units = _load_crop_yield_table(path)
-            yield_unit = var_units.get("yield")
-            if yield_unit != "t/ha (DM)":
-                raise ValueError(
-                    f"Unexpected unit for 'yield' in '{path}': expected 't/ha (DM)', found '{yield_unit}'"
-                )
-            area_unit = var_units.get("suitable_area")
-            if area_unit != "ha":
-                raise ValueError(
-                    f"Unexpected unit for 'suitable_area' in '{path}': expected 'ha', found '{area_unit}'"
-                )
-            if ws == "i":
-                water_unit = var_units.get("water_requirement_m3_per_ha")
-                if water_unit not in {None, np.nan, "m^3/ha"}:
-                    raise ValueError(
-                        f"Unexpected unit for 'water_requirement_m3_per_ha' in '{path}': "
-                        f"expected 'm^3/ha', found '{water_unit}'"
-                    )
+            yields_df, var_units = _load_crop_yield_table(snakemake.input[yields_key])
             yields_data[yields_key] = yields_df
-            logger.info(
-                "Loaded yields for %s (%s): %d rows",
-                crop,
-                "irrigated" if ws == "i" else "rainfed",
-                len(yields_df),
-            )
 
     harvested_area_data: dict[str, pd.DataFrame] = {}
     if use_actual_production:
@@ -2927,18 +2809,8 @@ if __name__ == "__main__":
                 expected_supplies.append("i")
             for ws in expected_supplies:
                 harvest_key = f"{crop}_harvested_{ws}"
-                path = getattr(snakemake.input, harvest_key, None)
-                if path is None:
-                    raise ValueError(
-                        f"Missing harvested area input for crop '{crop}' ({'irrigated' if ws == 'i' else 'rainfed'}). "
-                        "Ensure the harvested area preprocessing step produced the expected files."
-                    )
-                harvest_df, harvest_units = _load_crop_yield_table(path)
-                area_unit = harvest_units.get("harvested_area")
-                if area_unit != "ha":
-                    raise ValueError(
-                        f"Unexpected unit for 'harvested_area' in '{path}': expected 'ha', found '{area_unit}'"
-                    )
+                path = snakemake.input[harvest_key]
+                harvest_df, _ = _load_crop_yield_table(path)
                 harvested_area_data[harvest_key] = harvest_df
 
     # Read regions
@@ -2958,8 +2830,6 @@ if __name__ == "__main__":
     carbon_price = float(snakemake.params.emissions["ghg_price"])
     ch4_to_co2_factor = float(snakemake.params.emissions["ch4_to_co2_factor"])
     n2o_to_co2_factor = float(snakemake.params.emissions["n2o_to_co2_factor"])
-    if ch4_to_co2_factor <= 0.0:
-        raise ValueError("`emissions.ch4_to_co2_factor` must be positive.")
     try:
         luc_coefficients_path = snakemake.input.luc_carbon_coefficients
         luc_coeff_df = read_csv(luc_coefficients_path)
@@ -3019,38 +2889,22 @@ if __name__ == "__main__":
     # Expect columns: iso3, country, year, population
     # Select only configured countries and validate coverage
     cfg_countries = list(snakemake.params.countries)
-    pop_map = population_df.set_index("iso3")["population"].reindex(cfg_countries)
-    missing = pop_map[pop_map.isna()].index.tolist()
-    if missing:
-        raise ValueError("Missing population for countries: " + ", ".join(missing))
-    # population series indexed by country code (ISO3)
-    population = pop_map.astype(float)
+    population = (
+        population_df.set_index("iso3")["population"]
+        .reindex(cfg_countries)
+        .astype(float)
+    )
 
     diet_cfg = snakemake.params.diet
     health_reference_year = int(snakemake.params.health_reference_year)
     baseline_equals: dict[str, dict[str, float]] = {}
     if enforce_baseline:
-        baseline_age = str(diet_cfg["baseline_age"])
-        baseline_year = diet_cfg["baseline_reference_year"]
-        if baseline_year is not None:
-            baseline_year = int(baseline_year)
-        diet_table_path = snakemake.input.get("baseline_diet")
-        if diet_table_path is None:
-            raise ValueError(
-                "Baseline diet enforcement requested but no GDD intake table provided"
-            )
-        diet_table = read_csv(diet_table_path)
         baseline_equals = _build_food_group_equals_from_baseline(
-            diet_table,
+            read_csv(snakemake.input.baseline_diet),
             cfg_countries,
             food_groups["group"].unique(),
-            baseline_age=baseline_age,
-            reference_year=baseline_year,
-        )
-        logger.info(
-            "Enforcing baseline diet using GDD data (age=%s, year=%s)",
-            baseline_age,
-            baseline_year,
+            baseline_age=str(diet_cfg["baseline_age"]),
+            reference_year=int(diet_cfg["baseline_reference_year"]),
         )
 
     region_to_country = regions_df.set_index("region")["country"]
@@ -3120,19 +2974,6 @@ if __name__ == "__main__":
     biomass_crop_targets = sorted(
         {crop for crop in biomass_crop_targets_cfg if crop in crop_list}
     )
-    missing_biomass_crops = sorted(set(biomass_crop_targets_cfg).difference(crop_list))
-    if biomass_enabled and missing_biomass_crops:
-        logger.warning(
-            "Biomass crops not found in scenario crop list: %s",
-            ", ".join(missing_biomass_crops),
-        )
-
-    # Validate foods.csv structure
-    if "pathway" not in foods.columns:
-        raise ValueError(
-            "foods.csv must contain a 'pathway' column. "
-            "Update data/foods.csv to use the pathway-based format."
-        )
 
     food_crops = set(foods.loc[foods["crop"].isin(crop_list), "crop"])
     crop_to_fresh_factor = _fresh_mass_conversion_factors(
@@ -3144,33 +2985,12 @@ if __name__ == "__main__":
     food_groups_clean = food_groups.dropna(subset=["food", "group"]).copy()
     food_groups_clean["food"] = food_groups_clean["food"].astype(str).str.strip()
     food_groups_clean["group"] = food_groups_clean["group"].astype(str).str.strip()
-    duplicate_groups = (
-        food_groups_clean.groupby("food")["group"].nunique().loc[lambda s: s > 1]
-    )
-    if not duplicate_groups.empty:
-        raise ValueError(
-            "Each food must map to a single food group. Conflicts for: "
-            + ", ".join(duplicate_groups.index.tolist())
-        )
     food_to_group = (
         food_groups_clean.drop_duplicates(subset=["food"])
         .set_index("food")["group"]
         .to_dict()
     )
     food_group_list = list(snakemake.params.food_groups)
-
-    if enforce_baseline:
-        missing_pairs = [
-            f"{country}:{group}"
-            for group in food_group_list
-            for country in cfg_countries
-            if baseline_equals.get(str(group), {}).get(country) is None
-        ]
-        if missing_pairs:
-            raise ValueError(
-                "Baseline diet enforcement missing values for: "
-                + ", ".join(sorted(missing_pairs)[:10])
-            )
 
     macronutrient_cfg = snakemake.params.macronutrients
     nutrient_units = (
