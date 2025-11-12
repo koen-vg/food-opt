@@ -623,5 +623,7 @@ rule solve_model:
         ),
     output:
         network="results/{name}/solved/model.nc",
+    log:
+        "results/{name}/logs/solve_model.log",
     script:
         "scripts/solve_model.py"

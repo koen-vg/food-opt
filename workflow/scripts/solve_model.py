@@ -459,6 +459,17 @@ def add_health_objective(
 
 
 if __name__ == "__main__":
+    # Configure logging to write to Snakemake log file
+    log_file = snakemake.log[0]
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler(),  # Also keep console output
+        ],
+    )
+
     n = pypsa.Network(snakemake.input.network)
 
     # Create the linopy model
@@ -468,6 +479,14 @@ if __name__ == "__main__":
 
     solver_name = snakemake.params.solver
     solver_options = snakemake.params.solver_options or {}
+
+    # Configure Gurobi to write detailed logs to the same file
+    if solver_name.lower() == "gurobi":
+        solver_options = dict(solver_options)  # Make a copy to avoid modifying config
+        if "LogFile" not in solver_options:
+            solver_options["LogFile"] = log_file
+        if "LogToConsole" not in solver_options:
+            solver_options["LogToConsole"] = 1  # Also print to console
 
     # Add health impacts to the objective if data is available
     add_health_objective(
@@ -514,10 +533,13 @@ if __name__ == "__main__":
         n.export_to_netcdf(snakemake.output.network)
     elif condition in {"infeasible", "infeasible_or_unbounded"}:
         logger.error("Model is infeasible or unbounded!")
-        if solver_name == "gurobi":
+        if solver_name.lower() == "gurobi":
             try:
-                logger.error("Infeasible constraints:")
+                logger.error("Computing IIS (Irreducible Inconsistent Subsystem)...")
+                # Note: print_infeasibilities() outputs to stdout, which Snakemake
+                # redirects to the log file automatically
                 n.model.print_infeasibilities()
+                logger.error("IIS computation complete (see above output)")
             except Exception as exc:
                 logger.error("Could not compute infeasibilities: %s", exc)
         else:
