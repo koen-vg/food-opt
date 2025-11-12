@@ -40,6 +40,8 @@ pixi install --environment gurobi
 - `tools/smk` wraps Snakemake with the repository's resource limits and environment pins.
 - Snakemake targets land under `results/{name}/`.
 
+Snakemake runs a configuration/data validation hook (powered by Pydantic + Pandera) before it resolves any rules; extend the checks under `workflow/validation/` when adding new consistency requirements.
+
 ## Repository Layout
 
 - `workflow/` – Snakemake rules and scripts, including the top-level `workflow/Snakefile`.

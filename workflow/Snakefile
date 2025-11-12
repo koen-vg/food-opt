@@ -2,10 +2,15 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from snakemake.utils import min_version
-import os
-import itertools
 import csv
+import itertools
+import os
+from pathlib import Path
+
+from snakemake.logging import logger
+from snakemake.utils import min_version
+
+from validation import validate as run_validations
 
 min_version("9.0")
 
@@ -13,6 +18,19 @@ os.makedirs("data/downloads", exist_ok=True)
 
 
 configfile: "config/default.yaml"
+
+
+PROJECT_ROOT = Path.cwd()
+
+
+def _validate_inputs() -> None:
+    """Run repo-level validation before Snakemake resolves rules."""
+
+    logger.info("Validating configuration and input datasets")
+    run_validations(config, project_root=PROJECT_ROOT)
+
+
+_validate_inputs()
 
 
 # Include common configuration and helper functions first

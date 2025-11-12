@@ -64,6 +64,10 @@ faostat = ">=1.1.2, <2"              # FAO statistics API client
 ecmwf-datastores-client = ">=0.4.0, <0.5" # ECMWF climate data access
 gsutil = ">=5.35, <6"                # Google Cloud Storage CLI
 
+# Validation
+pandera = ">=0.20.3, <0.21"
+pydantic = ">=2.10.5, <3"
+
 [feature.gurobi.pypi-dependencies]
 gurobipy = ">=12.0.3, <13"           # Gurobi commercial MILP solver (requires license)
 
