@@ -207,12 +207,14 @@ def _plot_pie_map(
                 title=legend_title,
                 loc="lower left",
                 bbox_to_anchor=(0.15, 0.03),
-                fontsize=8,
+                fontsize=6,
                 title_fontsize=9,
+                ncol=2,
                 frameon=True,
                 borderpad=0.8,
-                labelspacing=0.6,
-                handletextpad=0.6,
+                labelspacing=0.4,
+                handletextpad=0.5,
+                columnspacing=1.0,
             )
             legend1._legend_box.align = "left"
             ax.add_artist(legend1)
