@@ -131,10 +131,13 @@ Non-Tradable Commodities
 
 Certain products are designated non-tradable:
 
-* **Fodder crops** (alfalfa, biomass sorghum): Too bulky/low-value to transport
-* **Perishables** (optional): Can restrict local consumption of fragile goods
+* **Fodder crops** (alfalfa, biomass sorghum) via ``trade.non_tradable_crops`` —
+  too bulky/low-value to transport
+* **Foods** listed in ``trade.non_tradable_foods`` (optional) — keeps fragile or
+  policy-protected items local
 
-Non-tradable crops must be consumed (as food or feed) within their production region.
+Non-tradable crops or foods must be consumed (as food, feed, or byproducts) within
+their production region.
 
 Model Implementation
 --------------------
@@ -162,4 +165,6 @@ Trade links are created in ``workflow/scripts/build_model.py``:
                  p_nom=inf,
                  marginal_cost=hub_distance * cost_per_km)
 
-Similar structure for animal products.
+The same structure applies to all foods (including animal products and byproducts),
+so every consumable item can flow through the hub network unless it is listed under
+``trade.non_tradable_foods``.

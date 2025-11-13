@@ -275,19 +275,25 @@ trade:
       - sunflower
       - rapeseed
       - groundnut
-  animal_product_hubs: 20
-  animal_product_default_trade_cost_per_km: 2.1e-2  # USD_2024 per tonne per km
-  animal_product_trade_cost_categories:
-    chilled_meat:
-      cost_per_km: 2.8e-2  # USD_2024 per tonne per km
-      products:
-      - meat-cattle
-      - meat-pig
   non_tradable_crops:
     - alfalfa
     - biomass-sorghum
     - silage-maize
-  non_tradable_animal_products: []
+  food_hubs: 20
+  food_default_trade_cost_per_km: 2.1e-2  # USD_2024 per tonne per km
+  food_trade_cost_categories:
+    chilled_meat:
+      cost_per_km: 2.8e-2  # USD_2024 per tonne per km
+      foods:
+      - meat-cattle
+      - meat-pig
+      - meat-chicken
+    dairy_and_eggs:
+      cost_per_km: 2.4e-2
+      foods:
+      - dairy
+      - eggs
+  non_tradable_foods: []
 
 # --- section: health ---
 health:

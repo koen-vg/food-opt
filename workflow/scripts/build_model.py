@@ -2665,32 +2665,32 @@ def add_crop_trade_hubs_and_links(
     )
 
 
-def add_animal_product_trade_hubs_and_links(
+def add_food_trade_hubs_and_links(
     n: pypsa.Network,
     trade_config: dict,
     regions_gdf: gpd.GeoDataFrame,
     countries: list,
-    animal_product_list: list,
+    food_list: list,
 ) -> None:
-    """Add trading hubs and links for animal products."""
+    """Add trading hubs and links for foods (including byproducts)."""
 
     _add_trade_hubs_and_links(
         n,
         trade_config,
         regions_gdf,
         countries,
-        animal_product_list,
-        hub_count_key="animal_product_hubs",
-        marginal_cost_key="animal_product_trade_marginal_cost_per_km",
-        cost_categories_key="animal_product_trade_cost_categories",
-        default_cost_key="animal_product_default_trade_cost_per_km",
-        category_item_key="products",
-        non_tradable_key="non_tradable_animal_products",
+        food_list,
+        hub_count_key="food_hubs",
+        marginal_cost_key="food_trade_marginal_cost_per_km",
+        cost_categories_key="food_trade_cost_categories",
+        default_cost_key="food_default_trade_cost_per_km",
+        category_item_key="foods",
+        non_tradable_key="non_tradable_foods",
         bus_prefix="food_",
         carrier_prefix="food_",
         hub_name_prefix="hub_food",
         link_name_prefix="trade_food",
-        log_label="animal product",
+        log_label="food",
     )
 
 
@@ -3188,12 +3188,12 @@ if __name__ == "__main__":
     add_crop_trade_hubs_and_links(
         n, snakemake.params.trade, regions_df, cfg_countries, list(crop_list)
     )
-    add_animal_product_trade_hubs_and_links(
+    add_food_trade_hubs_and_links(
         n,
         snakemake.params.trade,
         regions_df,
         cfg_countries,
-        animal_product_list,
+        food_list,
     )
 
     logger.info("Network summary:")
