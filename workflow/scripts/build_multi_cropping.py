@@ -178,6 +178,8 @@ def compute_eligibility_mask(
 if __name__ == "__main__":
     # Parse combinations from config
     combos: list[dict[str, object]] = []
+    use_actual_yields = bool(getattr(snakemake.params, "use_actual_yields", False))  # type: ignore[attr-defined]
+
     for name, entry in snakemake.params.combinations.items():  # type: ignore[attr-defined,name-defined]
         crops = [str(c) for c in entry["crops"]]
         water_supplies = entry.get("water_supplies", ["r"])
@@ -244,6 +246,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     conv_df = pd.read_csv(conv_csv, comment="#").set_index("code")
+    KG_TO_TONNE = 0.001
 
     ds = xr.load_dataset(classes_nc)
     if "resource_class" not in ds:
@@ -284,9 +287,11 @@ if __name__ == "__main__":
     regions_for_extract = regions_gdf.reset_index()
 
     def conversion_factor(crop: str) -> float:
+        base_scale = 1.0 if use_actual_yields else KG_TO_TONNE
         if crop in conv_df.index and pd.notna(conv_df.at[crop, "factor_to_t_per_ha"]):
-            return float(conv_df.at[crop, "factor_to_t_per_ha"])
-        return 0.001
+            override = float(conv_df.at[crop, "factor_to_t_per_ha"])
+            return base_scale * (override / KG_TO_TONNE)
+        return base_scale
 
     yield_data: dict[tuple[str, str], np.ndarray] = {}
     suitability_data: dict[tuple[str, str], np.ndarray] = {}

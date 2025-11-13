@@ -128,8 +128,9 @@ Aggregation Process
 
 3. **Unit conversions**: Apply crop-specific conversion factors
 
-   * Default: 0.001 (kg/ha → t/ha)
-   * Custom factors in ``data/yield_unit_conversions.csv`` (convert sugar and oil outputs back to dry-matter crop yields)
+   * **Potential runs**: GAEZ RES05 “yield” rasters are in kg/ha, so the default multiplier is ``0.001`` (kg → tonne). This is the behaviour in the standard (non-validation) configuration.
+   * **Validation runs**: When ``validation.use_actual_yields: true`` the pipeline swaps to the GAEZ “actual yield” rasters, which are already in tonnes per hectare. In this mode the default multiplier is ``1.0`` so we do not double scale the data.
+   * **Sugar & oil crops**: ``data/yield_unit_conversions.csv`` stores overrides for sugarcane, sugarbeet, and oil-palm because GAEZ reports processed outputs (sugar or oil). The factors are interpreted relative to the historical kg/ha baseline, so they continue to work for both scenarios (we convert them into a scenario-agnostic multiplier inside ``build_crop_yields.py``).
 
 4. **Mask by suitability**: Only aggregate over suitable land (SX1 > 0)
 

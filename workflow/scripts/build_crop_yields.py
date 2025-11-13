@@ -42,26 +42,41 @@ if __name__ == "__main__":
     crop_code: str = snakemake.wildcards.crop  # type: ignore[name-defined]
     conv_csv: str | None = getattr(snakemake.input, "yield_unit_conversions", None)  # type: ignore[attr-defined]
 
+    KG_TO_TONNE = 0.001
+
     # Load classes
     ds = xr.load_dataset(classes_nc)
     class_labels = ds["resource_class"].values.astype(np.int16)
 
     # Load rasters
     y_raw, y_src = read_raster_float(yield_path)
-    # Determine conversion factor from CSV (default 0.001 t per kg)
-    factor = 0.001
+    conversion_overrides: dict[str, float] = {}
     if conv_csv:
         try:
-            df_conv = pd.read_csv(conv_csv, comment="#")
-            df_conv = df_conv.set_index("code")
-            if crop_code in df_conv.index and pd.notna(
-                df_conv.at[crop_code, "factor_to_t_per_ha"]
-            ):
-                factor = float(df_conv.at[crop_code, "factor_to_t_per_ha"])
+            df_conv = pd.read_csv(conv_csv, comment="#").set_index("code")
+            conversion_overrides = (
+                df_conv["factor_to_t_per_ha"].dropna().astype(float).to_dict()
+            )
         except Exception:
-            # Fall back to default if the table cannot be read
-            factor = 0.001
-    y_tpha = y_raw * factor
+            conversion_overrides = {}
+
+    use_actual_yields = bool(getattr(snakemake.params, "use_actual_yields", False))  # type: ignore[attr-defined]
+
+    def _yield_multiplier(crop: str) -> float:
+        # GAEZ publishes RES05 potential yields in kg/ha but the historical
+        # “actual yield” variant in t/ha. Validation runs toggle
+        # ``use_actual_yields`` so we keep the raster units untouched in that
+        # mode while the standard pathway still divides by 1_000.
+        base_scale = 1.0 if use_actual_yields else KG_TO_TONNE
+        override = conversion_overrides.get(crop)
+        if override is None:
+            return base_scale
+        # Overrides were calibrated under the kg/ha convention (sugar crops and
+        # oil-palm report processed output mass). Convert them to a relative
+        # multiplier so the same table works for both actual and potential runs.
+        return base_scale * (override / KG_TO_TONNE)
+
+    y_tpha = y_raw * _yield_multiplier(crop_code)
     s_raw, _ = read_raster_float(suit_path)
     s_frac = scale_fraction(s_raw)
     if water_path:

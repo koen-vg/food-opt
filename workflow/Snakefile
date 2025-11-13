@@ -371,6 +371,8 @@ rule build_crop_yields:
         classes=f"processing/{name}/resource_classes.nc",
         regions=f"processing/{name}/regions.geojson",
         yield_unit_conversions="data/yield_unit_conversions.csv",
+    params:
+        use_actual_yields=config["validation"]["use_actual_yields"],
     output:
         f"processing/{name}/crop_yields/{{crop}}_{{water_supply}}.csv",
     script:
@@ -427,6 +429,7 @@ rule build_multi_cropping:
         unpack(multi_cropping_inputs),
     params:
         combinations=lambda wildcards: config["multiple_cropping"],
+        use_actual_yields=config["validation"]["use_actual_yields"],
     output:
         eligible="processing/{name}/multi_cropping/eligible_area.csv",
         yields="processing/{name}/multi_cropping/cycle_yields.csv",
