@@ -22,7 +22,11 @@ import xarray as xr  # noqa: E402
 # Ensure workflow/scripts is on path for raster_utils
 sys.path.insert(0, str(Path(__file__).parent))
 
-from raster_utils import raster_bounds, read_raster_float  # noqa: E402
+from raster_utils import (  # noqa: E402
+    calculate_all_cell_areas,
+    raster_bounds,
+    read_raster_float,
+)
 
 
 def _load_mapping(mapping_path: Path) -> pd.DataFrame:
@@ -188,8 +192,13 @@ def main() -> None:
     class_labels = ds["resource_class"].values.astype(np.int16)
 
     harvested_raw, src = read_raster_float(raster_path)
-    transform = src.transform
-    crs_wkt = src.crs.to_wkt() if src.crs else None
+    try:
+        cell_area_ha = calculate_all_cell_areas(src)
+        harvested_raw = harvested_raw * cell_area_ha
+        transform = src.transform
+        crs_wkt = src.crs.to_wkt() if src.crs else None
+    finally:
+        src.close()
 
     regions = gpd.read_file(regions_path)[["region", "country", "geometry"]]
     regions["country"] = regions["country"].astype(str).str.upper()
