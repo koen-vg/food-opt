@@ -25,7 +25,6 @@ Output
 Notes
 - Uses BLS series CUUR0000SA0 (CPI-U, All items, U.S. city average, not seasonally adjusted)
 - Computes annual averages from monthly data
-- No fallback: if the API fails, the script fails cleanly
 """
 
 import logging

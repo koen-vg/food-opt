@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Mapping of FADN crop output categories (SE codes) to model crops
+# Each FADN category is distributed among the listed crops
+
+SE140:  # Cereals
+  name: "Cereals"
+  crops:
+    - wheat
+    - dryland-rice
+    - wetland-rice
+    - maize
+    - barley
+    - oat
+    - rye
+    - sorghum
+    - buckwheat
+    - foxtail-millet
+    - pearl-millet
+
+SE145:  # Protein crops
+  name: "Protein crops"
+  crops:
+    - soybean
+    - dry-pea
+    - chickpea
+    - cowpea
+    - gram
+    - phaseolus-bean
+    - pigeonpea
+
+SE150:  # Potatoes
+  name: "Potatoes"
+  crops:
+    - white-potato
+
+SE155:  # Sugar beet
+  name: "Sugar beet"
+  crops:
+    - sugarbeet
+
+SE160:  # Oil-seed crops
+  name: "Oil-seed crops"
+  crops:
+    - sunflower
+    - rapeseed
+    - groundnut
+    - sesame
+    - oil-palm
+    - soybean
+
+SE170:  # Vegetables & flowers
+  name: "Vegetables & flowers"
+  crops:
+    - tomato
+    - carrot
+    - onion
+    - cabbage
+
+SE175:  # Fruit trees and berries
+  name: "Fruit trees and berries"
+  crops:
+    - banana
+    - coconut
+
+SE180:  # Citrus fruit
+  name: "Citrus fruit"
+  crops:
+    - citrus
+
+SE190:  # Olives & olive oil
+  name: "Olives & olive oil"
+  crops:
+    - olive

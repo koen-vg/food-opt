@@ -95,9 +95,9 @@ Costs explicitly **excluded** (modeled endogenously):
 * Land opportunity costs (land allocation is optimized)
 * Irrigation water costs (water is a separate constraint)
 
-**Cost allocation**: For crops without direct USDA data, costs fall back to similar crops via ``data/crop_cost_fallbacks.yaml`` (e.g., other cereals use wheat costs, other legumes use soybean costs).
-
 **Inflation adjustment**: All costs are inflation-adjusted to a configurable base year (default: 2024) using US CPI-U data from BLS. See :ref:`bls-cpi-data` for details.
+
+**Note**: USDA data is merged with EU FADN data (see :ref:`fadn-cost-data`) via the ``merge_crop_costs`` rule to provide comprehensive global coverage. For crops without direct cost data from either source, fallback mappings are applied via ``data/crop_cost_fallbacks.yaml`` (e.g., other cereals use wheat costs, other legumes use soybean costs). When data is available from multiple sources, costs are averaged.
 
 .. _bls-cpi-data:
 
@@ -190,6 +190,53 @@ IFA FUBC — Global Fertilizer Use by Crop and Country
 **Usage**: Crop-specific fertilizer application rates for N₂O emissions modeling and nutrient budget analysis
 
 **Workflow retrieval**: Automatic via the ``download_ifa_fubc`` Snakemake rule using the Dryad API v2. Downloads ``ifa_fubc_1_to_9_data.csv`` and ``ifa_fubc_1_to_9_metadata.csv`` to ``data/downloads/``. No registration or API key required.
+
+.. _fadn-cost-data:
+
+FADN — Farm Accountancy Data Network (EU)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: European Commission DG Agriculture and Rural Development / LAMASUS project (Zenodo)
+
+**Description**: European Union farm-level accounting database providing economic and structural data for agricultural holdings. This project uses the LAMASUS-processed NUTS-level agricultural dataset, which aggregates FADN farm accounting data (crop outputs, production costs, areas) into standard results by country, year, and farm typology.
+
+**Temporal coverage**: 2004-2020 (this project uses 2015-2020 for consistency with USDA data)
+
+**Geographic coverage**: EU-27 member states
+
+**Access**: https://zenodo.org/records/10939892 (LAMASUS dataset)
+
+**Original FADN**: https://agriculture.ec.europa.eu/data-and-analysis/farm-structures-and-economics/fsdn_en
+
+**License**: Creative Commons Attribution 4.0 International (CC BY 4.0) for LAMASUS dataset; original FADN data © European Union, free for non-commercial use with attribution
+
+**Retrieval**: Automatic via ``download_fadn_data`` Snakemake rule (Zenodo direct download)
+
+**Coverage**: 10 crop categories (cereals, protein crops, potatoes, sugar beet, oilseeds, vegetables & flowers, fruit trees, citrus, wine & grapes, olives)
+
+**Cost variables**:
+
+* **Crop-specific costs** (per-planting): Seeds and plants (SE285), crop protection (SE300), other crop-specific costs (SE305)
+* **Farm overhead costs** (per-year): Machinery & building costs (SE340), energy (SE345), contract work (SE350), depreciation (SE360), wages paid (SE370), interest paid (SE380)
+* **Explicitly EXCLUDED**: Fertilizer costs (SE295 - modeled endogenously), rent paid (SE375 - land opportunity cost modeled endogenously)
+
+**Cost allocation methodology**:
+
+1. Costs are allocated to crop categories proportionally by output value share (e.g., if cereals represent 30% of total crop output value, they receive 30% of total costs)
+2. Within each FADN category, costs are distributed equally among model crops (e.g., cereals category costs are split among wheat, rice, maize, barley, etc.)
+3. Costs are divided by total utilized agricultural area (UAA) to obtain cost per hectare
+
+**Currency and inflation adjustment**:
+
+1. EUR costs are inflation-adjusted to base year (default: 2024) using EU HICP (Harmonized Index of Consumer Prices)
+2. Converted to USD using average EUR/USD exchange rate (1.10 for 2015-2024 period)
+3. USD values are further adjusted for US inflation using CPI-U to ensure consistency with USDA cost data
+
+**Usage**: Provides production cost estimates for EU agriculture, complementing USDA data with broader crop coverage (vegetables, fruits, etc.). Costs are merged with USDA data via ``merge_crop_costs`` rule; when both sources have data for a crop, values are averaged.
+
+**Workflow integration**: Processed via ``retrieve_fadn_costs`` script → ``processing/{name}/fadn_costs.csv`` → merged with USDA costs → ``processing/{name}/crop_costs.csv`` (final output used by ``build_model``).
+
+**Citation**: Wögerer, M. (2024). LAMASUS NUTS-level agricultural data derived from public FADN 1989-2009 (SGM) & 2004-2020 (SO) (0.1) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.10939892
 
 Grassland Yield Data
 ~~~~~~~~~~~~~~~~~~~~

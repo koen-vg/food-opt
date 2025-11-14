@@ -222,3 +222,16 @@ Brief descriptions of key external datasets used by this project, with links and
   - License: https://creativecommons.org/publicdomain/zero/1.0/
 - Citation: Ludemann, C., Gruere, A., Heffer, P., & Dobermann, A. (2022). Global data on fertilizer use by crop and by country [Dataset]. Dryad. https://doi.org/10.5061/dryad.2rbnzs7qh
 - Workflow integration: Retrieved via the `download_ifa_fubc` rule using the Dryad API. Data includes nitrogen (N), phosphate (P₂O₅), and potash (K₂O) application rates and quantities by crop, country, and year, enabling calculation of crop-specific fertilizer application rates for N₂O emissions modeling.
+
+## FADN — Farm Accountancy Data Network (EU)
+
+- Description: European Union farm-level accounting database providing economic and structural data for agricultural holdings across EU member states. This project uses the LAMASUS-processed NUTS-level agricultural dataset derived from the FADN Public Database, which aggregates farm accounting data (crop outputs, production costs, areas) into standard results by country, year, and farm typology. FADN collects detailed cost breakdowns including seeds, crop protection, machinery, energy, labor, and other production expenses.
+- Website (FADN): https://agriculture.ec.europa.eu/data-and-analysis/farm-structures-and-economics/fsdn_en
+- Website (LAMASUS dataset): https://zenodo.org/records/10939892
+- Version/format: LAMASUS v1.0 (March 2025); FADN Standard Results (SO classification, 2004-2020); CSV files for NUTS0 (country-level) aggregation retrieved automatically to `data/downloads/fadn_nuts0_so.csv` and `data/downloads/fadn_variables.xlsx` via the `download_fadn_data` Snakemake rule.
+- Coverage: EU-27 member states; annual data from 2004 to 2020; crop categories include cereals, protein crops, potatoes, sugar beet, oilseeds, vegetables, fruits, citrus, and olives.
+- Cost variables: Seeds and plants (SE285), crop protection (SE300), other crop-specific costs (SE305), machinery costs (SE340), energy (SE345), contract work (SE350), depreciation (SE360), wages (SE370), interest (SE380). Fertilizer costs (SE295) and rent (SE375) are excluded as they are modeled endogenously.
+- License/terms (summary): LAMASUS dataset is licensed under Creative Commons Attribution 4.0 International (CC BY 4.0). Original FADN data © European Union; free for non-commercial use with attribution. FADN Public Database aggregates individual farm data into standard results; individual farm details remain confidential.
+  - License (LAMASUS): https://creativecommons.org/licenses/by/4.0/
+- Citation: Wögerer, M. (2024). LAMASUS NUTS-level agricultural data derived from public FADN 1989-2009 (SGM) & 2004-2020 (SO) (0.1) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.10939892
+- Workflow integration: Retrieved via the `download_fadn_data` rule (Zenodo direct download) and processed by `retrieve_fadn_costs` script. Costs are allocated to model crops proportionally by output value share within FADN crop categories (e.g., cereals, vegetables), inflation-adjusted using EU HICP, converted to USD, and averaged over 2015-2020. Output: `processing/{name}/fadn_costs.csv` with per-year and per-planting cost components. Costs are merged with USDA data via `merge_crop_costs` rule to provide comprehensive global cost coverage.

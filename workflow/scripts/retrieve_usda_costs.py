@@ -18,14 +18,12 @@ see docs/crop_production.rst (Production Costs section) and docs/data_sources.rs
 
 Inputs
 - snakemake.input.sources: CSV with columns (crop, url) mapping to USDA data URLs
-- snakemake.input.mapping: YAML mapping model crops to USDA crop names
 - snakemake.input.cpi: CSV with CPI-U annual averages (year, cpi_u)
-- snakemake.params.crops: list of crop names from config
 - snakemake.params.base_year: base year for inflation adjustment
 
 Output
 - snakemake.output.costs: CSV with columns:
-    crop,usda_crop,n_years,cost_per_year_usd_{base_year}_per_ha,cost_per_planting_usd_{base_year}_per_ha
+    crop,n_years,cost_per_year_usd_{base_year}_per_ha,cost_per_planting_usd_{base_year}_per_ha
 
 Notes
 - Per-year costs (annual fixed): Machinery depreciation, farm overhead, taxes/insurance
@@ -34,6 +32,7 @@ Notes
 - Inflation-adjusted using US CPI-U from BLS
 - Converted from USD/acre to USD/ha (factor: 2.47105)
 - Only U.S. total (not regional) data is used
+- Only crops with actual USDA data are included (no fallbacks)
 """
 
 from io import StringIO
@@ -42,7 +41,6 @@ import logging
 from logging_config import setup_script_logging
 import pandas as pd
 import requests
-import yaml
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
@@ -218,82 +216,43 @@ def process_usda_crop_costs(
 
 def main():
     sources_path: str = snakemake.input.sources  # type: ignore[name-defined]
-    mapping_path: str = snakemake.input.mapping  # type: ignore[name-defined]
     cpi_path: str = snakemake.input.cpi  # type: ignore[name-defined]
-    crops: list[str] = list(snakemake.params.crops)  # type: ignore[name-defined]
     base_year: int = int(snakemake.params.base_year)  # type: ignore[name-defined]
     out_path: str = snakemake.output.costs  # type: ignore[name-defined]
 
     # Load CPI data for inflation adjustment
     cpi_values = load_cpi_data(cpi_path)
 
-    # Load USDA source URLs
+    # Load USDA source URLs (crop name maps directly to USDA crop)
     sources_df = pd.read_csv(sources_path, comment="#")
     if not {"crop", "url"}.issubset(sources_df.columns):
         raise ValueError("Sources file must have columns: crop, url")
-    usda_sources = sources_df.set_index("crop")["url"].to_dict()
 
-    # Load crop mapping
-    with open(mapping_path) as f:
-        crop_mapping = yaml.safe_load(f)
-
-    # Process each model crop
-    cost_per_year_column = f"cost_per_year_usd_{base_year}_per_ha"
-    cost_per_planting_column = f"cost_per_planting_usd_{base_year}_per_ha"
+    # Process only crops with USDA data
     results = []
-    for crop in crops:
-        if crop not in crop_mapping:
-            logger.warning(f"No USDA mapping for crop '{crop}'")
-            results.append(
-                {
-                    "crop": crop,
-                    "usda_crop": pd.NA,
-                    "n_years": 0,
-                    cost_per_year_column: pd.NA,
-                    cost_per_planting_column: pd.NA,
-                }
-            )
-            continue
 
-        usda_crop = crop_mapping[crop]["usda_crop"]
+    for _, row in sources_df.iterrows():
+        crop = row["crop"]
+        url = row["url"]
 
-        if usda_crop not in usda_sources:
-            logger.warning(f"No USDA source URL for crop '{usda_crop}'")
-            results.append(
-                {
-                    "crop": crop,
-                    "usda_crop": usda_crop,
-                    "n_years": 0,
-                    cost_per_year_column: pd.NA,
-                    cost_per_planting_column: pd.NA,
-                }
-            )
-            continue
-
-        url = usda_sources[usda_crop]
-        logger.info(f"Fetching USDA data for {usda_crop} from {url}")
+        logger.info(f"Fetching USDA data for {crop} from {url}")
 
         try:
             df = fetch_usda_csv(url)
-            cost_data = process_usda_crop_costs(df, usda_crop, base_year, cpi_values)
-            results.append(
-                {
-                    "crop": crop,
-                    "usda_crop": usda_crop,
-                    **cost_data,
-                }
-            )
+            cost_data = process_usda_crop_costs(df, crop, base_year, cpi_values)
+
+            # Only include if we got valid data
+            if cost_data["n_years"] > 0:
+                results.append(
+                    {
+                        "crop": crop,
+                        **cost_data,
+                    }
+                )
+            else:
+                logger.warning(f"No valid data for {crop}, skipping")
         except Exception as e:
-            logger.error(f"Failed to process {usda_crop}: {e}")
-            results.append(
-                {
-                    "crop": crop,
-                    "usda_crop": usda_crop,
-                    "n_years": 0,
-                    cost_per_year_column: pd.NA,
-                    cost_per_planting_column: pd.NA,
-                }
-            )
+            logger.error(f"Failed to process {crop}: {e}, skipping")
 
     # Write output
     out_df = pd.DataFrame(results)

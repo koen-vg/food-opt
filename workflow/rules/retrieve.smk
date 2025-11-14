@@ -48,18 +48,80 @@ rule retrieve_cpi_data:
         "../scripts/retrieve_cpi_data.py"
 
 
+rule retrieve_hicp_data:
+    params:
+        start_year=2004,  # FADN data starts 2004
+        end_year=config["currency_base_year"],
+    output:
+        hicp="processing/shared/hicp_annual.csv",
+    script:
+        "../scripts/retrieve_hicp_data.py"
+
+
+rule retrieve_ppp_rates:
+    params:
+        start_year=2015,  # Average PPP over FADN/USDA cost period
+        end_year=2023,  # Latest available PPP data (2024 not yet published)
+    output:
+        ppp="processing/shared/ppp_eur_intl_dollar.csv",
+    script:
+        "../scripts/retrieve_ppp_rates.py"
+
+
+rule download_fadn_data:
+    output:
+        data="data/downloads/fadn_nuts0_so.csv",
+        variables="data/downloads/fadn_variables.xlsx",
+    shell:
+        """
+        wget -q -O {output.data} \
+            "https://zenodo.org/api/records/10939892/files/NUTS0_EU_agricultural_SO_LAMASUS.csv/content"
+        wget -q -O {output.variables} \
+            "https://zenodo.org/api/records/10939892/files/variable_description_zenodo.xlsx/content"
+        """
+
+
 rule retrieve_usda_costs:
     input:
         sources="data/usda_cost_sources.csv",
-        mapping="data/crop_cost_fallbacks.yaml",
         cpi="processing/shared/cpi_annual.csv",
     params:
-        crops=config["crops"],
         base_year=config["currency_base_year"],
     output:
         costs=f"processing/{name}/usda_costs.csv",
     script:
         "../scripts/retrieve_usda_costs.py"
+
+
+rule retrieve_fadn_costs:
+    input:
+        data="data/downloads/fadn_nuts0_so.csv",
+        mapping="data/fadn_crop_mapping.yaml",
+        hicp="processing/shared/hicp_annual.csv",
+        ppp="processing/shared/ppp_eur_intl_dollar.csv",
+    params:
+        crops=config["crops"],
+        base_year=config["currency_base_year"],
+    output:
+        costs=f"processing/{name}/fadn_costs.csv",
+    script:
+        "../scripts/retrieve_fadn_costs.py"
+
+
+rule merge_crop_costs:
+    input:
+        cost_sources=[
+            f"processing/{name}/usda_costs.csv",
+            f"processing/{name}/fadn_costs.csv",
+        ],
+        fallbacks="data/crop_cost_fallbacks.yaml",
+    params:
+        crops=config["crops"],
+        base_year=config["currency_base_year"],
+    output:
+        costs=f"processing/{name}/crop_costs.csv",
+    script:
+        "../scripts/merge_crop_costs.py"
 
 
 rule retrieve_faostat_crop_production:
