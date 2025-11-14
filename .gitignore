@@ -6,6 +6,7 @@
 results
 processing
 notebooks
+logs
 data/downloads/*
 **/__pycache__
 gurobi.log

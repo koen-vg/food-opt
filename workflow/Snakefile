@@ -52,33 +52,38 @@ wildcard_constraints:
     item=r"[a-zA-Z0-9_-]+",
 
 
+ALL_RULE_TARGETS = [
+    "results/{name}/solved/model.nc",
+    # results plots
+    "results/{name}/plots/crop_production.pdf",
+    "results/{name}/plots/resource_usage.pdf",
+    "results/{name}/plots/crop_production.csv",
+    "results/{name}/plots/food_production.csv",
+    "results/{name}/plots/objective_breakdown.pdf",
+    "results/{name}/plots/objective_breakdown.csv",
+    "results/{name}/plots/health_risk_map.pdf",
+    "results/{name}/plots/health_risk_by_region.csv",
+    "results/{name}/plots/health_baseline_map.pdf",
+    "results/{name}/plots/health_baseline_by_region.csv",
+    # maps
+    "results/{name}/plots/regions_map.pdf",
+    "results/{name}/plots/resource_classes_map.pdf",
+    "results/{name}/plots/crop_production_map.pdf",
+    "results/{name}/plots/crop_land_use_map.pdf",
+    "results/{name}/plots/cropland_fraction_map.pdf",
+    "results/{name}/plots/irrigated_cropland_fraction_map.pdf",
+    "results/{name}/plots/crop_use_breakdown.pdf",
+    "results/{name}/plots/crop_use_breakdown.csv",
+    # "results/{name}/plots/water_value_map.pdf",   # Current not working (see issue #1)
+    "results/{name}/plots/food_consumption.pdf",
+    "results/{name}/plots/food_consumption_map.pdf",
+    "results/{name}/plots/food_consumption_baseline_map.pdf",
+]
+
+
 rule all:
     input:
-        f"results/{name}/solved/model.nc",
-        # results plots
-        f"results/{name}/plots/crop_production.pdf",
-        f"results/{name}/plots/resource_usage.pdf",
-        f"results/{name}/plots/crop_production.csv",
-        f"results/{name}/plots/food_production.csv",
-        f"results/{name}/plots/objective_breakdown.pdf",
-        f"results/{name}/plots/objective_breakdown.csv",
-        f"results/{name}/plots/health_risk_map.pdf",
-        f"results/{name}/plots/health_risk_by_region.csv",
-        f"results/{name}/plots/health_baseline_map.pdf",
-        f"results/{name}/plots/health_baseline_by_region.csv",
-        # maps
-        f"results/{name}/plots/regions_map.pdf",
-        f"results/{name}/plots/resource_classes_map.pdf",
-        f"results/{name}/plots/crop_production_map.pdf",
-        f"results/{name}/plots/crop_land_use_map.pdf",
-        f"results/{name}/plots/cropland_fraction_map.pdf",
-        f"results/{name}/plots/irrigated_cropland_fraction_map.pdf",
-        f"results/{name}/plots/crop_use_breakdown.pdf",
-        f"results/{name}/plots/crop_use_breakdown.csv",
-        # f"results/{name}/plots/water_value_map.pdf",   # Current not working (see issue #1)
-        f"results/{name}/plots/food_consumption.pdf",
-        f"results/{name}/plots/food_consumption_map.pdf",
-        f"results/{name}/plots/food_consumption_baseline_map.pdf",
+        expand(ALL_RULE_TARGETS, name=[name]),
 
 
 rule prepare_population:
@@ -89,10 +94,10 @@ rule prepare_population:
         countries=config["countries"],
         health_reference_year=config["health"]["reference_year"],
     output:
-        population=f"processing/{name}/population.csv",
-        population_age=f"processing/{name}/population_age.csv",
+        population="processing/{name}/population.csv",
+        population_age="processing/{name}/population_age.csv",
     log:
-        f"logs/{name}/prepare_population.log",
+        "logs/{name}/prepare_population.log",
     script:
         "scripts/prepare_population.py"
 
@@ -120,7 +125,7 @@ rule prepare_fao_edible_portion:
     output:
         edible_portion="processing/{name}/fao_edible_portion.csv",
     log:
-        f"logs/{name}/prepare_fao_edible_portion.log",
+        "logs/{name}/prepare_fao_edible_portion.log",
     script:
         "scripts/prepare_fao_edible_portion.py"
 
@@ -133,7 +138,7 @@ rule prepare_gleam_feed_properties:
         ruminant="processing/{name}/ruminant_feed_properties.csv",
         monogastric="processing/{name}/monogastric_feed_properties.csv",
     log:
-        f"logs/{name}/prepare_gleam_feed_properties.log",
+        "logs/{name}/prepare_gleam_feed_properties.log",
     script:
         "scripts/prepare_gleam_feed_properties.py"
 
@@ -145,7 +150,7 @@ rule prepare_fertilizer_application_rates:
     output:
         "processing/{name}/fertilizer_application_rates.csv",
     log:
-        f"logs/{name}/prepare_fertilizer_application_rates.log",
+        "logs/{name}/prepare_fertilizer_application_rates.log",
     script:
         "scripts/prepare_fertilizer_application_rates.py"
 
@@ -159,7 +164,7 @@ rule derive_global_fertilizer_rates:
     output:
         "processing/{name}/global_fertilizer_n_rates.csv",
     log:
-        f"logs/{name}/derive_global_fertilizer_rates.log",
+        "logs/{name}/derive_global_fertilizer_rates.log",
     script:
         "scripts/derive_global_fertilizer_rates.py"
 
@@ -176,7 +181,7 @@ rule categorize_feeds:
         ruminant_mapping="processing/{name}/ruminant_feed_mapping.csv",
         monogastric_mapping="processing/{name}/monogastric_feed_mapping.csv",
     log:
-        f"logs/{name}/categorize_feeds.log",
+        "logs/{name}/categorize_feeds.log",
     script:
         "scripts/categorize_feeds.py"
 
@@ -195,7 +200,7 @@ rule build_feed_to_animal_products:
         ],
         carcass_to_retail=config["animal_products"]["carcass_to_retail_meat"],
     log:
-        f"logs/{name}/build_feed_to_animal_products.log",
+        "logs/{name}/build_feed_to_animal_products.log",
     script:
         "scripts/build_feed_to_animal_products.py"
 
@@ -210,7 +215,7 @@ rule calculate_manure_emissions:
     output:
         "processing/{name}/manure_ch4_emission_factors.csv",
     log:
-        f"logs/{name}/calculate_manure_emissions.log",
+        "logs/{name}/calculate_manure_emissions.log",
     script:
         "scripts/calculate_manure_emissions.py"
 
@@ -226,7 +231,7 @@ rule build_regions:
     output:
         "processing/{name}/regions.geojson",
     log:
-        f"logs/{name}/build_regions.log",
+        "logs/{name}/build_regions.log",
     script:
         "scripts/build_regions.py"
 
@@ -241,7 +246,7 @@ rule prepare_gbd_mortality:
     output:
         mortality="processing/{name}/health/gbd_mortality_rates.csv",
     log:
-        f"logs/{name}/prepare_gbd_mortality.log",
+        "logs/{name}/prepare_gbd_mortality.log",
     script:
         "scripts/prepare_gbd_mortality.py"
 
@@ -257,7 +262,7 @@ rule prepare_gdd_dietary_intake:
     output:
         diet="processing/{name}/gdd_dietary_intake.csv",
     log:
-        f"logs/{name}/prepare_gdd_dietary_intake.log",
+        "logs/{name}/prepare_gdd_dietary_intake.log",
     script:
         "scripts/prepare_gdd_dietary_intake.py"
 
@@ -272,7 +277,7 @@ rule prepare_food_loss_waste:
     output:
         food_loss_waste="processing/{name}/food_loss_waste.csv",
     log:
-        f"logs/{name}/prepare_food_loss_waste.log",
+        "logs/{name}/prepare_food_loss_waste.log",
     script:
         "scripts/prepare_food_loss_waste.py"
 
@@ -286,9 +291,9 @@ rule prepare_relative_risks:
         omega3_per_100g=config["health"]["omega3_per_100g_fish"],
         ssb_sugar_g_per_100g=config["health"]["ssb_sugar_g_per_100g"],
     output:
-        relative_risks=f"processing/{name}/health/relative_risks.csv",
+        relative_risks="processing/{name}/health/relative_risks.csv",
     log:
-        f"logs/{name}/prepare_relative_risks.log",
+        "logs/{name}/prepare_relative_risks.log",
     script:
         "scripts/prepare_relative_risks.py"
 
@@ -301,7 +306,7 @@ rule prepare_life_table:
     output:
         life_table="processing/{name}/health/life_table.csv",
     log:
-        f"logs/{name}/prepare_life_table.log",
+        "logs/{name}/prepare_life_table.log",
     script:
         "scripts/prepare_life_table.py"
 
@@ -325,7 +330,7 @@ rule prepare_health_costs:
         clusters="processing/{name}/health/country_clusters.csv",
         cluster_risk_baseline="processing/{name}/health/cluster_risk_baseline.csv",
     log:
-        f"logs/{name}/prepare_health_costs.log",
+        "logs/{name}/prepare_health_costs.log",
     script:
         "scripts/prepare_health_costs.py"
 
@@ -336,30 +341,30 @@ rule compute_resource_classes:
             [gaez_path("yield", "r", crop) for crop in config["crops"]]
             + [gaez_path("yield", "i", crop) for crop in config["crops"]]
         ),
-        regions=f"processing/{name}/regions.geojson",
+        regions="processing/{name}/regions.geojson",
     params:
         resource_class_quantiles=config["aggregation"]["resource_class_quantiles"],
     output:
-        classes=f"processing/{name}/resource_classes.nc",
+        classes="processing/{name}/resource_classes.nc",
     log:
-        f"logs/{name}/compute_resource_classes.log",
+        "logs/{name}/compute_resource_classes.log",
     script:
         "scripts/compute_resource_classes.py"
 
 
 rule aggregate_class_areas:
     input:
-        classes=f"processing/{name}/resource_classes.nc",
+        classes="processing/{name}/resource_classes.nc",
         sr=[gaez_path("suitability", "r", crop) for crop in config["crops"]],
         si=[gaez_path("suitability", "i", crop) for crop in config["crops"]],
         irrigated_share="data/downloads/gaez_land_equipped_for_irrigation_share.tif",
-        regions=f"processing/{name}/regions.geojson",
+        regions="processing/{name}/regions.geojson",
     params:
         land_limit_dataset=config["aggregation"]["land_limit_dataset"],
     output:
-        f"processing/{name}/land_area_by_class.csv",
+        "processing/{name}/land_area_by_class.csv",
     log:
-        f"logs/{name}/aggregate_class_areas.log",
+        "logs/{name}/aggregate_class_areas.log",
     script:
         "scripts/aggregate_class_areas.py"
 
@@ -390,16 +395,16 @@ def yield_and_suitability_for_crop(w):
 rule build_crop_yields:
     input:
         unpack(yield_and_suitability_for_crop),
-        classes=f"processing/{name}/resource_classes.nc",
-        regions=f"processing/{name}/regions.geojson",
+        classes="processing/{name}/resource_classes.nc",
+        regions="processing/{name}/regions.geojson",
         yield_unit_conversions="data/yield_unit_conversions.csv",
         moisture_content="data/crop_moisture_content.csv",
     params:
         use_actual_yields=config["validation"]["use_actual_yields"],
     output:
-        f"processing/{name}/crop_yields/{{crop}}_{{water_supply}}.csv",
+        "processing/{name}/crop_yields/{crop}_{water_supply}.csv",
     log:
-        f"logs/{name}/build_crop_yields_{{crop}}_{{water_supply}}.log",
+        "logs/{name}/build_crop_yields_{crop}_{water_supply}.log",
     script:
         "scripts/build_crop_yields.py"
 
@@ -409,10 +414,10 @@ def harvested_area_inputs(w):
     ws = w.water_supply
     return {
         "harvested_area_raster": gaez_path("harvested_area", ws, crop),
-        "classes": f"processing/{name}/resource_classes.nc",
-        "regions": f"processing/{name}/regions.geojson",
+        "classes": "processing/{name}/resource_classes.nc",
+        "regions": "processing/{name}/regions.geojson",
         "crop_mapping": "data/gaez_crop_code_mapping.csv",
-        "faostat_production": f"processing/{name}/faostat_crop_production.csv",
+        "faostat_production": "processing/{name}/faostat_crop_production.csv",
     }
 
 
@@ -420,9 +425,9 @@ rule build_harvested_area:
     input:
         unpack(harvested_area_inputs),
     output:
-        f"processing/{name}/harvested_area/{{crop}}_{{water_supply}}.csv",
+        "processing/{name}/harvested_area/{crop}_{water_supply}.csv",
     log:
-        f"logs/{name}/build_harvested_area_{{crop}}_{{water_supply}}.log",
+        "logs/{name}/build_harvested_area_{crop}_{water_supply}.log",
     script:
         "scripts/build_harvested_area.py"
 
@@ -437,8 +442,8 @@ def multi_cropping_inputs(_wildcards):
         for ws in water_supplies:
             crops_by_supply[ws].update(entry["crops"])
     inputs = {
-        "classes": f"processing/{name}/resource_classes.nc",
-        "regions": f"processing/{name}/regions.geojson",
+        "classes": "processing/{name}/resource_classes.nc",
+        "regions": "processing/{name}/regions.geojson",
         "yield_unit_conversions": "data/yield_unit_conversions.csv",
     }
     for ws in ("r", "i"):
@@ -473,7 +478,7 @@ rule build_multi_cropping:
         eligible="processing/{name}/multi_cropping/eligible_area.csv",
         yields="processing/{name}/multi_cropping/cycle_yields.csv",
     log:
-        f"logs/{name}/build_multi_cropping.log",
+        "logs/{name}/build_multi_cropping.log",
     script:
         "scripts/build_multi_cropping.py"
 
@@ -481,12 +486,12 @@ rule build_multi_cropping:
 rule build_grassland_yields:
     input:
         grassland="data/downloads/grassland_yield_historical.nc4",
-        classes=f"processing/{name}/resource_classes.nc",
-        regions=f"processing/{name}/regions.geojson",
+        classes="processing/{name}/resource_classes.nc",
+        regions="processing/{name}/regions.geojson",
     output:
-        f"processing/{name}/grassland_yields.csv",
+        "processing/{name}/grassland_yields.csv",
     log:
-        f"logs/{name}/build_grassland_yields.log",
+        "logs/{name}/build_grassland_yields.log",
     script:
         "scripts/build_grassland_yields.py"
 
@@ -510,9 +515,9 @@ rule process_blue_water_availability:
         shapefile=rules.extract_waterfootprint_appendix.output.shapefile,
         excel=rules.extract_waterfootprint_appendix.output.excel,
     output:
-        f"processing/{name}/water/blue_water_availability.csv",
+        "processing/{name}/water/blue_water_availability.csv",
     log:
-        f"logs/{name}/process_blue_water_availability.log",
+        "logs/{name}/process_blue_water_availability.log",
     script:
         "scripts/process_blue_water_availability.py"
 
@@ -524,14 +529,14 @@ def crop_yield_file_list(w):
 rule build_region_water_availability:
     input:
         shapefile=rules.extract_waterfootprint_appendix.output.shapefile,
-        regions=f"processing/{name}/regions.geojson",
-        monthly=f"processing/{name}/water/blue_water_availability.csv",
+        regions="processing/{name}/regions.geojson",
+        monthly="processing/{name}/water/blue_water_availability.csv",
         crop_yields=crop_yield_file_list,
     output:
-        monthly_region=f"processing/{name}/water/monthly_region_water.csv",
-        region_growing=f"processing/{name}/water/region_growing_season_water.csv",
+        monthly_region="processing/{name}/water/monthly_region_water.csv",
+        region_growing="processing/{name}/water/region_growing_season_water.csv",
     log:
-        f"logs/{name}/build_region_water_availability.log",
+        "logs/{name}/build_region_water_availability.log",
     script:
         "scripts/build_region_water_availability.py"
 
@@ -545,7 +550,7 @@ def yield_inputs(wildcards):
         irrigated_crops = list(irr_cfg)
 
     return {
-        f"{crop}_yield_{water_supply}": f"processing/{name}/crop_yields/{crop}_{water_supply}.csv"
+        f"{crop}_yield_{water_supply}": f"processing/{{name}}/crop_yields/{crop}_{water_supply}.csv"
         for crop, water_supply in (
             list(zip(config["crops"], itertools.repeat("r")))  # Rainfed
             + list(zip(irrigated_crops, itertools.repeat("i")))
@@ -566,11 +571,13 @@ def harvested_area_model_inputs(_wildcards):
         irrigated_crops = list(irr_cfg)
 
     inputs = {
-        f"{crop}_harvested_r": f"processing/{name}/harvested_area/{crop}_r.csv"
+        f"{crop}_harvested_r": f"processing/{{name}}/harvested_area/{crop}_r.csv"
         for crop in config["crops"]
     }
     for crop in irrigated_crops:
-        inputs[f"{crop}_harvested_i"] = f"processing/{name}/harvested_area/{crop}_i.csv"
+        inputs[f"{crop}_harvested_i"] = (
+            f"processing/{{name}}/harvested_area/{crop}_i.csv"
+        )
     return inputs
 
 
@@ -597,7 +604,7 @@ rule build_crop_residue_yields:
 
 def residue_yield_inputs(_wildcards):
     return {
-        f"residue_{crop}": f"processing/{name}/crop_residue_yields/{crop}.csv"
+        f"residue_{crop}": f"processing/{{name}}/crop_residue_yields/{crop}.csv"
         for crop in (
             set(config["animal_products"]["residue_crops"]) & set(config["crops"])
         )
@@ -612,10 +619,10 @@ rule build_model:
         fertilizer_n_rates="processing/{name}/global_fertilizer_n_rates.csv",
         foods="data/foods.csv",
         moisture_content="data/crop_moisture_content.csv",
-        ruminant_feed_categories=f"processing/{name}/ruminant_feed_categories.csv",
-        ruminant_feed_mapping=f"processing/{name}/ruminant_feed_mapping.csv",
-        monogastric_feed_categories=f"processing/{name}/monogastric_feed_categories.csv",
-        monogastric_feed_mapping=f"processing/{name}/monogastric_feed_mapping.csv",
+        ruminant_feed_categories="processing/{name}/ruminant_feed_categories.csv",
+        ruminant_feed_mapping="processing/{name}/ruminant_feed_mapping.csv",
+        monogastric_feed_categories="processing/{name}/monogastric_feed_categories.csv",
+        monogastric_feed_mapping="processing/{name}/monogastric_feed_mapping.csv",
         feed_to_products="processing/{name}/feed_to_animal_products.csv",
         manure_ch4_emissions="processing/{name}/manure_ch4_emission_factors.csv",
         food_groups="data/food_groups.csv",
@@ -624,7 +631,7 @@ rule build_model:
         land_area_by_class="processing/{name}/land_area_by_class.csv",
         multi_cropping_area="processing/{name}/multi_cropping/eligible_area.csv",
         multi_cropping_yields="processing/{name}/multi_cropping/cycle_yields.csv",
-        edible_portion=f"processing/{name}/fao_edible_portion.csv",
+        edible_portion="processing/{name}/fao_edible_portion.csv",
         population="processing/{name}/population.csv",
         baseline_diet="processing/{name}/gdd_dietary_intake.csv",
         food_loss_waste="processing/{name}/food_loss_waste.csv",
@@ -633,9 +640,9 @@ rule build_model:
         monthly_region_water="processing/{name}/water/monthly_region_water.csv",
         growing_season_water="processing/{name}/water/region_growing_season_water.csv",
         blue_water_availability="processing/{name}/water/blue_water_availability.csv",
-        luc_carbon_coefficients=f"processing/{name}/luc/luc_carbon_coefficients.csv",
-        current_grassland_area=f"processing/{name}/luc/current_grassland_area_by_class.csv",
-        grazing_only_land=f"processing/{name}/land_grazing_only_by_class.csv",
+        luc_carbon_coefficients="processing/{name}/luc/luc_carbon_coefficients.csv",
+        current_grassland_area="processing/{name}/luc/current_grassland_area_by_class.csv",
+        grazing_only_land="processing/{name}/land_grazing_only_by_class.csv",
     params:
         crops=config["crops"],
         multiple_cropping=config["multiple_cropping"],
