@@ -34,6 +34,8 @@ rule plot_yield_gap:
         unpack(yield_gap_raster_inputs),
     output:
         pdf=f"results/{name}/plots/yield_gap_{{crop}}.pdf",
+    log:
+        f"logs/{name}/plot_yield_gap_{{crop}}.log",
     script:
         "../scripts/plotting/plot_yield_gap.py"
 
@@ -43,6 +45,8 @@ rule plot_regions_map:
         regions=f"processing/{name}/regions.geojson",
     output:
         pdf=f"results/{name}/plots/regions_map.pdf",
+    log:
+        f"logs/{name}/plot_regions_map.log",
     script:
         "../scripts/plotting/plot_regions_map.py"
 
@@ -53,6 +57,8 @@ rule plot_resource_classes_map:
         regions=f"processing/{name}/regions.geojson",
     output:
         pdf=f"results/{name}/plots/resource_classes_map.pdf",
+    log:
+        f"logs/{name}/plot_resource_classes_map.log",
     script:
         "../scripts/plotting/plot_resource_classes_map.py"
 
@@ -67,6 +73,8 @@ rule plot_results:
         food_csv="results/{name}/plots/food_production.csv",
     params:
         output_dir="results/{name}/plots",
+    log:
+        "logs/{name}/plot_results.log",
     script:
         "../scripts/plotting/plot_results.py"
 
@@ -90,6 +98,8 @@ rule plot_objective_breakdown:
     output:
         breakdown_pdf="results/{name}/plots/objective_breakdown.pdf",
         breakdown_csv="results/{name}/plots/objective_breakdown.csv",
+    log:
+        "logs/{name}/plot_objective_breakdown.log",
     script:
         "../scripts/plotting/plot_objective_breakdown.py"
 
@@ -115,6 +125,8 @@ rule plot_health_impacts:
         health_map_csv="results/{name}/plots/health_risk_by_region.csv",
         health_baseline_map_pdf="results/{name}/plots/health_baseline_map.pdf",
         health_baseline_map_csv="results/{name}/plots/health_baseline_by_region.csv",
+    log:
+        "logs/{name}/plot_health_impacts.log",
     script:
         "../scripts/plotting/plot_health_impacts.py"
 
@@ -129,6 +141,8 @@ rule plot_crop_production_map:
     params:
         crop_colors=crop_color_overrides,
         fallback_cmap=crop_fallback_cmap,
+    log:
+        f"logs/{name}/plot_crop_production_map.log",
     script:
         "../scripts/plotting/plot_crop_production_map.py"
 
@@ -139,6 +153,8 @@ rule plot_crop_use_breakdown:
     output:
         pdf=f"results/{name}/plots/crop_use_breakdown.pdf",
         csv=f"results/{name}/plots/crop_use_breakdown.csv",
+    log:
+        f"logs/{name}/plot_crop_use_breakdown.log",
     script:
         "../scripts/plotting/plot_crop_use_breakdown.py"
 
@@ -151,6 +167,8 @@ rule plot_food_consumption:
         pdf=f"results/{name}/plots/food_consumption.pdf",
     params:
         group_colors=food_group_colors,
+    log:
+        f"logs/{name}/plot_food_consumption.log",
     script:
         "../scripts/plotting/plot_food_consumption.py"
 
@@ -166,6 +184,8 @@ rule plot_food_consumption_map:
         csv=f"results/{name}/plots/food_consumption_map.csv",
     params:
         group_colors=food_group_colors,
+    log:
+        f"logs/{name}/plot_food_consumption_map.log",
     script:
         "../scripts/plotting/plot_food_consumption_map.py"
 
@@ -185,6 +205,8 @@ rule plot_food_consumption_baseline_map:
             "baseline_reference_year", config["health"]["reference_year"]
         ),
         group_colors=food_group_colors,
+    log:
+        f"logs/{name}/plot_food_consumption_baseline_map.log",
     script:
         "../scripts/plotting/plot_baseline_food_consumption_map.py"
 
@@ -210,6 +232,8 @@ rule plot_yield_map:
         supply=lambda wc: wc.water_supply,
         unit="t/ha",
         cmap="YlGn",
+    log:
+        f"logs/{name}/plot_yield_map_{{item}}_{{water_supply}}.log",
     script:
         "../scripts/plotting/plot_yield_map.py"
 
@@ -221,6 +245,8 @@ rule plot_cropland_fraction_map:
         resource_classes=f"processing/{name}/resource_classes.nc",
     output:
         pdf=f"results/{name}/plots/cropland_fraction_map.pdf",
+    log:
+        f"logs/{name}/plot_cropland_fraction_map.log",
     script:
         "../scripts/plotting/plot_cropland_fraction_map.py"
 
@@ -238,6 +264,8 @@ rule plot_irrigated_cropland_fraction_map:
         title="Irrigated Cropland Fraction by Region and Resource Class",
         colorbar_label="Irrigated cropland / total land area",
         csv_prefix="irrigated_cropland",
+    log:
+        f"logs/{name}/plot_irrigated_cropland_fraction_map.log",
     script:
         "../scripts/plotting/plot_cropland_fraction_map.py"
 
@@ -248,6 +276,8 @@ rule plot_average_yield_gap_by_country:
         csv=f"processing/{name}/yield_gap_by_country_all_crops.csv",
     output:
         pdf=f"results/{name}/plots/yield_gap_by_country_average.pdf",
+    log:
+        f"logs/{name}/plot_average_yield_gap_by_country.log",
     script:
         "../scripts/plotting/plot_yield_gap_by_country_average.py"
 
@@ -258,5 +288,7 @@ rule plot_water_value_map:
         regions=f"processing/{name}/regions.geojson",
     output:
         pdf=f"results/{name}/plots/water_value_map.pdf",
+    log:
+        f"logs/{name}/plot_water_value_map.log",
     script:
         "../scripts/plotting/plot_water_value_map.py"

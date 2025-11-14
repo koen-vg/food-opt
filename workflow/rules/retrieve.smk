@@ -8,10 +8,12 @@ rule download_gadm_zip:
         temp("data/downloads/gadm_410-levels.zip"),
     params:
         url="https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-levels.zip",
+    log:
+        "logs/shared/download_gadm_zip.log",
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
         """
 
 
@@ -20,10 +22,12 @@ rule extract_adm1:
         zip="data/downloads/gadm_410-levels.zip",
     output:
         protected("data/downloads/gadm.gpkg"),
+    log:
+        "logs/shared/extract_adm1.log",
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        ogr2ogr -f GPKG "{output}" "/vsizip/{input.zip}/gadm_410-levels.gpkg" ADM_1
+        ogr2ogr -f GPKG "{output}" "/vsizip/{input.zip}/gadm_410-levels.gpkg" ADM_1 > {log} 2>&1
         """
 
 
@@ -34,6 +38,8 @@ rule download_cropgrids_nc_maps:
         article_id=22491997,
         file_name="CROPGRIDSv1.08_NC_maps.zip",
         show_progress=config["downloads"]["show_progress"],
+    log:
+        "logs/shared/download_cropgrids_nc_maps.log",
     script:
         "../scripts/download_figshare_file.py"
 
@@ -44,6 +50,8 @@ rule retrieve_cpi_data:
         end_year=config["currency_base_year"],
     output:
         cpi="processing/shared/cpi_annual.csv",
+    log:
+        "logs/shared/retrieve_cpi_data.log",
     script:
         "../scripts/retrieve_cpi_data.py"
 
@@ -54,6 +62,8 @@ rule retrieve_hicp_data:
         end_year=config["currency_base_year"],
     output:
         hicp="processing/shared/hicp_annual.csv",
+    log:
+        "logs/shared/retrieve_hicp_data.log",
     script:
         "../scripts/retrieve_hicp_data.py"
 
@@ -64,6 +74,8 @@ rule retrieve_ppp_rates:
         end_year=2023,  # Latest available PPP data (2024 not yet published)
     output:
         ppp="processing/shared/ppp_eur_intl_dollar.csv",
+    log:
+        "logs/shared/retrieve_ppp_rates.log",
     script:
         "../scripts/retrieve_ppp_rates.py"
 
@@ -72,12 +84,16 @@ rule download_fadn_data:
     output:
         data="data/downloads/fadn_nuts0_so.csv",
         variables="data/downloads/fadn_variables.xlsx",
+    log:
+        "logs/shared/download_fadn_data.log",
     shell:
         """
         wget -q -O {output.data} \
-            "https://zenodo.org/api/records/10939892/files/NUTS0_EU_agricultural_SO_LAMASUS.csv/content"
+            "https://zenodo.org/api/records/10939892/files/NUTS0_EU_agricultural_SO_LAMASUS.csv/content" \
+            > {log} 2>&1
         wget -q -O {output.variables} \
-            "https://zenodo.org/api/records/10939892/files/variable_description_zenodo.xlsx/content"
+            "https://zenodo.org/api/records/10939892/files/variable_description_zenodo.xlsx/content" \
+            >> {log} 2>&1
         """
 
 
@@ -89,6 +105,8 @@ rule retrieve_usda_costs:
         base_year=config["currency_base_year"],
     output:
         costs=f"processing/{name}/usda_costs.csv",
+    log:
+        f"logs/{name}/retrieve_usda_costs.log",
     script:
         "../scripts/retrieve_usda_costs.py"
 
@@ -104,6 +122,8 @@ rule retrieve_fadn_costs:
         base_year=config["currency_base_year"],
     output:
         costs=f"processing/{name}/fadn_costs.csv",
+    log:
+        f"logs/{name}/retrieve_fadn_costs.log",
     script:
         "../scripts/retrieve_fadn_costs.py"
 
@@ -120,6 +140,8 @@ rule merge_crop_costs:
         base_year=config["currency_base_year"],
     output:
         costs=f"processing/{name}/crop_costs.csv",
+    log:
+        f"logs/{name}/merge_crop_costs.log",
     script:
         "../scripts/merge_crop_costs.py"
 
@@ -132,6 +154,8 @@ rule retrieve_faostat_crop_production:
         production_year=config.get("validation", {}).get("production_year", 2019),
     output:
         f"processing/{name}/faostat_crop_production.csv",
+    log:
+        f"logs/{name}/retrieve_faostat_crop_production.log",
     script:
         "../scripts/retrieve_faostat_crop_production.py"
 
@@ -148,8 +172,10 @@ rule download_gaez_yield_data:
             f"{w.period}.{w.climate_model}.{w.scenario}."
             f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
+    log:
+        "logs/shared/download_gaez_yield_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_water_requirement_data:
@@ -162,8 +188,10 @@ rule download_gaez_water_requirement_data:
             f"{w.period}.{w.climate_model}.{w.scenario}."
             f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
+    log:
+        "logs/shared/download_gaez_water_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_suitability_data:
@@ -176,8 +204,10 @@ rule download_gaez_suitability_data:
             f"{w.period}.{w.climate_model}.{w.scenario}."
             f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
+    log:
+        "logs/shared/download_gaez_suitability_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_multiple_cropping_zone:
@@ -191,8 +221,10 @@ rule download_gaez_multiple_cropping_zone:
             else f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES01-MCI/"
             f"GAEZ-V5.RES01-MCI.{w.period}.{w.climate_model}.{w.scenario}.tif"
         ),
+    log:
+        "logs/shared/download_gaez_multiple_cropping_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_growing_season_start:
@@ -206,8 +238,10 @@ rule download_gaez_growing_season_start:
             f"{w.period}.{w.climate_model}.{w.scenario}."
             f"{get_gaez_code(w.crop, 'res02')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
+    log:
+        "logs/shared/download_gaez_growing_season_start_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_growing_season_length:
@@ -221,8 +255,10 @@ rule download_gaez_growing_season_length:
             f"{w.period}.{w.climate_model}.{w.scenario}."
             f"{get_gaez_code(w.crop, 'res02')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
+    log:
+        "logs/shared/download_gaez_growing_season_length_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_actual_yield:
@@ -237,8 +273,10 @@ rule download_gaez_actual_yield:
             f"GAEZ-V5.RES06-YLD.{get_gaez_code(w.crop, 'res06')}."
             f"WS{w.water_supply.upper()}.tif"
         ),
+    log:
+        "logs/shared/download_gaez_actual_yield_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_harvested_area:
@@ -252,8 +290,10 @@ rule download_gaez_harvested_area:
             f"GAEZ-V5.RES06-HAR.{get_gaez_code(w.crop, 'res06')}."
             f"WS{w.water_supply.upper()}.tif"
         ),
+    log:
+        "logs/shared/download_gaez_harvested_area_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_irrigated_landshare_map:
@@ -262,8 +302,10 @@ rule download_gaez_irrigated_landshare_map:
     params:
         # LR-IRR: Share of land area equipped for irrigation
         gcs_url="gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAP/GAEZ-V5.LR-IRR.tif",
+    log:
+        "logs/shared/download_gaez_irrigated_landshare_map.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output}"
+        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 # TODO: license. Different variations?
@@ -279,10 +321,12 @@ rule download_grassland_yield_data:
         "data/downloads/grassland_yield_historical.nc4",
     params:
         url="https://files.isimip.org/ISIMIP2a/OutputData/agriculture/LPJmL/watch/historical/lpjml_watch_nobc_hist_co2_yield-mgr-noirr-default_global_annual_1971_2001.nc4",
+    log:
+        "logs/shared/download_grassland_yield_data.log",
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
         """
 
 
@@ -297,11 +341,13 @@ rule download_wpp_population:
         life_table_url=(
             "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_Life_Table_Abridged_Medium_2024-2100.csv.gz"
         ),
+    log:
+        "logs/shared/download_wpp_population.log",
     shell:
         r"""
         mkdir -p "$(dirname {output.population})"
-        curl -L --fail --progress-bar -o "{output.population}" "{params.population_url}"
-        curl -L --fail --progress-bar -o "{output.life_table}" "{params.life_table_url}"
+        curl -L --fail --progress-bar -o "{output.population}" "{params.population_url}" > {log} 2>&1
+        curl -L --fail --progress-bar -o "{output.life_table}" "{params.life_table_url}" >> {log} 2>&1
         """
 
 
@@ -310,10 +356,12 @@ rule download_waterfootprint_appendix:
         "data/downloads/Report53_Appendix.zip",
     params:
         url="https://www.waterfootprint.org/resources/appendix/Report53_Appendix.zip",
+    log:
+        "logs/shared/download_waterfootprint_appendix.log",
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
         """
 
 
@@ -322,10 +370,12 @@ rule download_fao_nutrient_conversion_table:
         protected("data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx"),
     params:
         url="https://www.fao.org/3/CC9678EN/Nutrient_conversion_table_for_SUA_2024.xlsx",
+    log:
+        "logs/shared/download_fao_nutrient_conversion_table.log",
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
         """
 
 
@@ -334,10 +384,12 @@ rule download_gleam_supplement:
         "data/downloads/gleam_3.0_supplement_s1.xlsx",
     params:
         url="https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx",
+    log:
+        "logs/shared/download_gleam_supplement.log",
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
         """
 
 
@@ -351,6 +403,8 @@ rule download_land_cover:
             "year": [config["data"]["land_cover"]["year"]],
             "version": [config["data"]["land_cover"]["version"]],
         },
+    log:
+        "logs/shared/download_land_cover.log",
     script:
         "../scripts/download_land_cover.py"
 
@@ -360,6 +414,8 @@ rule extract_land_cover_class:
         "data/downloads/land_cover.zip",
     output:
         protected("data/downloads/land_cover_lccs_class.nc"),
+    log:
+        "logs/shared/extract_land_cover_class.log",
     script:
         "../scripts/extract_land_cover_class.py"
 
@@ -369,10 +425,12 @@ rule download_biomass_cci:
         protected("data/downloads/esa_biomass_cci_v6_0.nc"),
     params:
         url="https://dap.ceda.ac.uk/neodc/esacci/biomass/data/agb/maps/v6.0/netcdf/ESACCI-BIOMASS-L4-AGB-MERGED-10000m-fv6.0.nc?download=1",
+    log:
+        "logs/shared/download_biomass_cci.log",
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
         """
 
 
@@ -382,6 +440,8 @@ rule download_soilgrids_ocs:
     params:
         coverage_id="ocs_0-30cm_mean",
         target_resolution_m=config["data"]["soilgrids"]["target_resolution_m"],
+    log:
+        "logs/shared/download_soilgrids_ocs.log",
     script:
         "../scripts/download_soilgrids_ocs.py"
 
@@ -391,10 +451,12 @@ rule download_forest_carbon_accumulation_1km:
         "data/downloads/forest_carbon_accumulation_griscom_1km.tif",
     params:
         url="https://www.arcgis.com/sharing/rest/content/items/f950ea7878e143258a495daddea90cc0/data",
+    log:
+        "logs/shared/download_forest_carbon_accumulation_1km.log",
     shell:
         r"""
         mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
         """
 
 
@@ -405,15 +467,19 @@ rule download_ifa_fubc:
     params:
         data_file_id=3940355,
         metadata_file_id=3940358,
+    log:
+        "logs/shared/download_ifa_fubc.log",
     shell:
         r"""
         mkdir -p "$(dirname {output.data})"
         curl -L --fail --progress-bar \
             -o "{output.data}" \
-            "https://datadryad.org/api/v2/files/{params.data_file_id}/download"
+            "https://datadryad.org/api/v2/files/{params.data_file_id}/download" \
+            > {log} 2>&1
         curl -L --fail --progress-bar \
             -o "{output.metadata}" \
-            "https://datadryad.org/api/v2/files/{params.metadata_file_id}/download"
+            "https://datadryad.org/api/v2/files/{params.metadata_file_id}/download" \
+            >> {log} 2>&1
         """
 
 
@@ -426,5 +492,7 @@ if config["data"]["usda"]["retrieve_nutrition"]:
             food_groups="data/food_groups.csv",
         output:
             "data/nutrition.csv",
+        log:
+            "logs/shared/retrieve_usda_nutrition.log",
         script:
             "../scripts/retrieve_usda_nutrition.py"

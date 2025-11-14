@@ -91,6 +91,8 @@ rule prepare_population:
     output:
         population=f"processing/{name}/population.csv",
         population_age=f"processing/{name}/population_age.csv",
+    log:
+        f"logs/{name}/prepare_population.log",
     script:
         "scripts/prepare_population.py"
 
@@ -103,6 +105,8 @@ rule simplify_gadm:
         simplify_tolerance_km=config["aggregation"]["simplify_tolerance_km"],
     output:
         "processing/shared/gadm-simplified.gpkg",
+    log:
+        "logs/shared/simplify_gadm.log",
     script:
         "scripts/simplify_gadm.py"
 
@@ -115,6 +119,8 @@ rule prepare_fao_edible_portion:
         crops=config["crops"],
     output:
         edible_portion="processing/{name}/fao_edible_portion.csv",
+    log:
+        f"logs/{name}/prepare_fao_edible_portion.log",
     script:
         "scripts/prepare_fao_edible_portion.py"
 
@@ -126,6 +132,8 @@ rule prepare_gleam_feed_properties:
     output:
         ruminant="processing/{name}/ruminant_feed_properties.csv",
         monogastric="processing/{name}/monogastric_feed_properties.csv",
+    log:
+        f"logs/{name}/prepare_gleam_feed_properties.log",
     script:
         "scripts/prepare_gleam_feed_properties.py"
 
@@ -136,6 +144,8 @@ rule prepare_fertilizer_application_rates:
         mapping="data/ifa_fubc_crop_mapping.csv",
     output:
         "processing/{name}/fertilizer_application_rates.csv",
+    log:
+        f"logs/{name}/prepare_fertilizer_application_rates.log",
     script:
         "scripts/prepare_fertilizer_application_rates.py"
 
@@ -148,6 +158,8 @@ rule derive_global_fertilizer_rates:
         crops=config["crops"],
     output:
         "processing/{name}/global_fertilizer_n_rates.csv",
+    log:
+        f"logs/{name}/derive_global_fertilizer_rates.log",
     script:
         "scripts/derive_global_fertilizer_rates.py"
 
@@ -163,6 +175,8 @@ rule categorize_feeds:
         monogastric_categories="processing/{name}/monogastric_feed_categories.csv",
         ruminant_mapping="processing/{name}/ruminant_feed_mapping.csv",
         monogastric_mapping="processing/{name}/monogastric_feed_mapping.csv",
+    log:
+        f"logs/{name}/categorize_feeds.log",
     script:
         "scripts/categorize_feeds.py"
 
@@ -180,6 +194,8 @@ rule build_feed_to_animal_products:
             "net_to_metabolizable_energy_conversion"
         ],
         carcass_to_retail=config["animal_products"]["carcass_to_retail_meat"],
+    log:
+        f"logs/{name}/build_feed_to_animal_products.log",
     script:
         "scripts/build_feed_to_animal_products.py"
 
@@ -193,6 +209,8 @@ rule calculate_manure_emissions:
         mms_fractions="data/gleam_tables/manure_management_systems_fraction.csv",
     output:
         "processing/{name}/manure_ch4_emission_factors.csv",
+    log:
+        f"logs/{name}/calculate_manure_emissions.log",
     script:
         "scripts/calculate_manure_emissions.py"
 
@@ -207,6 +225,8 @@ rule build_regions:
         countries=config["countries"],
     output:
         "processing/{name}/regions.geojson",
+    log:
+        f"logs/{name}/build_regions.log",
     script:
         "scripts/build_regions.py"
 
@@ -220,6 +240,8 @@ rule prepare_gbd_mortality:
         reference_year=config["health"]["reference_year"],
     output:
         mortality="processing/{name}/health/gbd_mortality_rates.csv",
+    log:
+        f"logs/{name}/prepare_gbd_mortality.log",
     script:
         "scripts/prepare_gbd_mortality.py"
 
@@ -234,6 +256,8 @@ rule prepare_gdd_dietary_intake:
         ssb_sugar_g_per_100g=config["health"]["ssb_sugar_g_per_100g"],
     output:
         diet="processing/{name}/gdd_dietary_intake.csv",
+    log:
+        f"logs/{name}/prepare_gdd_dietary_intake.log",
     script:
         "scripts/prepare_gdd_dietary_intake.py"
 
@@ -247,6 +271,8 @@ rule prepare_food_loss_waste:
         health_reference_year=config["health"]["reference_year"],
     output:
         food_loss_waste="processing/{name}/food_loss_waste.csv",
+    log:
+        f"logs/{name}/prepare_food_loss_waste.log",
     script:
         "scripts/prepare_food_loss_waste.py"
 
@@ -261,6 +287,8 @@ rule prepare_relative_risks:
         ssb_sugar_g_per_100g=config["health"]["ssb_sugar_g_per_100g"],
     output:
         relative_risks=f"processing/{name}/health/relative_risks.csv",
+    log:
+        f"logs/{name}/prepare_relative_risks.log",
     script:
         "scripts/prepare_relative_risks.py"
 
@@ -272,6 +300,8 @@ rule prepare_life_table:
         reference_year=config["health"]["reference_year"],
     output:
         life_table="processing/{name}/health/life_table.csv",
+    log:
+        f"logs/{name}/prepare_life_table.log",
     script:
         "scripts/prepare_life_table.py"
 
@@ -294,6 +324,8 @@ rule prepare_health_costs:
         cluster_summary="processing/{name}/health/cluster_summary.csv",
         clusters="processing/{name}/health/country_clusters.csv",
         cluster_risk_baseline="processing/{name}/health/cluster_risk_baseline.csv",
+    log:
+        f"logs/{name}/prepare_health_costs.log",
     script:
         "scripts/prepare_health_costs.py"
 
@@ -309,6 +341,8 @@ rule compute_resource_classes:
         resource_class_quantiles=config["aggregation"]["resource_class_quantiles"],
     output:
         classes=f"processing/{name}/resource_classes.nc",
+    log:
+        f"logs/{name}/compute_resource_classes.log",
     script:
         "scripts/compute_resource_classes.py"
 
@@ -324,6 +358,8 @@ rule aggregate_class_areas:
         land_limit_dataset=config["aggregation"]["land_limit_dataset"],
     output:
         f"processing/{name}/land_area_by_class.csv",
+    log:
+        f"logs/{name}/aggregate_class_areas.log",
     script:
         "scripts/aggregate_class_areas.py"
 
@@ -375,6 +411,8 @@ rule build_crop_yields:
         use_actual_yields=config["validation"]["use_actual_yields"],
     output:
         f"processing/{name}/crop_yields/{{crop}}_{{water_supply}}.csv",
+    log:
+        f"logs/{name}/build_crop_yields_{{crop}}_{{water_supply}}.log",
     script:
         "scripts/build_crop_yields.py"
 
@@ -384,6 +422,8 @@ rule build_harvested_area:
         unpack(harvested_area_inputs),
     output:
         f"processing/{name}/harvested_area/{{crop}}_{{water_supply}}.csv",
+    log:
+        f"logs/{name}/build_harvested_area_{{crop}}_{{water_supply}}.log",
     script:
         "scripts/build_harvested_area.py"
 
@@ -433,6 +473,8 @@ rule build_multi_cropping:
     output:
         eligible="processing/{name}/multi_cropping/eligible_area.csv",
         yields="processing/{name}/multi_cropping/cycle_yields.csv",
+    log:
+        f"logs/{name}/build_multi_cropping.log",
     script:
         "scripts/build_multi_cropping.py"
 
@@ -444,6 +486,8 @@ rule build_grassland_yields:
         regions=f"processing/{name}/regions.geojson",
     output:
         f"processing/{name}/grassland_yields.csv",
+    log:
+        f"logs/{name}/build_grassland_yields.log",
     script:
         "scripts/build_grassland_yields.py"
 
@@ -454,9 +498,11 @@ rule extract_waterfootprint_appendix:
     output:
         shapefile="data/downloads/Report53_Appendix/Report53-BlueWaterScarcity-ArcGIS-ShapeFile/Monthly_WS_GRDC_405_basins.shp",
         excel="data/downloads/Report53_Appendix/Report53-Appendices-VI-IX.xls",
+    log:
+        "logs/shared/extract_waterfootprint_appendix.log",
     shell:
         r"""
-        unzip -o {input.zip_path} -d data/downloads
+        unzip -o {input.zip_path} -d data/downloads > {log} 2>&1
         """
 
 
@@ -466,6 +512,8 @@ rule process_blue_water_availability:
         excel=rules.extract_waterfootprint_appendix.output.excel,
     output:
         f"processing/{name}/water/blue_water_availability.csv",
+    log:
+        f"logs/{name}/process_blue_water_availability.log",
     script:
         "scripts/process_blue_water_availability.py"
 
@@ -483,6 +531,8 @@ rule build_region_water_availability:
     output:
         monthly_region=f"processing/{name}/water/monthly_region_water.csv",
         region_growing=f"processing/{name}/water/region_growing_season_water.csv",
+    log:
+        f"logs/{name}/build_region_water_availability.log",
     script:
         "scripts/build_region_water_availability.py"
 
@@ -540,6 +590,8 @@ rule build_crop_residue_yields:
         regions="processing/{name}/regions.geojson",
     output:
         "processing/{name}/crop_residue_yields/{crop}.csv",
+    log:
+        "logs/{name}/build_crop_residue_yields_{crop}.log",
     script:
         "scripts/build_crop_residue_yields.py"
 
@@ -603,6 +655,8 @@ rule build_model:
         health_reference_year=config["health"]["reference_year"],
     output:
         network="results/{name}/build/model.nc",
+    log:
+        "logs/{name}/build_model.log",
     script:
         "scripts/build_model.py"
 
@@ -627,6 +681,6 @@ rule solve_model:
     output:
         network="results/{name}/solved/model.nc",
     log:
-        "results/{name}/logs/solve_model.log",
+        "logs/{name}/solve_model.log",
     script:
         "scripts/solve_model.py"

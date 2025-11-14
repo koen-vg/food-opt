@@ -51,6 +51,8 @@ rule doc_fig_intro_global_coverage:
     output:
         svg="docs/_static/figures/intro_global_coverage.svg",
         png="docs/_static/figures/intro_global_coverage.png",
+    log:
+        "logs/shared/doc_fig_intro_global_coverage.log",
     script:
         "../scripts/doc_figures/intro_global_coverage.py"
 
@@ -62,6 +64,8 @@ rule doc_fig_model_topology:
     output:
         svg="docs/_static/figures/model_topology.svg",
         png="docs/_static/figures/model_topology.png",
+    log:
+        "logs/shared/doc_fig_model_topology.log",
     script:
         "../scripts/visualize_model_topology.py"
 
@@ -74,6 +78,8 @@ rule doc_fig_land_resource_classes:
     output:
         svg="docs/_static/figures/land_resource_classes.svg",
         png="docs/_static/figures/land_resource_classes.png",
+    log:
+        "logs/shared/doc_fig_land_resource_classes.log",
     script:
         "../scripts/doc_figures/land_resource_classes.py"
 
@@ -89,6 +95,8 @@ rule doc_fig_environment_luc_inputs:
     output:
         svg="docs/_static/figures/environment_luc_inputs.svg",
         png="docs/_static/figures/environment_luc_inputs.png",
+    log:
+        "logs/shared/doc_fig_environment_luc_inputs.log",
     script:
         "../scripts/doc_figures/luc_inputs_map.py"
 
@@ -101,6 +109,8 @@ rule doc_fig_environment_luc_lef:
     output:
         svg="docs/_static/figures/environment_luc_lef.svg",
         png="docs/_static/figures/environment_luc_lef.png",
+    log:
+        "logs/shared/doc_fig_environment_luc_lef.log",
     script:
         "../scripts/doc_figures/luc_lef_map.py"
 
@@ -114,6 +124,8 @@ rule doc_fig_crop_yield:
     output:
         svg="docs/_static/figures/crop_yield_{crop}.svg",
         png="docs/_static/figures/crop_yield_{crop}.png",
+    log:
+        "logs/shared/doc_fig_crop_yield_{crop}.log",
     script:
         "../scripts/doc_figures/crop_yield_map.py"
 
@@ -129,6 +141,8 @@ rule doc_fig_crop_yield_resource_class:
     params:
         resource_class_1=1,
         resource_class_2=2,
+    log:
+        "logs/shared/doc_fig_crop_yield_resource_class_{crop}.log",
     script:
         "../scripts/doc_figures/crop_yield_resource_class.py"
 
@@ -143,6 +157,8 @@ rule doc_fig_multi_cropping_potential_rainfed:
         png="docs/_static/figures/multi_cropping_potential_rainfed.png",
     params:
         water_supply="rainfed",
+    log:
+        "logs/shared/doc_fig_multi_cropping_potential_rainfed.log",
     script:
         "../scripts/doc_figures/multi_cropping_potential.py"
 
@@ -157,6 +173,8 @@ rule doc_fig_multi_cropping_potential_irrigated:
         png="docs/_static/figures/multi_cropping_potential_irrigated.png",
     params:
         water_supply="irrigated",
+    log:
+        "logs/shared/doc_fig_multi_cropping_potential_irrigated.log",
     script:
         "../scripts/doc_figures/multi_cropping_potential.py"
 
@@ -169,6 +187,8 @@ rule doc_fig_water_basin_availability:
     output:
         svg="docs/_static/figures/water_basin_availability.svg",
         png="docs/_static/figures/water_basin_availability.png",
+    log:
+        "logs/shared/doc_fig_water_basin_availability.log",
     script:
         "../scripts/doc_figures/water_basin_availability.py"
 
@@ -181,6 +201,8 @@ rule doc_fig_water_region_availability:
     output:
         svg="docs/_static/figures/water_region_availability.svg",
         png="docs/_static/figures/water_region_availability.png",
+    log:
+        "logs/shared/doc_fig_water_region_availability.log",
     script:
         "../scripts/doc_figures/water_region_availability.py"
 
@@ -193,6 +215,8 @@ rule doc_fig_irrigated_land_fraction:
     output:
         svg="docs/_static/figures/irrigated_land_fraction.svg",
         png="docs/_static/figures/irrigated_land_fraction.png",
+    log:
+        "logs/shared/doc_fig_irrigated_land_fraction.log",
     script:
         "../scripts/doc_figures/irrigated_land_fraction.py"
 
@@ -205,6 +229,8 @@ rule doc_fig_grassland_yield:
     output:
         svg="docs/_static/figures/grassland_yield.svg",
         png="docs/_static/figures/grassland_yield.png",
+    log:
+        "logs/shared/doc_fig_grassland_yield.log",
     script:
         "../scripts/doc_figures/grassland_yield_map.py"
 
@@ -219,6 +245,8 @@ rule doc_fig_grazing_only_land_fraction:
     output:
         svg="docs/_static/figures/grazing_only_land_fraction.svg",
         png="docs/_static/figures/grazing_only_land_fraction.png",
+    log:
+        "logs/shared/doc_fig_grazing_only_land_fraction.log",
     script:
         "../scripts/doc_figures/grazing_only_land_fraction.py"
 
@@ -232,6 +260,8 @@ rule doc_fig_trade_network:
         png="docs/_static/figures/trade_network.png",
     params:
         n_hubs=config["trade"]["crop_hubs"],
+    log:
+        "logs/shared/doc_fig_trade_network.log",
     script:
         "../scripts/doc_figures/trade_network_map.py"
 
@@ -240,9 +270,11 @@ rule doc_fig_workflow_rulegraph_dot:
     """Generate workflow dependency graph in DOT format from Snakemake."""
     output:
         dot="docs/_static/figures/workflow_rulegraph_raw.dot",
+    log:
+        "logs/shared/doc_fig_workflow_rulegraph_dot.log",
     shell:
         """
-        snakemake --rulegraph --config name=test > {output.dot}
+        snakemake --rulegraph --config name=test > {output.dot} 2> {log}
         """
 
 
@@ -252,6 +284,8 @@ rule doc_fig_workflow_rulegraph_styled:
         dot="docs/_static/figures/workflow_rulegraph_raw.dot",
     output:
         dot="docs/_static/figures/workflow_rulegraph.dot",
+    log:
+        "logs/shared/doc_fig_workflow_rulegraph_styled.log",
     script:
         "../scripts/doc_figures/style_workflow_graph.py"
 
@@ -263,6 +297,8 @@ rule doc_fig_workflow_rulegraph:
     output:
         svg="docs/_static/figures/workflow_rulegraph.svg",
         png="docs/_static/figures/workflow_rulegraph.png",
+    log:
+        "logs/shared/doc_fig_workflow_rulegraph.log",
     script:
         "../scripts/doc_figures/render_graph.py"
 
@@ -278,7 +314,9 @@ rule build_docs:
         glob("docs/**/*.rst", recursive=True),
     output:
         "docs/_build/html/index.html",
+    log:
+        "logs/shared/build_docs.log",
     shell:
         """
-        cd docs && make html
+        cd docs && make html > ../{log} 2>&1
         """

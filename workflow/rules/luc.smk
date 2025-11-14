@@ -37,6 +37,8 @@ rule build_luc_grid:
         yield_raster=_grid_yield_raster,
     output:
         grid=f"{shared_luc_dir}/grid.nc",
+    log:
+        "logs/shared/build_luc_grid.log",
     script:
         "../scripts/build_luc_grid.py"
 
@@ -47,6 +49,8 @@ rule resample_land_cover:
         land_cover="data/downloads/land_cover_lccs_class.nc",
     output:
         fractions=f"{shared_luc_dir}/land_cover_resampled.nc",
+    log:
+        "logs/shared/resample_land_cover.log",
     script:
         "../scripts/resample_land_cover.py"
 
@@ -57,6 +61,8 @@ rule resample_regrowth:
         regrowth_raw="data/downloads/forest_carbon_accumulation_griscom_1km.tif",
     output:
         regrowth=f"{shared_luc_dir}/regrowth_resampled.nc",
+    log:
+        "logs/shared/resample_regrowth.log",
     script:
         "../scripts/resample_forest_carbon_accumulation.py"
 
@@ -75,6 +81,8 @@ rule prepare_luc_inputs:
         agb=f"processing/{name}/luc/agb.nc",
         soc=f"processing/{name}/luc/soc.nc",
         regrowth=f"processing/{name}/luc/regrowth.nc",
+    log:
+        f"logs/{name}/prepare_luc_inputs.log",
     script:
         "../scripts/prepare_luc_inputs.py"
 
@@ -86,6 +94,8 @@ rule build_current_grassland_area:
         regions=f"processing/{name}/regions.geojson",
     output:
         current_area=f"processing/{name}/luc/current_grassland_area_by_class.csv",
+    log:
+        f"logs/{name}/build_current_grassland_area.log",
     script:
         "../scripts/build_current_grassland_area.py"
 
@@ -98,6 +108,8 @@ rule build_grazing_only_land:
         suitability=[gaez_path("suitability", "r", crop) for crop in config["crops"]],
     output:
         grazing_area=f"processing/{name}/land_grazing_only_by_class.csv",
+    log:
+        f"logs/{name}/build_grazing_only_land.log",
     script:
         "../scripts/build_grazing_only_land.py"
 
@@ -119,5 +131,7 @@ rule build_luc_carbon_coefficients:
         pulses=f"processing/{name}/luc/pulses.nc",
         annualized=f"processing/{name}/luc/annualized.nc",
         coefficients=f"processing/{name}/luc/luc_carbon_coefficients.csv",
+    log:
+        f"logs/{name}/build_luc_carbon_coefficients.log",
     script:
         "../scripts/build_luc_carbon_coefficients.py"
