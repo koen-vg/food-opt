@@ -40,7 +40,12 @@ if __name__ == "__main__":
     gs_start_path: str = snakemake.input.growing_season_start_raster  # type: ignore[name-defined]
     gs_length_path: str = snakemake.input.growing_season_length_raster  # type: ignore[name-defined]
     crop_code: str = snakemake.wildcards.crop  # type: ignore[name-defined]
-    conv_csv: str | None = getattr(snakemake.input, "yield_unit_conversions", None)  # type: ignore[attr-defined]
+    conv_csv: str | None = getattr(  # type: ignore[attr-defined]
+        snakemake.input, "yield_unit_conversions", None
+    )
+    moisture_csv: str | None = getattr(  # type: ignore[attr-defined]
+        snakemake.input, "moisture_content", None
+    )
 
     KG_TO_TONNE = 0.001
 
@@ -62,6 +67,11 @@ if __name__ == "__main__":
 
     use_actual_yields = bool(getattr(snakemake.params, "use_actual_yields", False))  # type: ignore[attr-defined]
 
+    moisture_lookup: dict[str, float] = {}
+    if moisture_csv:
+        moisture_df = pd.read_csv(moisture_csv, comment="#").set_index("crop")
+        moisture_lookup = moisture_df["moisture_fraction"].astype(float).to_dict()
+
     def _yield_multiplier(crop: str) -> float:
         # GAEZ publishes RES05 potential yields in kg/ha but the historical
         # “actual yield” variant in t/ha. Validation runs toggle
@@ -77,6 +87,9 @@ if __name__ == "__main__":
         return base_scale * (override / KG_TO_TONNE)
 
     y_tpha = y_raw * _yield_multiplier(crop_code)
+    if use_actual_yields:
+        moisture_fraction = float(moisture_lookup[crop_code])
+        y_tpha = y_tpha * (1.0 - moisture_fraction)
     s_raw, _ = read_raster_float(suit_path)
     s_frac = scale_fraction(s_raw)
     if water_path:

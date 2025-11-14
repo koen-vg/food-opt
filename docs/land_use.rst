@@ -227,6 +227,15 @@ marginal cost is set by ``primary.land.slack_marginal_cost`` (units: USD per Mha
 value high enough that slack activates only as a last resort; the default 5e9 corresponds to
 roughly 5 000 USD/ha.
 
+.. note::
+
+   GAEZ's RES06-HAR rasters store harvested area directly (in thousand hectares per
+   gridcell) and some RES06 crop codes encompass multiple FAOSTAT commodities. For
+   example, ``citrus`` and ``mango`` both map to the FRT module, so validation runs that
+   fix harvested area for ``citrus`` will effectively pin the combined citrus+mango
+   footprint. This means enforced production can exceed FAOSTAT totals until we split
+   those shared rasters using external shares.
+
 Workflow Rules
 --------------
 

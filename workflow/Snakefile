@@ -387,9 +387,24 @@ def yield_and_suitability_for_crop(w):
     return inputs
 
 
-def harvested_area_inputs(w):
-    """Get input files for build_harvested_area rule."""
+rule build_crop_yields:
+    input:
+        unpack(yield_and_suitability_for_crop),
+        classes=f"processing/{name}/resource_classes.nc",
+        regions=f"processing/{name}/regions.geojson",
+        yield_unit_conversions="data/yield_unit_conversions.csv",
+        moisture_content="data/crop_moisture_content.csv",
+    params:
+        use_actual_yields=config["validation"]["use_actual_yields"],
+    output:
+        f"processing/{name}/crop_yields/{{crop}}_{{water_supply}}.csv",
+    log:
+        f"logs/{name}/build_crop_yields_{{crop}}_{{water_supply}}.log",
+    script:
+        "scripts/build_crop_yields.py"
 
+
+def harvested_area_inputs(w):
     crop = w.crop
     ws = w.water_supply
     return {
@@ -399,22 +414,6 @@ def harvested_area_inputs(w):
         "crop_mapping": "data/gaez_crop_code_mapping.csv",
         "faostat_production": f"processing/{name}/faostat_crop_production.csv",
     }
-
-
-rule build_crop_yields:
-    input:
-        unpack(yield_and_suitability_for_crop),
-        classes=f"processing/{name}/resource_classes.nc",
-        regions=f"processing/{name}/regions.geojson",
-        yield_unit_conversions="data/yield_unit_conversions.csv",
-    params:
-        use_actual_yields=config["validation"]["use_actual_yields"],
-    output:
-        f"processing/{name}/crop_yields/{{crop}}_{{water_supply}}.csv",
-    log:
-        f"logs/{name}/build_crop_yields_{{crop}}_{{water_supply}}.log",
-    script:
-        "scripts/build_crop_yields.py"
 
 
 rule build_harvested_area:

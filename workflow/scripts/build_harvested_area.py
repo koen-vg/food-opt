@@ -23,7 +23,6 @@ import xarray as xr  # noqa: E402
 sys.path.insert(0, str(Path(__file__).parent))
 
 from raster_utils import (  # noqa: E402
-    calculate_all_cell_areas,
     raster_bounds,
     read_raster_float,
 )
@@ -193,8 +192,7 @@ def main() -> None:
 
     harvested_raw, src = read_raster_float(raster_path)
     try:
-        cell_area_ha = calculate_all_cell_areas(src)
-        harvested_raw = harvested_raw * cell_area_ha
+        harvested_raw = harvested_raw * RES06_HAR_SCALE_TO_HA
         transform = src.transform
         crs_wkt = src.crs.to_wkt() if src.crs else None
     finally:
@@ -239,3 +237,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+RES06_HAR_SCALE_TO_HA = 1_000.0  # rasters store thousand hectares (kha)
