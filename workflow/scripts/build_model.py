@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 import functools
 import logging
 
@@ -67,6 +67,20 @@ def _per_capita_food_group_to_mt(
     """Convert g/person/day to Mt/year for food group buses."""
 
     return value_per_person_per_day * population * DAYS_PER_YEAR * 1e-12
+
+
+def _log_food_group_target_summary(group: str, values: Sequence[float]) -> None:
+    """Emit a concise log message for the enforced equality targets."""
+    arr = np.array(values, dtype=float)
+    logger.info(
+        "Food group '%s': equality constraint for %d countries "
+        "(median %.1f g/person/day, min %.1f, max %.1f)",
+        group,
+        len(values),
+        float(np.median(arr)),
+        float(np.min(arr)),
+        float(np.max(arr)),
+    )
 
 
 def _carrier_unit_for_nutrient(unit: str) -> str:
@@ -2141,6 +2155,7 @@ def add_food_group_buses_and_loads(
 
     per_country_equal = per_country_equal or {}
     countries_index = pd.Index(countries, dtype="object")
+    population = population.astype(float)
 
     logger.info("Adding food group loads based on nutrition requirements...")
     for group in food_group_list:
@@ -2154,28 +2169,24 @@ def add_food_group_buses_and_loads(
         buses = f"group_{group}_" + countries_index
         carriers = [f"group_{group}"] * len(countries)
 
-        def _value_list(
-            base_value: float | None,
-            overrides: dict[str, float] | None,
-        ) -> list[float | None]:
-            override_map = overrides or {}
-            values: list[float | None] = []
-            for country in countries:
-                if country in override_map:
-                    values.append(float(override_map[country]))
-                elif base_value is not None:
-                    values.append(float(base_value))
-                else:
-                    values.append(None)
-            return values
+        # Build per-country equality targets (if any)
+        equal_values: list[float] = []
+        if equal_overrides:
+            # Per-country baseline: all countries must have values
+            equal_values = [equal_overrides[country] for country in countries]
+        elif equal_value is not None:
+            # Blanket equality: same value for all countries
+            equal_values = [equal_value] * len(countries)
 
-        equal_values = _value_list(equal_value, equal_overrides)
-        if all(v is not None for v in equal_values):
+        # If we have equality constraints, use them and skip min/max stores
+        if equal_values:
+            _log_food_group_target_summary(group, equal_values)
             equal_totals = [
                 _per_capita_food_group_to_mt(value, float(population[country]))
                 for value, country in zip(equal_values, countries)
             ]
             n.loads.add(names, bus=buses, carrier=carriers, p_set=equal_totals)
+
             if add_slack_for_fixed_consumption:
                 n.carriers.add("slack_positive_group_" + group, unit="t")
                 n.carriers.add("slack_negative_group_" + group, unit="t")
@@ -2198,22 +2209,20 @@ def add_food_group_buses_and_loads(
             # Equality constraint fixes consumption; no additional stores required
             continue
 
-        min_values = _value_list(min_value, None)
-        max_values = _value_list(max_value, None)
-
+        # No equality constraints: use min/max bounds with stores
         min_totals: list[float] | None = None
-        if any(v is not None and v > 0.0 for v in min_values):
+        if min_value is not None and min_value > 0.0:
             min_totals = [
-                _per_capita_food_group_to_mt(v or 0.0, float(population[country]))
-                for v, country in zip(min_values, countries)
+                _per_capita_food_group_to_mt(min_value, float(population[country]))
+                for country in countries
             ]
             n.loads.add(names, bus=buses, carrier=carriers, p_set=min_totals)
 
         max_totals: list[float] | None = None
-        if any(v is not None for v in max_values):
+        if max_value is not None:
             max_totals = [
-                _per_capita_food_group_to_mt(v or 0.0, float(population[country]))
-                for v, country in zip(max_values, countries)
+                _per_capita_food_group_to_mt(max_value, float(population[country]))
+                for country in countries
             ]
 
         store_names = "store_" + names
