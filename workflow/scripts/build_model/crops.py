@@ -977,3 +977,158 @@ def add_spared_land_links(
         p_nom_extendable=True,
         p_nom_max=df["area_mha"].to_numpy(),
     )
+
+
+def add_residue_soil_incorporation_links(
+    n: pypsa.Network,
+    residue_feed_items: list[str],
+    ruminant_feed_mapping: pd.DataFrame,
+    ruminant_feed_categories: pd.DataFrame,
+    monogastric_feed_mapping: pd.DataFrame,
+    monogastric_feed_categories: pd.DataFrame,
+    countries: list[str],
+    incorporation_n2o_factor: float,
+) -> None:
+    """Add links for crop residue incorporation into soil with N₂O emissions.
+
+    Residues left on the field decompose and release N₂O. This function creates
+    links that consume residues and produce N₂O emissions based on their N content
+    and the IPCC emission factor.
+
+    This processes ALL residues in the model, regardless of whether they're used
+    for ruminant or monogastric feed. N content is looked up from whichever feed
+    category dataset contains the residue.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network to add links to.
+    residue_feed_items : list[str]
+        Complete list of all residue items in the model.
+    ruminant_feed_mapping : pd.DataFrame
+        Ruminant feed mapping (columns: feed_item, category).
+    ruminant_feed_categories : pd.DataFrame
+        Ruminant feed category properties (column: N_g_per_kg_DM).
+    monogastric_feed_mapping : pd.DataFrame
+        Monogastric feed mapping (columns: feed_item, category).
+    monogastric_feed_categories : pd.DataFrame
+        Monogastric feed category properties (column: N_g_per_kg_DM).
+    countries : list[str]
+        List of country ISO codes.
+    incorporation_n2o_factor : float
+        IPCC EF1 emission factor (kg N₂O-N per kg N input).
+    """
+
+    if not residue_feed_items:
+        logger.info("No residue items found; skipping soil incorporation links")
+        return
+
+    # Build lookup for N content from both ruminant and monogastric feed data
+    n_content_lookup = {}
+
+    # First, try ruminant feed categories
+    for _, row in ruminant_feed_mapping[
+        ruminant_feed_mapping["source_type"] == "residue"
+    ].iterrows():
+        item = row["feed_item"]
+        category = row["category"]
+        # Look up N content for this category
+        cat_data = ruminant_feed_categories[
+            ruminant_feed_categories["category"] == category
+        ]
+        if not cat_data.empty and "N_g_per_kg_DM" in cat_data.columns:
+            n_content = cat_data.iloc[0]["N_g_per_kg_DM"]
+            if pd.notna(n_content):
+                n_content_lookup[item] = float(n_content)
+
+    # Then try monogastric feed categories (may override or add new entries)
+    for _, row in monogastric_feed_mapping[
+        monogastric_feed_mapping["source_type"] == "residue"
+    ].iterrows():
+        item = row["feed_item"]
+        if item in n_content_lookup:
+            continue  # Already have N content from ruminant data
+        category = row["category"]
+        cat_data = monogastric_feed_categories[
+            monogastric_feed_categories["category"] == category
+        ]
+        if not cat_data.empty and "N_g_per_kg_DM" in cat_data.columns:
+            n_content = cat_data.iloc[0]["N_g_per_kg_DM"]
+            if pd.notna(n_content):
+                n_content_lookup[item] = float(n_content)
+
+    if not n_content_lookup:
+        logger.info(
+            "No residue items with N content data; skipping soil incorporation links"
+        )
+        return
+
+    # Build links for all residue x country combinations
+    all_names = []
+    all_bus0 = []
+    all_efficiency = []
+
+    # Fallback N content for residues without data (g N/kg DM)
+    # Conservative estimate based on typical crop straw/stover N content
+    fallback_n_content = 8.0
+
+    for item in residue_feed_items:
+        # Use fallback if we don't have N content data for this residue
+        if item not in n_content_lookup:
+            logger.info(
+                "No N content data for residue %s; using fallback value %.1f g N/kg DM",
+                item,
+                fallback_n_content,
+            )
+            n_content_g_per_kg = fallback_n_content
+        else:
+            n_content_g_per_kg = n_content_lookup[item]
+
+        # Calculate N₂O emission efficiency
+        # N₂O emissions (Mt N₂O) = residue_DM (Mt DM) x N_content (kg N / kg DM)
+        #                          x EF1 (kg N₂O-N / kg N) x (44/28) (kg N₂O / kg N₂O-N)
+        # Convert g/kg to kg/kg: n_content_g_per_kg / 1000
+        # Convert to Mt: x 1e-6
+        n2o_efficiency = (
+            (n_content_g_per_kg / 1000.0)  # g N/kg DM → kg N/kg DM
+            * incorporation_n2o_factor  # kg N₂O-N / kg N
+            * (44.0 / 28.0)  # kg N₂O / kg N₂O-N
+            * 1e-6  # kg → Mt
+        )
+
+        for country in countries:
+            bus_name = f"residue_{item}_{country}"
+
+            # Only add link if the residue bus exists in the network
+            if bus_name not in n.buses.static.index:
+                continue
+
+            all_names.append(f"incorporate_{item}_{country}")
+            all_bus0.append(bus_name)
+            all_efficiency.append(n2o_efficiency)
+
+    if not all_names:
+        logger.info("No valid residue buses found; skipping soil incorporation links")
+        return
+
+    # Add the carrier
+    carrier = "residue_incorporation"
+    if carrier not in n.carriers.static.index:
+        n.carriers.add(carrier, unit="tDM")
+
+    # Add the links
+    n.links.add(
+        all_names,
+        bus0=all_bus0,
+        bus1="n2o",
+        carrier=carrier,
+        efficiency=all_efficiency,
+        marginal_cost=0.0,  # No cost to incorporate residues
+        p_nom_extendable=True,
+    )
+
+    logger.info(
+        "Created %d residue soil incorporation links for %d residue types",
+        len(all_names),
+        len(n_content_lookup),
+    )

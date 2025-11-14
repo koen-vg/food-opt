@@ -303,7 +303,36 @@ Crop residues (e.g., straw, stover, pulse haulms) are now generated explicitly u
   - GLEAM Supplement S1 Table S.3.1 (slope/intercept) and Tables 3.3 / 3.6 (FUE factors)
   - GLEAM feed codes → model mapping in ``data/gleam_feed_mapping.csv``
 * **Outputs**: Per-crop CSVs at ``processing/{name}/crop_residue_yields/{crop}.csv`` with net dry-matter residue yields (t/ha) by region, resource class, and water supply.
-* **Integration**: ``build_model`` reads all residue CSVs, adds ``residue_{feed_item}_{country}`` buses, and attaches them as additional outputs on crop production links. Residues flow through the same feed supply logic as crops/foods and enter the appropriate feed pools.
+* **Integration**: ``build_model`` reads all residue CSVs, adds ``residue_{feed_item}_{country}`` buses, and attaches them as additional outputs on crop production links. Residues flow through the same feed supply logic as crops/foods and enter the appropriate feed pools or soil incorporation.
+
+Residue Removal Limits for Feed
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To maintain soil health and prevent land degradation, the model constrains the fraction of crop residues that can be removed for animal feed. The majority of residues must be left on the field and incorporated into the soil to maintain organic matter and nutrient cycling.
+
+**Constraint formulation**:
+
+* **Maximum feed removal**: 30% of generated residues (configurable via ``primary.crop_residues.max_feed_fraction``)
+* **Minimum soil incorporation**: 70% of generated residues
+
+The optimization model implements this as a constraint between residue feed use and soil incorporation for each residue type and country:
+
+.. math::
+
+   \text{feed use} \leq \frac{\text{max feed fraction}}{1 - \text{max feed fraction}} \times \text{incorporation}
+
+With the default 30% limit:
+
+.. math::
+
+   \text{feed use} \leq \frac{3}{7} \times \text{incorporation}
+
+This ensures that for every 3 units of residue used as feed, at least 7 units are incorporated into the soil. The constraint is applied during model solving (in ``solve_model.py``) after the network structure is built.
+
+**Environmental implications**: Residues incorporated into soil generate direct N₂O emissions according to the IPCC EF\ :sub:`1` emission factor applied to their nitrogen content (see :doc:`environment`). The model therefore balances:
+
+* **Feed benefits**: Residues reduce demand for dedicated feed crops (reducing land use and associated emissions)
+* **Soil incorporation costs**: Incorporated residues produce N₂O emissions but maintain soil health
 
 Feed Supply Links
 ~~~~~~~~~~~~~~~~~

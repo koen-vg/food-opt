@@ -38,7 +38,8 @@ Sources of Emissions
 ~~~~~~~~~~~~~~~~~~~~
 
 **Crop Production**:
-  * N₂O from fertilizer (direct and indirect)
+  * N₂O from synthetic fertilizer application (direct and indirect)
+  * N₂O from crop residues incorporated into soil
   * CH₄ from flooded rice cultivation
   * CO₂ from machinery/fuel (if included)
 
@@ -108,12 +109,55 @@ The model uses the 2019 Refinement to the IPCC Guidelines for National Greenhous
      - 0.000 – 0.027
 
        0.000 – 0.007
-   * - EF\ :sub:`3PRP,SO` for sheep and “other animals” [kg N₂O-N (kg N)\ :sup:`-1`]
+   * - EF\ :sub:`3PRP,SO` for sheep and "other animals" [kg N₂O-N (kg N)\ :sup:`-1`]
      - 0.003
      - 0.000 – 0.010
      - –
      - –
      - –
+
+Crop Residue Incorporation (N₂O)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Crop residues left on the field and incorporated into the soil contribute to direct N₂O emissions. The model applies the IPCC EF\ :sub:`1` emission factor to residue nitrogen content to calculate these emissions.
+
+Methodology
+^^^^^^^^^^^
+
+N₂O emissions from incorporated crop residues are calculated as:
+
+.. math::
+
+   \text{N}_2\text{O} = \text{Residue}_\text{DM} \times \text{N}_\text{content} \times \text{EF}_1 \times \frac{44}{28}
+
+where:
+  * **Residue**\ :sub:`DM` is the dry matter of crop residues incorporated into soil (tonnes DM)
+  * **N**\ :sub:`content` is the nitrogen content of the residue (kg N per kg DM)
+  * **EF**\ :sub:`1` is the IPCC direct emission factor for N inputs (kg N₂O-N per kg N input) = 0.010 (aggregated default)
+  * **44/28** converts N₂O-N to N₂O mass
+
+Residue Management Constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To ensure soil health and prevent degradation, the model limits the fraction of crop residues that can be removed for animal feed. The remainder must be left on the field and incorporated into the soil.
+
+* **Maximum removal for feed**: 30% of generated residues (configurable via ``primary.crop_residues.max_feed_fraction``)
+* **Minimum soil incorporation**: 70% of generated residues
+
+This constraint is implemented as:
+
+.. math::
+
+   \text{feed use} \leq \frac{0.30}{0.70} \times \text{incorporation}
+
+The constraint ensures that residue removal for feed does not compromise soil organic matter maintenance and nutrient cycling.
+
+Data Sources
+^^^^^^^^^^^^
+
+* **Residue N content**: ``processing/{name}/ruminant_feed_categories.csv``, column ``N_g_per_kg_DM``, derived from GLEAM 3.0 [2]_ Supplement S1, Table S.3.3
+* **Emission factor**: IPCC 2019 Refinement, Table 11.1 (EF\ :sub:`1` aggregated default = 0.010)
+* **Removal limits**: Model assumption based on sustainable residue management practices
 
 .. _enteric-fermentation:
 

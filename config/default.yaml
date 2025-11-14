@@ -31,6 +31,9 @@ primary:
     # Manure nitrogen management
     manure_n_to_fertilizer: 0.75 # Fraction of excreted N available as fertilizer (accounting for losses during storage/handling)
     manure_n2o_factor: 0.010 # kg N2O-N per kg manure N applied (IPCC 2019 Refinement, Table 11.1 aggregated default)
+  crop_residues:
+    max_feed_fraction: 0.30 # Maximum fraction of residues that can be removed for animal feed (remainder must be incorporated into soil)
+    incorporation_n2o_factor: 0.010 # kg N2O-N per kg residue N incorporated into soil (IPCC 2019 Refinement, Table 11.1 aggregated default)
 
 # --- section: emissions ---
 emissions:

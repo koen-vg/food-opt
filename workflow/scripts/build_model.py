@@ -510,6 +510,22 @@ if __name__ == "__main__":
         cfg_countries,
     )
 
+    # Crop residue soil incorporation (with N₂O emissions)
+    # Process ALL residues regardless of animal type; N content from feed data
+    incorporation_n2o_factor = float(
+        snakemake.params.primary["crop_residues"]["incorporation_n2o_factor"]
+    )
+    crops.add_residue_soil_incorporation_links(
+        n,
+        residue_feed_items,
+        ruminant_feed_mapping,
+        ruminant_feed_categories,
+        monogastric_feed_mapping,
+        monogastric_feed_categories,
+        cfg_countries,
+        incorporation_n2o_factor,
+    )
+
     # Animal production
     animals.add_feed_to_animal_product_links(
         n,

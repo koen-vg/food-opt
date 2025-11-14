@@ -148,6 +148,92 @@ def sanitize_food_name(food: str) -> str:
     return sanitize_identifier(food)
 
 
+def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> None:
+    """Add constraints limiting residue removal for animal feed.
+
+    Constrains the fraction of residues that can be removed for feed vs.
+    incorporated into soil. The constraint is formulated as:
+        feed_use ≤ (max_feed_fraction / (1 - max_feed_fraction)) x incorporation
+
+    This ensures that if a total amount R of residue is generated:
+        R = feed_use + incorporation
+        feed_use ≤ max_feed_fraction x R
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network containing the model.
+    max_feed_fraction : float
+        Maximum fraction of residues that can be used for feed (e.g., 0.30 for 30%).
+    """
+
+    m = n.model
+
+    # Get link flow variables and link data
+    link_p = m.variables["Link-p"].sel(snapshot="now")
+    links_df = n.links.static
+
+    # Find residue feed links (carrier="convert_to_feed", bus0 starts with "residue_")
+    feed_mask = (links_df["carrier"] == "convert_to_feed") & (
+        links_df["bus0"].str.startswith("residue_")
+    )
+    feed_links_df = links_df[feed_mask]
+
+    # Find incorporation links (carrier="residue_incorporation")
+    incorp_mask = links_df["carrier"] == "residue_incorporation"
+    incorp_links_df = links_df[incorp_mask]
+
+    if feed_links_df.empty or incorp_links_df.empty:
+        logger.info(
+            "No residue feed limit constraints added (missing feed or incorporation links)"
+        )
+        return
+
+    # Add constraints for each residue bus
+    constraint_count = 0
+    ratio = max_feed_fraction / (1.0 - max_feed_fraction)
+
+    # Group feed links by their bus0 (residue bus)
+    for residue_bus, feed_group in feed_links_df.groupby("bus0"):
+        # Find the incorporation link for this residue bus
+        incorp_links_for_bus = incorp_links_df[incorp_links_df["bus0"] == residue_bus]
+
+        if incorp_links_for_bus.empty:
+            logger.warning(
+                "No incorporation link found for residue bus %s; skipping constraint",
+                residue_bus,
+            )
+            continue
+
+        # Get the incorporation link name (should be only one per residue bus)
+        incorp_link_name = incorp_links_for_bus.index[0]
+
+        # Sum all feed uses for this residue (may go to multiple feed categories)
+        feed_link_names = feed_group.index.tolist()
+        feed_sum = sum(link_p.sel(name=link_name) for link_name in feed_link_names)
+
+        # Get incorporation flow
+        incorporation_flow = link_p.sel(name=incorp_link_name)
+
+        # Add constraint: feed_sum ≤ ratio x incorporation_flow
+        m.add_constraints(
+            feed_sum <= ratio * incorporation_flow,
+            name=f"residue_feed_limit_{residue_bus}",
+        )
+        constraint_count += 1
+
+    if constraint_count > 0:
+        logger.info(
+            "Added %d residue feed limit constraints (max %.0f%% for feed)",
+            constraint_count,
+            max_feed_fraction * 100,
+        )
+    else:
+        logger.info(
+            "No residue feed limit constraints added (no matching residue flows found)"
+        )
+
+
 def add_health_objective(
     n: pypsa.Network,
     risk_breakpoints_path: str,
@@ -482,6 +568,14 @@ if __name__ == "__main__":
             solver_options["LogFile"] = snakemake.log[0]
         if "LogToConsole" not in solver_options:
             solver_options["LogToConsole"] = 1  # Also print to console
+
+    # Add residue feed limit constraints
+    max_feed_fraction = (
+        snakemake.config.get("primary", {})
+        .get("crop_residues", {})
+        .get("max_feed_fraction", 0.30)
+    )
+    add_residue_feed_constraints(n, max_feed_fraction)
 
     # Add health impacts to the objective if data is available
     add_health_objective(
