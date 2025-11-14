@@ -197,6 +197,10 @@ When crops are converted into foods, the model first rescales the dry-matter cro
 * **Grains** (rice, barley, oat, buckwheat): FAO coefficients reflect milled/hulled conversion, but we track whole grain. Coefficient forced to 1.0; milling handled separately.
 * **Sugar crops** (sugarcane, sugarbeet) and **oil-palm**: GAEZ reports processed outputs (sugar or palm oil). Yields are converted back to whole-crop dry matter via ``data/yield_unit_conversions.csv``, and edible portion coefficients are forced to 1.0 so that extraction losses are handled in ``data/foods.csv``.
 
+.. note::
+
+   When ``validation.use_actual_yields`` is enabled, the GAEZ “actual” rasters already reflect whole-crop fresh mass for sugarcane, sugarbeet, and oil palm, so the workflow bypasses the conversion overrides above and relies directly on ``data/crop_moisture_content.csv`` to compute dry-matter production. This keeps validation-era sugarcane output near observed fresh cane harvests instead of re-scaling the processed sugar or oil mass.
+
 The model constrains:
 
 * Total land used per (region, class, water) ≤ available land

@@ -27,6 +27,8 @@ from raster_utils import (  # noqa: E402
     read_raster_float,
 )
 
+RES06_HAR_SCALE_TO_HA = 1_000.0  # rasters store thousand hectares (kha)
+
 
 def _load_mapping(mapping_path: Path) -> pd.DataFrame:
     df = pd.read_csv(mapping_path)
@@ -178,7 +180,7 @@ def _extract_harvested_area(
     return combined
 
 
-def main() -> None:
+if __name__ == "__main__":
     classes_nc = Path(snakemake.input.classes)  # type: ignore[name-defined]
     raster_path = Path(snakemake.input.harvested_area_raster)  # type: ignore[name-defined]
     regions_path = Path(snakemake.input.regions)  # type: ignore[name-defined]
@@ -213,12 +215,6 @@ def main() -> None:
         class_labels,
         regions,
     )
-    if extracted.empty:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        pd.DataFrame(
-            columns=["region", "resource_class", "variable", "unit", "value"]
-        ).to_csv(output_path, index=False)
-        return
 
     extracted = extracted.merge(regions[["region", "country"]], on="region", how="left")
     extracted = _apply_shares(extracted, crop, shares_lookup, fallback_share)
@@ -233,8 +229,3 @@ def main() -> None:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     extracted.to_csv(output_path, index=False)
-
-
-if __name__ == "__main__":
-    main()
-RES06_HAR_SCALE_TO_HA = 1_000.0  # rasters store thousand hectares (kha)

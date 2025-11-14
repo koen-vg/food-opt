@@ -78,6 +78,8 @@ if __name__ == "__main__":
         # ``use_actual_yields`` so we keep the raster units untouched in that
         # mode while the standard pathway still divides by 1_000.
         base_scale = 1.0 if use_actual_yields else KG_TO_TONNE
+        if use_actual_yields:
+            return base_scale
         override = conversion_overrides.get(crop)
         if override is None:
             return base_scale

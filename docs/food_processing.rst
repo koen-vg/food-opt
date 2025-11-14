@@ -42,6 +42,10 @@ The two files below, created and distributed for internal food-opt use, define p
 
   **Sugar and oil crops**: Yields for sugarcane, sugarbeet, and oil-palm are first converted back to whole-crop dry matter (see :doc:`crop_production`) and then uplifted to fresh mass using the moisture table. Pathway factors therefore reflect *fresh* extraction efficiencies: 0.24 for palm oil (24 % oil from fresh fruit bunches), 0.14 for cane sugar, and 0.10 for beet sugar.
 
+  .. note::
+
+     When ``validation.use_actual_yields`` is true, the sugarcane, sugarbeet, and oil-palm rasters already deliver whole-crop fresh mass, so the workflow skips the conversion above and relies on the moisture table to convert to dry matter before applying extraction factors.
+
 **data/food_groups.csv**
   Maps foods to food groups for dietary constraint aggregation and health impact assessment. Each food must be assigned to exactly one food group.
 
