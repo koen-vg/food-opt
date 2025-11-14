@@ -110,6 +110,7 @@ The following table reproduces the GBD 2021 dietary risk factor definitions from
 * **GBD risk factors are evaluated for adult populations (≥25 years)** - the current implementation uses population-weighted "All ages" dietary intake averages, which may underestimate risk for adult-only populations
 * The model currently implements a subset of these risk factors based on data availability and model scope
 * SSB risk-factor exposures are converted to refined sugar equivalents using :code:`health.ssb_sugar_g_per_100g`; added-sugar intake from GDD (variable ``v35``) is aggregated into the same refined-sugar risk factor.
+* Protective foods (risk factors whose TMREL is >0) receive a flat relative-risk tail at :code:`health.tmrel_flat_upper_limit_g_per_day` (1 000 g/person/day by default) so equality constraints can exceed TMREL without driving the SOS2 outside its domain.
 * Risk factor definitions specify both the intake measure (e.g., grams per day) and the threshold or optimal range
 * "Diet low in" risk factors specify minimum recommended intakes; "diet high in" risk factors treat any intake as risk-increasing
 * Milk/dairy measurements use milk equivalents, where cheese and yogurt are converted to their milk equivalent weight
@@ -134,7 +135,10 @@ The preprocessing script performs these steps:
    constant (no external valuation dataset required).
 4. **Risk-factor breakpoints** – builds dense grids of intake values (including
    observed exposures and configured ``health.intake_grid_step``) and evaluates
-   :math:`\log(RR)` for every (risk, cause) pair. These tables are written to
+   :math:`\log(RR)` for every (risk, cause) pair. Protective foods use the
+   regular grid up to their empirical maximum exposure and add a single extra
+   breakpoint at ``health.tmrel_flat_upper_limit_g_per_day`` so the relative
+   risk stays constant beyond TMREL. These tables are written to
    ``processing/{name}/health/risk_breakpoints.csv``.
 5. **Cause-level breakpoints** – as the optimisation needs to recover
    :math:`RR = \exp(\sum_r \log RR_{r})`, the script also constructs breakpoints

@@ -312,13 +312,28 @@ def _compute_baseline_health_metrics(
     return combo
 
 
+def _build_intake_caps(
+    max_exposure_g_per_day: dict[str, float],
+    tmrel_g_per_day: dict[str, float],
+    flat_tail_limit: float,
+) -> dict[str, float]:
+    """Extend intake caps for protective foods so they can exceed TMREL."""
+
+    caps = dict(max_exposure_g_per_day)
+    if flat_tail_limit > 0:
+        for risk, tmrel in tmrel_g_per_day.items():
+            if float(tmrel) > 0:
+                caps[risk] = max(caps.get(risk, 0.0), float(flat_tail_limit))
+    return caps
+
+
 def _process_health_clusters(
     cluster_to_countries: dict[int, list[str]],
     pop_total: pd.Series,
     combo: pd.DataFrame,
     risk_factors: list[str],
     intake_by_country: pd.DataFrame,
-    max_exposure_g_per_day: dict[str, float],
+    intake_caps_g_per_day: dict[str, float],
     rr_lookup: RelativeRiskTable,
     risk_to_causes: dict[str, list[str]],
     relevant_causes: list[str],
@@ -359,7 +374,7 @@ def _process_health_clusters(
             baseline_intake = float(baseline_intake)
             if not math.isfinite(baseline_intake):
                 baseline_intake = 0.0
-            max_exposure = float(max_exposure_g_per_day.get(risk, baseline_intake))
+            max_exposure = float(intake_caps_g_per_day.get(risk, baseline_intake))
             baseline_intake = max(0.0, min(baseline_intake, max_exposure))
             baseline_intake_registry.setdefault(risk, set()).add(baseline_intake)
 
@@ -423,6 +438,7 @@ def _generate_breakpoint_tables(
     relevant_causes: list[str],
     log_rr_points: int,
     tmrel_g_per_day: dict[str, float],
+    flat_tail_limit: float,
 ) -> tuple:
     """Generate SOS2 linearization breakpoint tables for risks and causes."""
     risk_breakpoint_rows = []
@@ -446,6 +462,9 @@ def _generate_breakpoint_tables(
         # Include TMREL as a breakpoint for accurate interpolation at optimal intake
         if risk in tmrel_g_per_day:
             grid_points.add(float(tmrel_g_per_day[risk]))
+        tmrel_value = float(tmrel_g_per_day.get(risk, 0.0))
+        if tmrel_value > 0 and flat_tail_limit > max_exposure:
+            grid_points.add(float(flat_tail_limit))
         grid = sorted(grid_points)
 
         for cause in causes:
@@ -510,6 +529,7 @@ def main() -> None:
     intake_step = float(health_cfg["intake_grid_step"])
     log_rr_points = int(health_cfg["log_rr_points"])
     tmrel_g_per_day: dict[str, float] = dict(health_cfg.get("tmrel_g_per_day", {}))
+    flat_tail_limit = float(health_cfg.get("tmrel_flat_upper_limit_g_per_day", 1000.0))
 
     # Load input data
     (
@@ -537,6 +557,10 @@ def main() -> None:
         diet, dr, pop, rr_df, cfg_countries, reference_year, life_exp, risk_factors
     )
 
+    intake_caps_g_per_day = _build_intake_caps(
+        max_exposure_g_per_day, tmrel_g_per_day, flat_tail_limit
+    )
+
     # Compute baseline health metrics
     combo = _compute_baseline_health_metrics(
         dr,
@@ -556,7 +580,7 @@ def main() -> None:
         combo,
         risk_factors,
         intake_by_country,
-        max_exposure_g_per_day,
+        intake_caps_g_per_day,
         rr_lookup,
         risk_to_causes,
         relevant_causes,
@@ -574,6 +598,7 @@ def main() -> None:
         relevant_causes,
         log_rr_points,
         tmrel_g_per_day,
+        flat_tail_limit,
     )
 
     # Write outputs
