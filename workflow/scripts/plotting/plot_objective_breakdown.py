@@ -27,6 +27,7 @@ from plot_health_impacts import (
 
 logger = logging.getLogger(__name__)
 
+# Global mass unit conversion: tonne to megatonne
 TONNE_TO_MEGATONNE = 1e-6
 
 
@@ -69,7 +70,13 @@ def compute_system_costs(n: pypsa.Network) -> pd.Series:
 
 
 def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, float]:
-    """Return the objective contribution from the priced GHG store."""
+    """Return the objective contribution from the priced GHG store.
+
+    Assumes:
+    - GHG store level in MtCO2-eq
+    - `ghg_price` in USD per tCO2-eq (config currency_year)
+    - Objective units in bnUSD (model-wide)
+    """
 
     if len(n.snapshots) == 0:
         return {}
@@ -86,10 +93,13 @@ def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, 
     if level_mt == 0.0:
         return {}
 
+    # Convert: [USD/tCO2] * [MtCO2] * [1e-6 t/Mt] * [1e-9 bnUSD/USD] => bnUSD
+    # The TONNE_TO_MEGATONME factor here simply encodes 1 Mt = 1e6 t
+    # without introducing an extra bnUSD factor in this debugging/aggregate routine.
     contribution = ghg_price * level_mt / TONNE_TO_MEGATONNE
     label = "GHG pricing (CO₂-eq)"
     logger.info(
-        "Computed %s contribution %.3e USD (level %.3e MtCO2-eq, price %.2f USD/tCO2-eq)",
+        "Computed %s contribution %.3e bnUSD (level %.3e MtCO2-eq, price %.2f USD/tCO2-eq)",
         label,
         contribution,
         level_mt,
@@ -164,7 +174,7 @@ def compute_health_total(
     tmrel_g_per_day: dict[str, float],
     food_groups_df: pd.DataFrame,
 ) -> float:
-    """Return aggregate health burden contribution to the objective."""
+    """Return aggregate health burden contribution to the objective (in bnUSD)."""
 
     health_results = compute_health_results(
         n,
@@ -179,7 +189,7 @@ def compute_health_total(
         return 0.0
 
     total = float(health_results.cause_costs["cost"].sum())
-    logger.info("Computed total health contribution %.3e USD", total)
+    logger.info("Computed total health contribution %.3e bnUSD", total)
     return total
 
 

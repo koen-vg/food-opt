@@ -15,6 +15,8 @@ import numpy as np
 import pypsa
 from sklearn.cluster import KMeans
 
+from . import constants
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,11 +31,17 @@ def _resolve_trade_costs(
 ) -> tuple[dict[str, float], float]:
     """Map each item to its configured trade cost per kilometre."""
 
+    def _to_bnusd_per_mt(cost_per_tonne: float) -> float:
+        # Trade inputs are provided as USD per tonne-km; convert to bnUSD per Mt-km.
+        return cost_per_tonne * constants.USD_TO_BNUSD / constants.TONNE_TO_MEGATONNE
+
     # Get default cost from config hierarchy
     if default_cost_key is not None:
         default_cost = float(trade_config[default_cost_key])
     else:
         default_cost = float(trade_config[fallback_cost_key])
+
+    default_cost = _to_bnusd_per_mt(default_cost)
 
     item_costs = {str(item): default_cost for item in items}
 
@@ -44,6 +52,7 @@ def _resolve_trade_costs(
     categories = trade_config[categories_key]
     for _category, cfg in categories.items():
         category_cost = float(cfg["cost_per_km"])
+        category_cost = _to_bnusd_per_mt(category_cost)
         configured_items = cfg[category_item_key]
 
         for item in configured_items:

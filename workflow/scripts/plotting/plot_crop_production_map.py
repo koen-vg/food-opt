@@ -443,8 +443,8 @@ def main() -> None:
         title="Crop and Grassland Output by Region",
         legend_title="Crops / grassland",
         pie_scale_title="Pie size ∝ total production",
-        pie_unit="t",
-        min_total=10_000.0,
+        pie_unit="Mt",
+        min_total=0.01,
     )
 
     _plot_pie_map(

@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Plot a map of hydrological basins colored by water value from marginal prices."""
+"""Plot a map of hydrological basins colored by water value from marginal prices.
+
+Reads water buses, marginal prices from the model. Assumes:
+- water storage units in km³
+- marginal price units in bnUSD per km³
+- The UI transposes this to USD/m³ via the carrier scaling factor.
+"""
 
 import logging
 from pathlib import Path
@@ -47,6 +53,7 @@ def plot_water_value_map(
     water_values = pd.DataFrame(
         {
             "region": region_ids,
+            # Present to users in USD/m³ by using the carrier scale factor
             "water_value_usd_per_m3": marginal_prices_per_m3.values,
         }
     )

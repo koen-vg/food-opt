@@ -13,6 +13,8 @@ from collections.abc import Iterable, Mapping
 import pandas as pd
 import pypsa
 
+from . import constants
+
 
 def add_biomass_infrastructure(
     n: pypsa.Network, countries: Iterable[str], biomass_cfg: Mapping[str, object]
@@ -20,8 +22,10 @@ def add_biomass_infrastructure(
     """Create biomass buses and sinks for optional exports to the energy sector."""
 
     marginal_cost = float(biomass_cfg["marginal_cost"])
+    marginal_cost *= constants.USD_TO_BNUSD / constants.TONNE_TO_MEGATONNE
+    # Biomass quantities are in Mt DM throughout this module.
     biomass_carrier = "biomass"
-    n.carriers.add(biomass_carrier, unit="tDM")
+    n.carriers.add(biomass_carrier, unit="MtDM")
 
     biomass_buses = [f"biomass_{country}" for country in countries]
     n.buses.add(biomass_buses, carrier=biomass_carrier)
@@ -55,7 +59,7 @@ def add_biomass_byproduct_links(
     combos = combos.set_index("name")
 
     carrier = "byproduct_to_biomass"
-    n.carriers.add(carrier, unit="tDM")
+    n.carriers.add(carrier, unit="MtDM")
 
     n.links.add(
         combos.index,
@@ -84,7 +88,7 @@ def add_biomass_crop_links(
     combos = combos.set_index("name")
 
     carrier = "crop_to_biomass"
-    n.carriers.add(carrier, unit="tDM")
+    n.carriers.add(carrier, unit="MtDM")
     n.links.add(
         combos.index,
         bus0=combos["bus0"],

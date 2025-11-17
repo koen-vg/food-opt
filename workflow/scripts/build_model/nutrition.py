@@ -25,6 +25,10 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+_LOW_DEFAULT_MARGINAL_COST = (
+    0.01 * constants.USD_TO_BNUSD / constants.TONNE_TO_MEGATONNE
+)
+
 
 def _build_food_group_equals_from_baseline(
     diet_df: pd.DataFrame,
@@ -134,12 +138,12 @@ def add_food_group_buses_and_loads(
             equal_totals = [
                 _per_capita_food_group_to_mt(value, float(population[country]))
                 for value, country in zip(equal_values, countries)
-            ]
+            ]  # demand in Mt/year because group buses use Mt
             n.loads.add(names, bus=buses, carrier=carriers, p_set=equal_totals)
 
             if add_slack_for_fixed_consumption:
-                n.carriers.add("slack_positive_group_" + group, unit="t")
-                n.carriers.add("slack_negative_group_" + group, unit="t")
+                n.carriers.add("slack_positive_group_" + group, unit="Mt")
+                n.carriers.add("slack_negative_group_" + group, unit="Mt")
                 n.generators.add(
                     f"slack_positive_{group}_" + countries_index,
                     bus=buses,
@@ -147,14 +151,12 @@ def add_food_group_buses_and_loads(
                     p_nom_extendable=True,
                     marginal_cost=slack_marginal_cost,
                 )
-                n.generators.add(
+                n.stores.add(
                     f"slack_negative_{group}_" + countries_index,
                     bus=buses,
-                    carrier=f"slack_positive_group_{group}",
-                    p_nom_extendable=True,
-                    p_min_pu=-1,
-                    p_max_pu=0,
-                    marginal_cost=-slack_marginal_cost,
+                    carrier=f"slack_negative_group_{group}",
+                    e_nom_extendable=True,
+                    marginal_cost=slack_marginal_cost,
                 )
             # Equality constraint fixes consumption; no additional stores required
             continue
@@ -318,7 +320,8 @@ def add_food_nutrition_links(
             )
             eff_lists.append([eff_val * factor] * len(countries))
 
-        params = {"bus0": bus0, "marginal_cost": 0.01}
+        # Food bus flows are Mt/year, so efficiencies below represent nutrient fractions.
+        params = {"bus0": bus0, "marginal_cost": _LOW_DEFAULT_MARGINAL_COST}
         for i, (buses, effs) in enumerate(zip(out_bus_lists, eff_lists), start=1):
             params[f"bus{i}"] = buses
             params["efficiency" if i == 1 else f"efficiency{i}"] = effs
@@ -327,6 +330,6 @@ def add_food_nutrition_links(
         if group_val is not None and pd.notna(group_val):
             idx = len(nutrients) + 1
             params[f"bus{idx}"] = [f"group_{group_val}_{c}" for c in countries]
-            params[f"efficiency{idx}"] = constants.TONNE_TO_MEGATONNE
+            params[f"efficiency{idx}"] = 1.0
 
         n.links.add(names, p_nom_extendable=True, **params)

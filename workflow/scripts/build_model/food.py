@@ -14,7 +14,11 @@ import logging
 import pandas as pd
 import pypsa
 
+from . import constants
+
 logger = logging.getLogger(__name__)
+
+_LOW_PROCESSING_COST = 0.01 * constants.USD_TO_BNUSD / constants.TONNE_TO_MEGATONNE
 
 
 def add_food_conversion_links(
@@ -86,10 +90,11 @@ def add_food_conversion_links(
         names = [f"pathway_{pathway}_{c}" for c in normalized_countries]
         bus0 = [f"crop_{crop}_{c}" for c in normalized_countries]
 
-        # Build parameters for multi-output link
+        # All crop/food buses are in Mt, so the efficiency coefficients are
+        # simple mass fractions after accounting for losses.
         link_params = {
             "bus0": bus0,
-            "marginal_cost": 0.01,
+            "marginal_cost": _LOW_PROCESSING_COST,
             "p_nom_extendable": True,
         }
 
@@ -279,8 +284,8 @@ def add_feed_supply_links(
         bus0=all_bus0,
         bus1=all_bus1,
         carrier="convert_to_feed",
-        efficiency=all_efficiency,
-        marginal_cost=0.01,
+        efficiency=all_efficiency,  # digestibility as Mt feed output per Mt input
+        marginal_cost=_LOW_PROCESSING_COST,
         p_nom_extendable=True,
     )
 

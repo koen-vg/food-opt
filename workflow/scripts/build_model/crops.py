@@ -129,9 +129,11 @@ def add_regional_crop_production_links(
                 ],
                 dtype=float,
             )  # tCO2/ha/yr
-            # Cost is per hectare; convert to per Mha (USD/Mha = USD/ha * 1e6)
-            base_cost = cost_per_ha * 1e6
+            # Cost is per hectare; convert to per Mha in bnUSD/Mha
+            base_cost = cost_per_ha * 1e6 * constants.USD_TO_BNUSD
 
+            # Land bus flows are in Mha; yields (t/ha) numerically equal Mt/Mha so
+            # the efficiency terms remain the raw yield values.
             link_params = {
                 "name": df.index,
                 # Use the crop's own carrier so no extra carrier is needed
@@ -144,7 +146,8 @@ def add_regional_crop_production_links(
                 "bus1": df["country"]
                 .apply(lambda c, crop=crop: f"crop_{crop}_{c}")
                 .tolist(),
-                "efficiency": df["yield"] * 1e6,  # t/ha → t/Mha
+                # Output: Mt crop per Mha land (already Mt-aware)
+                "efficiency": df["yield"],
                 "bus3": df["country"].apply(lambda c: f"fertilizer_{c}").tolist(),
                 "efficiency3": -fert_n_rate_kg_per_ha
                 * 1e6
@@ -197,7 +200,7 @@ def add_regional_crop_production_links(
                             residue_yield = residue_dict.get(feed_item)
                             if residue_yield is None:
                                 continue
-                            efficiencies[idx_row] = residue_yield * 1e6  # t/ha → t/Mha
+                            efficiencies[idx_row] = residue_yield
                         if np.allclose(efficiencies, 0.0):
                             continue
                         bus_key = f"bus{next_bus_idx}"
@@ -300,7 +303,7 @@ def add_multi_cropping_links(
     merged["crop"] = merged["crop"].astype(str).str.strip()
     merged["country"] = merged["country"].astype(str).str.strip()
     merged["crop_bus"] = "crop_" + merged["crop"] + "_" + merged["country"]
-    merged["yield_efficiency"] = merged["yield_t_per_ha"] * 1e6
+    merged["yield_efficiency"] = merged["yield_t_per_ha"]
     merged["output_idx"] = merged.groupby(key_cols).cumcount()
 
     base = (
@@ -353,9 +356,12 @@ def add_multi_cropping_links(
     ].fillna(0.0)
 
     base["avg_cost_per_year"] = base["total_cost_per_year"] / base["crop_count"]
+    # Multiple-cropping marginal costs remain in bnUSD per Mha of area used.
     base["marginal_cost"] = (
-        base["avg_cost_per_year"] + base["total_cost_per_planting"]
-    ) * 1e6
+        (base["avg_cost_per_year"] + base["total_cost_per_planting"])
+        * 1e6
+        * constants.USD_TO_BNUSD
+    )
     base["p_nom_extendable"] = True
     base["p_nom_max"] = base["eligible_area_ha"] / 1e6
 
@@ -589,7 +595,7 @@ def add_multi_cropping_links(
             + "_"
             + residue_entries["country"].astype(str)
         )
-        residue_entries["eff_value"] = residue_entries["residue_total"] * 1e6
+        residue_entries["eff_value"] = residue_entries["residue_total"]
         entry_frames.append(
             residue_entries[
                 [
@@ -828,7 +834,7 @@ def add_grassland_feed_links(
             "carrier": "feed_ruminant_grassland",
             "bus0": work["bus0"].tolist(),
             "bus1": work["bus1"].tolist(),
-            "efficiency": work["yield"].to_numpy() * 1e6,
+            "efficiency": work["yield"].to_numpy(),  # t/ha ≡ Mt/Mha on Mt buses
             "p_nom_max": available_mha,
             "p_nom_extendable": not use_actual_production,
             "marginal_cost": 0.0,
@@ -1114,7 +1120,7 @@ def add_residue_soil_incorporation_links(
     # Add the carrier
     carrier = "residue_incorporation"
     if carrier not in n.carriers.static.index:
-        n.carriers.add(carrier, unit="tDM")
+        n.carriers.add(carrier, unit="MtDM")
 
     # Add the links
     n.links.add(

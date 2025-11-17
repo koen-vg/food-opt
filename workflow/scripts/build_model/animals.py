@@ -35,14 +35,14 @@ def add_feed_to_animal_product_links(
 
     UNITS:
 
-    - Input (bus0): Feed in DRY MATTER (tonnes DM)
-    - Output (bus1): Animal products in FRESH WEIGHT, RETAIL MEAT (tonnes fresh)
+    - Input (bus0): Feed in DRY MATTER (Mt DM)
+    - Output (bus1): Animal products in FRESH WEIGHT, RETAIL MEAT (Mt fresh)
 
       - For meats: retail/edible meat weight (boneless, trimmed)
       - For dairy: whole milk (fresh weight)
       - For eggs: whole eggs (fresh weight)
 
-    - Efficiency: tonnes retail product per tonne feed DM
+    - Efficiency: Mt retail product per Mt feed DM
 
       - Incorporates carcass-to-retail conversion for meat products
       - Generated from Wirsenius (2000) + GLEAM feed energy values
@@ -62,7 +62,7 @@ def add_feed_to_animal_product_links(
         List of animal product names
     feed_requirements : pd.DataFrame
         Feed requirements with columns: product, feed_category, efficiency
-        Efficiency in tonnes RETAIL PRODUCT per tonne FEED DM
+        Efficiency in Mt RETAIL PRODUCT per Mt FEED DM
     ruminant_feed_categories : pd.DataFrame
         Ruminant feed categories with enteric CH4 yields and N content
     monogastric_feed_categories : pd.DataFrame
@@ -79,7 +79,7 @@ def add_feed_to_animal_product_links(
 
     produce_carriers = sorted({f"produce_{product!s}" for product in animal_products})
     if produce_carriers:
-        n.carriers.add(produce_carriers, unit="t")
+        n.carriers.add(produce_carriers, unit="Mt")
 
     if not animal_products:
         logger.info("No animal products configured; skipping feed→animal links")
@@ -158,6 +158,7 @@ def add_feed_to_animal_product_links(
             all_bus3.append(f"fertilizer_{country}")
             all_carrier.append(f"produce_{row['product']}")
             all_efficiency.append(row["efficiency"])
+            # Convert per-tonne emissions/nutrients to per-Mt flows (bus0 uses Mt)
             all_ch4.append(ch4_per_t_feed * constants.TONNE_TO_MEGATONNE)
             all_n_fert.append(n_fert_per_t_feed * constants.TONNE_TO_MEGATONNE)
             all_n2o.append(n2o_per_t_feed * constants.TONNE_TO_MEGATONNE)

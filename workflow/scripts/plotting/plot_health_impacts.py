@@ -520,7 +520,7 @@ def plot_health_map(
     top_risks: Iterable[str],
     *,
     diverging: bool = True,
-    value_label: str = "Health cost per capita (USD)",
+    value_label: str = "Health cost per capita (bnUSD)",
     total_per_capita: Mapping[int, float] | None = None,
 ) -> None:
     risks = list(top_risks)

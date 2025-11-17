@@ -42,7 +42,7 @@ def add_carriers_and_buses(
     ]
     crop_carriers = [f"crop_{crop}" for country in countries for crop in crop_list]
     if crop_buses:
-        n.carriers.add(sorted({f"crop_{crop}" for crop in crop_list}), unit="t")
+        n.carriers.add(sorted({f"crop_{crop}" for crop in crop_list}), unit="Mt")
         n.buses.add(crop_buses, carrier=crop_carriers)
 
     # Residues per country
@@ -56,7 +56,7 @@ def add_carriers_and_buses(
         residue_carriers = [
             f"residue_{item}" for country in countries for item in residue_items_sorted
         ]
-        n.carriers.add(sorted(set(residue_carriers)), unit="t")
+        n.carriers.add(sorted(set(residue_carriers)), unit="Mt")
         n.buses.add(residue_buses, carrier=residue_carriers)
 
     # Foods per country
@@ -65,7 +65,7 @@ def add_carriers_and_buses(
     ]
     food_carriers = [f"food_{food}" for country in countries for food in food_list]
     if food_buses:
-        n.carriers.add(sorted({f"food_{food}" for food in food_list}), unit="t")
+        n.carriers.add(sorted({f"food_{food}" for food in food_list}), unit="Mt")
         n.buses.add(food_buses, carrier=food_carriers)
 
     # Food groups per country
@@ -81,8 +81,6 @@ def add_carriers_and_buses(
             unit="Mt",
         )
         n.buses.add(group_buses, carrier=group_carriers)
-        scale_meta = n.meta.setdefault("carrier_unit_scale", {})
-        scale_meta["food_group_t_to_Mt"] = constants.TONNE_TO_MEGATONNE
 
     # Macronutrients per country
     nutrient_list_sorted = sorted(dict.fromkeys(nutrient_list))
@@ -102,11 +100,6 @@ def add_carriers_and_buses(
         n.buses.add(nutrient_buses, carrier=nutrient_carriers)
 
         scale_meta = n.meta.setdefault("carrier_unit_scale", {})
-        if any(
-            _nutrient_kind(nutrient_units[nut]) == "mass"
-            for nut in nutrient_list_sorted
-        ):
-            scale_meta["macronutrient_t_to_Mt"] = constants.TONNE_TO_MEGATONNE
         if any(
             _nutrient_kind(nutrient_units[nut]) == "energy"
             for nut in nutrient_list_sorted
@@ -130,10 +123,10 @@ def add_carriers_and_buses(
     ]
     feed_carriers = [f"feed_{fc}" for country in countries for fc in feed_categories]
     if feed_buses:
-        n.carriers.add(sorted(set(feed_carriers)), unit="t")
+        n.carriers.add(sorted(set(feed_carriers)), unit="Mt")
         n.buses.add(feed_buses, carrier=feed_carriers)
 
-    n.carriers.add("convert_to_feed", unit="t")
+    n.carriers.add("convert_to_feed", unit="Mt")
 
     # Water carrier (buses added per region below)
     n.carriers.add("water", unit="km^3")

@@ -35,7 +35,7 @@ def extract_crop_production(n: pypsa.Network) -> pd.Series:
         except Exception:
             crop = link.replace("produce_", "").split("_")[0]
 
-        # Flow at bus1 is crop output (tonnes)
+        # Flow at bus1 is crop output (megatonnes)
         flow = float(n.links_t.p1.loc["now", link])
         production = abs(flow)
         crop_totals[crop] = crop_totals.get(crop, 0.0) + production
@@ -93,7 +93,7 @@ def plot_crop_production(crop_production: pd.Series, output_dir: Path) -> None:
                 fontsize=8,
             )
         plt.xlabel("Crops")
-        plt.ylabel("Production (tonnes)")
+        plt.ylabel("Production (Mt)")
         plt.xticks(range(len(ser)), ser.index, rotation=45, ha="right")
         plt.grid(True, alpha=0.3)
     plt.title("Crop Production by Type")
@@ -161,7 +161,7 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
     else:
         plt.bar(resource_series.index, resource_series.values)
         # Add value labels on bars with appropriate units
-        units = {"land": "ha", "water": "m³", "fertilizer": "Mt"}
+        units = {"land": "Mha", "water": "km³", "fertilizer": "Mt"}
         max_value = resource_series.max()
         for i, (resource, value) in enumerate(resource_series.items()):
             unit = units.get(resource, "units")
@@ -211,11 +211,7 @@ if __name__ == "__main__":
     plot_resource_usage(n, output_dir)
 
     # Save summary data as CSV for reference (always write files)
-    crop_production.to_csv(
-        output_dir / "crop_production.csv", header=["production_tonnes"]
-    )
-    food_production.to_csv(
-        output_dir / "food_production.csv", header=["production_tonnes"]
-    )
+    crop_production.to_csv(output_dir / "crop_production.csv", header=["production_mt"])
+    food_production.to_csv(output_dir / "food_production.csv", header=["production_mt"])
 
     logger.info("Plotting completed successfully!")

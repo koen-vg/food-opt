@@ -93,7 +93,8 @@ rule plot_objective_breakdown:
     params:
         ghg_price=config["emissions"]["ghg_price"],
         health_risk_factors=config["health"]["risk_factors"],
-        health_value_per_yll=config["health"]["value_per_yll"],
+        # Convert from USD/YLL -> bnUSD/YLL for objective consistency
+        health_value_per_yll=float(config["health"]["value_per_yll"]) * 1e-9,
         health_tmrel_g_per_day=config["health"]["tmrel_g_per_day"],
     output:
         breakdown_pdf="results/{name}/plots/objective_breakdown.pdf",
@@ -118,7 +119,8 @@ rule plot_health_impacts:
         food_groups="data/food_groups.csv",
     params:
         health_risk_factors=config["health"]["risk_factors"],
-        health_value_per_yll=config["health"]["value_per_yll"],
+        # Convert from USD/YLL -> bnUSD/YLL for objective consistency
+        health_value_per_yll=float(config["health"]["value_per_yll"]) * 1e-9,
         health_tmrel_g_per_day=config["health"]["tmrel_g_per_day"],
     output:
         health_map_pdf="results/{name}/plots/health_risk_map.pdf",

@@ -31,6 +31,7 @@ if str(_project_root) not in sys.path:
 from workflow.scripts.build_model import (  # noqa: E402
     animals,
     biomass,
+    constants,
     crops,
     food,
     infrastructure,
@@ -54,6 +55,7 @@ if __name__ == "__main__":
     use_actual_production = bool(validation_cfg["use_actual_production"])
     enforce_baseline = bool(validation_cfg["enforce_gdd_baseline"])
     slack_food_group_cost = float(validation_cfg["food_group_slack_marginal_cost"])
+    slack_food_group_cost *= constants.USD_TO_BNUSD
 
     # ═══════════════════════════════════════════════════════════════
     # DATA LOADING
@@ -395,7 +397,8 @@ if __name__ == "__main__":
     # Land buses and generators (class-level pools)
     land_cfg = snakemake.params.primary["land"]
     reg_limit = float(land_cfg["regional_limit"])
-    land_slack_cost = float(land_cfg["slack_marginal_cost"])
+    land_slack_cost = float(land_cfg["slack_marginal_cost"]) * constants.USD_TO_BNUSD
+    # Land generators operate in Mha, so marginal_cost is bnUSD per Mha.
     bus_names = [f"land_{r}_class{int(k)}_{ws}" for (r, ws, k) in land_class_df.index]
     n.buses.add(bus_names, carrier=["land"] * len(bus_names))
     n.generators.add(

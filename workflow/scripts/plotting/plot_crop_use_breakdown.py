@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def _extract_crop_production(
     n: pypsa.Network,
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """Aggregate crop production (tonnes) over all regions/resource classes.
+    """Aggregate crop production (megatonnes) over all regions/resource classes.
 
     Returns total, irrigated, and rainfed production separately.
     """
@@ -86,7 +86,7 @@ def _extract_crop_production(
 
 
 def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
-    """Return crop use split into human consumption vs. animal feed (tonnes)."""
+    """Return crop use split into human consumption vs. animal feed (megatonnes)."""
 
     if "now" not in n.snapshots:
         raise ValueError("Expected snapshot 'now' in solved network")
@@ -173,11 +173,11 @@ def _build_dataframe(
 
     df = pd.DataFrame(
         {
-            "production_tonnes": production,
-            "irrigated_tonnes": irrigated,
-            "rainfed_tonnes": rainfed,
-            "human_consumption_tonnes": human_use,
-            "animal_feed_tonnes": feed_use,
+            "production_mt": production,
+            "irrigated_mt": irrigated,
+            "rainfed_mt": rainfed,
+            "human_consumption_mt": human_use,
+            "animal_feed_mt": feed_use,
         }
     ).fillna(0.0)
 
@@ -186,22 +186,22 @@ def _build_dataframe(
 
     df = df[(df > 0).any(axis=1)]
 
-    df["irrigated_fraction"] = df["irrigated_tonnes"] / df["production_tonnes"].replace(
+    df["irrigated_fraction"] = df["irrigated_mt"] / df["production_mt"].replace(
         0, float("nan")
     )
 
-    df["residual_tonnes"] = df["production_tonnes"] - df[
-        ["human_consumption_tonnes", "animal_feed_tonnes"]
+    df["residual_mt"] = df["production_mt"] - df[
+        ["human_consumption_mt", "animal_feed_mt"]
     ].sum(axis=1)
     tolerance = 1e-6
-    residual_mask = df["residual_tonnes"].abs() > tolerance
+    residual_mask = df["residual_mt"].abs() > tolerance
     if residual_mask.any():
         logger.warning(
             "Crop use does not sum to production for: %s",
             ", ".join(df.index[residual_mask]),
         )
 
-    df.sort_values("production_tonnes", ascending=False, inplace=True)
+    df.sort_values("production_mt", ascending=False, inplace=True)
     return df
 
 
@@ -215,8 +215,8 @@ def _plot(df: pd.DataFrame, output_pdf: Path) -> None:
         plt.axis("off")
     else:
         x = range(len(df))
-        human = df["human_consumption_tonnes"].to_numpy()
-        feed = df["animal_feed_tonnes"].to_numpy()
+        human = df["human_consumption_mt"].to_numpy()
+        feed = df["animal_feed_mt"].to_numpy()
         irrigated_frac = df["irrigated_fraction"].fillna(0).to_numpy()
 
         human_rainfed = human * (1 - irrigated_frac)
@@ -262,7 +262,7 @@ def _plot(df: pd.DataFrame, output_pdf: Path) -> None:
             linewidth=0.5,
         )
 
-        plt.ylabel("Tonnes")
+        plt.ylabel("Megatonnes (Mt)")
         plt.xticks(x, df.index, rotation=45, ha="right")
         plt.grid(axis="y", alpha=0.3)
         plt.legend()

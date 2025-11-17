@@ -5,6 +5,8 @@
 from collections import defaultdict
 import logging
 import math
+from pathlib import Path
+import sys
 
 from linopy.constraints import print_single_constraint
 from logging_config import setup_script_logging
@@ -12,6 +14,17 @@ import numpy as np
 import pandas as pd
 import pypsa
 import xarray as xr
+
+# Ensure project root on sys.path for Snakemake temp copies
+_script_path = Path(__file__).resolve()
+try:
+    _project_root = _script_path.parents[2]
+except IndexError:
+    _project_root = _script_path.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+from workflow.scripts.build_model import constants  # noqa: E402
 
 try:  # Used for type annotations / documentation; fallback when unavailable
     import linopy  # type: ignore
@@ -94,6 +107,7 @@ def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list
 
 
 OBJECTIVE_COEFF_TARGET = 1e8
+GRAMS_PER_MT = constants.GRAMS_PER_MEGATONNE
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
@@ -323,7 +337,8 @@ def add_health_objective(
         population = float(cluster_population.get(cluster, 0.0))
         if population <= 0:
             continue
-        coeff = share * 1_000_000.0 / (365.0 * population)
+        # Convert Mt/year of food flow into g/person/day for each cluster
+        coeff = share * GRAMS_PER_MT / (365.0 * population)
         var = p.sel(name=link_name)
         terms_by_key[(int(cluster), str(risk_factor))].append((coeff, var))
 
@@ -588,7 +603,8 @@ if __name__ == "__main__":
         snakemake.input.population,
         snakemake.params.health_risk_factors,
         solver_name,
-        float(snakemake.params.health_value_per_yll),
+        float(snakemake.params.health_value_per_yll)
+        * constants.USD_TO_BNUSD,  # convert USD/YLL to bnUSD/YLL
     )
 
     scaling_factor = rescale_objective(n.model)

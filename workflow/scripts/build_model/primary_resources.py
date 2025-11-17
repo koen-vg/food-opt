@@ -43,7 +43,7 @@ def add_primary_resources(
     use_actual_production: bool,
 ) -> None:
     """Add primary resource components and emissions bookkeeping."""
-    # Water limits
+    # Water stores use km^3, so convert m^3 limits accordingly.
     water_limits = region_water_limits * constants.KM3_PER_M3
     n.stores.add(
         "water_store_" + water_limits.index,
@@ -57,18 +57,21 @@ def add_primary_resources(
 
     # Slack in water limits when using actual (current) production
     if use_actual_production:
+        slack_cost = 1e-6 * constants.USD_TO_BNUSD
         n.generators.add(
             "water_slack_" + water_limits.index,
             bus="water_" + water_limits.index,
             carrier="water",
-            marginal_cost=1e-6,
+            marginal_cost=slack_cost,
             p_nom_extendable=True,
         )
 
     scale_meta = n.meta.setdefault("carrier_unit_scale", {})
     scale_meta["water_km3_per_m3"] = constants.KM3_PER_M3
 
-    co2_price_per_mt = co2_price / constants.TONNE_TO_MEGATONNE
+    co2_price_per_mt = (
+        co2_price / constants.TONNE_TO_MEGATONNE * constants.USD_TO_BNUSD
+    )  # convert USD/tCO2 to bnUSD/MtCO2
 
     # Fertilizer remains global (no regionalization yet)
     n.generators.add(
