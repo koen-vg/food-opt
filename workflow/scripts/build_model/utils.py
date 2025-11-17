@@ -47,7 +47,7 @@ def _per_capita_to_bus_units(
             value_per_person_per_day
             * population
             * constants.DAYS_PER_YEAR
-            * constants.KCAL_TO_MCAL
+            * constants.KCAL_TO_GCAL
         )
     raise ValueError(f"Unsupported nutrient kind '{kind}' for unit '{unit}'")
 
@@ -79,7 +79,7 @@ def _carrier_unit_for_nutrient(unit: str) -> str:
     if kind == "mass":
         return "Mt"
     if kind == "energy":
-        return "Mcal"
+        return "Gcal"
     raise ValueError(f"Unsupported nutrient kind '{kind}'")
 
 

@@ -171,8 +171,8 @@ def add_regional_crop_production_links(
                 )
 
                 link_params["bus2"] = df["region"].apply(lambda r: f"water_{r}")
-                # Convert m³/ha to km³/Mha for compatibility with scaled water units
-                link_params["efficiency2"] = -water_requirement * 1e-3
+                # Convert m³/ha to Mm³/Mha for compatibility with scaled water units
+                link_params["efficiency2"] = -water_requirement
 
             next_bus_idx = 4
             if residue_lookup:
@@ -1094,12 +1094,12 @@ def add_residue_soil_incorporation_links(
         # N₂O emissions (Mt N₂O) = residue_DM (Mt DM) x N_content (kg N / kg DM)
         #                          x EF1 (kg N₂O-N / kg N) x (44/28) (kg N₂O / kg N₂O-N)
         # Convert g/kg to kg/kg: n_content_g_per_kg / 1000
-        # Convert to Mt: x 1e-6
+        # Convert to tonnes per Mt
         n2o_efficiency = (
             (n_content_g_per_kg / 1000.0)  # g N/kg DM → kg N/kg DM
             * incorporation_n2o_factor  # kg N₂O-N / kg N
             * (44.0 / 28.0)  # kg N₂O / kg N₂O-N
-            * 1e-6  # kg → Mt
+            * constants.MEGATONNE_TO_TONNE  # kg/kg → tonnes per Mt
         )
 
         for country in countries:

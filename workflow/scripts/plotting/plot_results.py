@@ -161,7 +161,7 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
     else:
         plt.bar(resource_series.index, resource_series.values)
         # Add value labels on bars with appropriate units
-        units = {"land": "Mha", "water": "km³", "fertilizer": "Mt"}
+        units = {"land": "Mha", "water": "Mm³", "fertilizer": "Mt"}
         max_value = resource_series.max()
         for i, (resource, value) in enumerate(resource_series.items()):
             unit = units.get(resource, "units")

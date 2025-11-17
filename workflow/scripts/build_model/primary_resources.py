@@ -43,8 +43,8 @@ def add_primary_resources(
     use_actual_production: bool,
 ) -> None:
     """Add primary resource components and emissions bookkeeping."""
-    # Water stores use km^3, so convert m^3 limits accordingly.
-    water_limits = region_water_limits * constants.KM3_PER_M3
+    # Water stores use Mm^3, so convert m^3 limits accordingly.
+    water_limits = region_water_limits * constants.MM3_PER_M3
     n.stores.add(
         "water_store_" + water_limits.index,
         bus="water_" + water_limits.index,
@@ -67,7 +67,7 @@ def add_primary_resources(
         )
 
     scale_meta = n.meta.setdefault("carrier_unit_scale", {})
-    scale_meta["water_km3_per_m3"] = constants.KM3_PER_M3
+    scale_meta["water_mm3_per_m3"] = constants.MM3_PER_M3
 
     co2_price_per_mt = (
         co2_price / constants.TONNE_TO_MEGATONNE * constants.USD_TO_BNUSD
@@ -114,7 +114,7 @@ def add_primary_resources(
         bus0="ch4",
         bus1="ghg",
         carrier="ch4",
-        efficiency=ch4_to_co2_factor,
+        efficiency=ch4_to_co2_factor * constants.TONNE_TO_MEGATONNE,
         p_nom_extendable=True,
     )
     n.links.add(
@@ -122,7 +122,7 @@ def add_primary_resources(
         bus0="n2o",
         bus1="ghg",
         carrier="n2o",
-        efficiency=n2o_to_co2_factor,
+        efficiency=n2o_to_co2_factor * constants.TONNE_TO_MEGATONNE,
         p_nom_extendable=True,
     )
 
@@ -140,16 +140,17 @@ def add_fertilizer_distribution_links(
 
     names = [f"distribute_synthetic_fertilizer_{country}" for country in country_list]
     params: dict[str, object] = {
-        "bus0": ["fertilizer"] * len(country_list),
+        "bus0": "fertilizer",
         "bus1": [f"fertilizer_{country}" for country in country_list],
         "carrier": "fertilizer",
-        "efficiency": [1.0] * len(country_list),
+        "efficiency": 1.0,
         "p_nom_extendable": True,
     }
 
     emission_mt_per_mt = max(0.0, float(synthetic_n2o_factor)) * constants.N2O_N_TO_N2O
     if emission_mt_per_mt > 0.0:
-        params["bus2"] = ["n2o"] * len(country_list)
-        params["efficiency2"] = [emission_mt_per_mt] * len(country_list)
+        emission_t_per_mt = emission_mt_per_mt * constants.MEGATONNE_TO_TONNE
+        params["bus2"] = "n2o"
+        params["efficiency2"] = emission_t_per_mt
 
     n.links.add(names, **params)

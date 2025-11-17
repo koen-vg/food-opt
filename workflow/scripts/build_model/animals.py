@@ -158,10 +158,10 @@ def add_feed_to_animal_product_links(
             all_bus3.append(f"fertilizer_{country}")
             all_carrier.append(f"produce_{row['product']}")
             all_efficiency.append(row["efficiency"])
-            # Convert per-tonne emissions/nutrients to per-Mt flows (bus0 uses Mt)
-            all_ch4.append(ch4_per_t_feed * constants.TONNE_TO_MEGATONNE)
+            # Convert per-tonne emissions/nutrients to per-Mt or per-tonne flows
+            all_ch4.append(ch4_per_t_feed * constants.MEGATONNE_TO_TONNE)
             all_n_fert.append(n_fert_per_t_feed * constants.TONNE_TO_MEGATONNE)
-            all_n2o.append(n2o_per_t_feed * constants.TONNE_TO_MEGATONNE)
+            all_n2o.append(n2o_per_t_feed * constants.MEGATONNE_TO_TONNE)
 
     # All animal production links now have multiple outputs:
     # bus1: animal product, bus2: CH4, bus3: manure N fertilizer (country-specific), bus4: N2O

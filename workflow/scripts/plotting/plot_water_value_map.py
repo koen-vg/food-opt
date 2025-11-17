@@ -6,8 +6,8 @@
 """Plot a map of hydrological basins colored by water value from marginal prices.
 
 Reads water buses, marginal prices from the model. Assumes:
-- water storage units in km³
-- marginal price units in bnUSD per km³
+- water storage units in Mm³
+- marginal price units in bnUSD per Mm³
 - The UI transposes this to USD/m³ via the carrier scaling factor.
 """
 
@@ -43,11 +43,13 @@ def plot_water_value_map(
     marginal_prices = n.buses_t.marginal_price.iloc[0][water_buses]
 
     scale_meta = n.meta.get("carrier_unit_scale", {})
-    km3_per_m3 = float(scale_meta.get("water_km3_per_m3", 1.0))
-    if km3_per_m3 <= 0 or not np.isfinite(km3_per_m3):
-        km3_per_m3 = 1.0
+    mm3_per_m3 = float(
+        scale_meta.get("water_mm3_per_m3", scale_meta.get("water_km3_per_m3", 1.0))
+    )
+    if mm3_per_m3 <= 0 or not np.isfinite(mm3_per_m3):
+        mm3_per_m3 = 1.0
 
-    marginal_prices_per_m3 = marginal_prices * km3_per_m3
+    marginal_prices_per_m3 = marginal_prices * mm3_per_m3
 
     region_ids = [b.replace("water_", "") for b in water_buses]
     water_values = pd.DataFrame(

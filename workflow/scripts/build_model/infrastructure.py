@@ -104,7 +104,10 @@ def add_carriers_and_buses(
             _nutrient_kind(nutrient_units[nut]) == "energy"
             for nut in nutrient_list_sorted
         ):
-            scale_meta["macronutrient_kcal_to_Mcal"] = constants.KCAL_TO_MCAL
+            scale_meta["macronutrient_kcal_to_Gcal"] = constants.KCAL_TO_GCAL
+            # Backwards compatibility for any downstream tools expecting the old keys
+            scale_meta["macronutrient_kcal_to_Mkcal"] = constants.KCAL_TO_GCAL
+            scale_meta["macronutrient_kcal_to_Mcal"] = constants.KCAL_TO_GCAL
 
     # Feed carriers per country (9 pools: 5 ruminant + 4 monogastric quality classes)
     feed_categories = [
@@ -129,14 +132,14 @@ def add_carriers_and_buses(
     n.carriers.add("convert_to_feed", unit="Mt")
 
     # Water carrier (buses added per region below)
-    n.carriers.add("water", unit="km^3")
+    n.carriers.add("water", unit="Mm^3")
 
     # Global emission and resource carriers with buses
     for carrier, unit in [
         ("fertilizer", "Mt"),
         ("co2", "MtCO2"),
-        ("ch4", "MtCH4"),
-        ("n2o", "MtN2O"),
+        ("ch4", "tCH4"),
+        ("n2o", "tN2O"),
         ("ghg", "MtCO2e"),
     ]:
         n.carriers.add(carrier, unit=unit)
@@ -154,6 +157,7 @@ def add_carriers_and_buses(
     scale_meta["ghg_t_to_Mt"] = constants.TONNE_TO_MEGATONNE
     scale_meta["n2o_t_to_Mt"] = constants.TONNE_TO_MEGATONNE
     scale_meta["fertilizer_kg_to_Mt"] = constants.KG_TO_MEGATONNE
+    scale_meta["water_mm3_per_m3"] = constants.MM3_PER_M3
 
     for region in water_regions:
         bus_name = f"water_{region}"

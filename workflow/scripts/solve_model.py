@@ -106,46 +106,11 @@ def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list
     return [binary_name]
 
 
-OBJECTIVE_COEFF_TARGET = 1e8
+HEALTH_OBJECTIVE_SCALE = 1e3  # scale RR interpolation to shrink cost coefficients
 GRAMS_PER_MT = constants.GRAMS_PER_MEGATONNE
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
-
-
-def rescale_objective(
-    m: "linopy.Model", target_max_coeff: float = OBJECTIVE_COEFF_TARGET
-) -> float:
-    """Scale objective to keep coefficients within numerical comfort zone."""
-
-    dataset = m.objective.data
-    if "coeffs" not in dataset:
-        return 1.0
-
-    coeffs = dataset["coeffs"].values
-    if coeffs.size == 0:
-        return 1.0
-
-    max_coeff = float(np.nanmax(np.abs(coeffs)))
-    if not math.isfinite(max_coeff) or max_coeff == 0.0:
-        return 1.0
-
-    if max_coeff <= target_max_coeff:
-        return 1.0
-
-    exponent = math.ceil(math.log10(max_coeff / target_max_coeff))
-    if exponent <= 0:
-        return 1.0
-
-    scale_factor = 10.0**exponent
-    m.objective = m.objective / scale_factor
-    logger.warning(
-        "Scaled objective by 1/%s to reduce max coefficient from %.3g to %.3g",
-        scale_factor,
-        max_coeff,
-        max_coeff / scale_factor,
-    )
-    return scale_factor
 
 
 def sanitize_identifier(value: str) -> str:
@@ -497,6 +462,11 @@ def add_health_objective(
             coords=[cluster_cause_index, coords],
             name=f"health_lambda_total_group_{hash(coords_key)}",
         )
+        rr_scaled_group = m.add_variables(
+            lower=0,
+            coords=[cluster_cause_index],
+            name=f"health_rr_scaled_group_{hash((coords_key, 'rr'))}",
+        )
 
         # Register all variables
         _register_health_variable(m, lambda_total_group.name)
@@ -507,6 +477,7 @@ def add_health_objective(
         )
         for aux_name in aux_names:
             _register_health_variable(m, aux_name)
+        _register_health_variable(m, rr_scaled_group.name)
 
         # Vectorized convexity constraints
         m.add_constraints(lambda_total_group.sum("log_total") == 1)
@@ -521,6 +492,7 @@ def add_health_objective(
         for (cluster, cause), label in zip(cluster_cause_pairs, cluster_cause_labels):
             data = cluster_cause_data[(cluster, cause)]
             lambda_total = lambda_total_group.sel(cluster_cause=label)
+            rr_scaled = rr_scaled_group.sel(cluster_cause=label)
 
             total_expr = log_rr_totals.get((cluster, cause), m.linexpr(0.0))
             cause_bp = data["cause_bp"]
@@ -532,15 +504,20 @@ def add_health_objective(
                 dims=["log_total"],
             )
             rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total")
-
             sanitized_cause = sanitize_identifier(cause)
+            m.add_constraints(
+                rr_scaled == rr_interp * HEALTH_OBJECTIVE_SCALE,
+                name=f"health_rr_scaled_c{cluster}_cause{sanitized_cause}",
+            )
+
             m.add_constraints(
                 log_interp == total_expr,
                 name=f"health_total_balance_c{cluster}_cause{sanitized_cause}",
             )
 
             coeff = data["value_per_yll"] * data["yll_base"]
-            scaled_expr = rr_interp * (coeff / data["rr_ref"])
+            coeff_scaled = coeff / HEALTH_OBJECTIVE_SCALE
+            scaled_expr = rr_scaled * (coeff_scaled / data["rr_ref"])
             objective_expr = (
                 scaled_expr if objective_expr is None else objective_expr + scaled_expr
             )
@@ -548,6 +525,8 @@ def add_health_objective(
 
     if objective_expr is not None:
         m.objective = m.objective + objective_expr
+        health_meta = n.meta.setdefault("health_objective", {})
+        health_meta["relative_risk_scale"] = HEALTH_OBJECTIVE_SCALE
         logger.info("Added health cost objective")
 
     if constant_objective != 0.0:
