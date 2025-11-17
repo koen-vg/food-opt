@@ -74,13 +74,20 @@ def add_primary_resources(
     )  # convert USD/tCO2 to bnUSD/MtCO2
 
     # Fertilizer remains global (no regionalization yet)
+    fertilizer_cfg = primary_config["fertilizer"]
+    limit_mt = float(fertilizer_cfg["limit"]) * constants.KG_TO_MEGATONNE
+    marginal_cost_bnusd_per_mt = (
+        float(fertilizer_cfg["marginal_cost_usd_per_tonne"])
+        * constants.MEGATONNE_TO_TONNE
+        * constants.USD_TO_BNUSD
+    )
     n.generators.add(
         "fertilizer",
         bus="fertilizer",
         carrier="fertilizer",
         p_nom_extendable=True,
-        p_nom_max=float(primary_config["fertilizer"]["limit"])
-        * constants.KG_TO_MEGATONNE,
+        p_nom_max=limit_mt,
+        marginal_cost=marginal_cost_bnusd_per_mt,
     )
 
     # Add GHG aggregation store and links from individual gases

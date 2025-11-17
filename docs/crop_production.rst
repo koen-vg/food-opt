@@ -444,13 +444,14 @@ Fertilizer
 
 Crop production requires nitrogen (N), phosphorus (P), and potassium (K) fertilizers. The model includes:
 
-* **Global fertilizer limit**: Total NPK available (``primary.fertilizer.limit`` in config, specified in kg and converted to Mt internally)
+* **Global fertilizer limit**: Total synthetic nitrogen available (``primary.fertilizer.limit`` in config, specified in kg-N and converted to Mt-N internally)
+* **Global marginal cost**: Blanket fertilizer price in USD per tonne-N (``primary.fertilizer.marginal_cost_usd_per_tonne``) converted to bnUSD/Mt-N and applied to the global fertilizer generator
 * **Crop-specific requirements**: Fertilizer needed per tonne of production (from ``data/crops.csv``)
 * **Emissions factors**: N₂O emissions from nitrogen application
 
-The fertilizer constraint is typically set at a realistic global scale (e.g., 200 Mt NPK/year) to prevent unrealistic intensification.
+All fertilizer quantities in the model (limits, costs, crop coefficients, emissions factors) refer to the mass of nitrogen nutrient (t-N or Mt-N). The fertilizer constraint is typically set at a realistic global scale (e.g., 200 Mt-N/year) to prevent unrealistic intensification.
 
-For now, N, P & K are not differentiated, and their GHG emissions are not tracked appropriately; this is work in development.
+At present only nitrogen nutrient flows are modeled explicitly; phosphorus and potassium application (and their GHG emissions) remain out of scope and are tracked implicitly in future work.
 
 Growing Seasons
 ---------------
