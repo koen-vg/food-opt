@@ -65,7 +65,7 @@ def _extract_crop_production(
 
     pasture_total = 0.0
     for link in n.links.index:
-        if not link.startswith("graze_"):
+        if not (link.startswith(("grassland_region", "grassland_marginal"))):
             continue
 
         value = abs(float(flows.get(link, 0.0)))
@@ -75,8 +75,8 @@ def _extract_crop_production(
         pasture_total += value
 
     if pasture_total > 0.0:
-        production["pasture"] = pasture_total
-        rainfed["pasture"] = pasture_total
+        production["grassland"] = pasture_total
+        rainfed["grassland"] = pasture_total
 
     return (
         pd.Series(production, dtype=float),
@@ -147,7 +147,7 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
 
     pasture_total = 0.0
     for link in n.links.index:
-        if not link.startswith("graze_"):
+        if not (link.startswith(("grassland_region", "grassland_marginal"))):
             continue
 
         value = abs(float(flows_p1.get(link, 0.0)))
@@ -157,7 +157,7 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
         pasture_total += value
 
     if pasture_total > 0.0:
-        feed_use["pasture"] = feed_use.get("pasture", 0.0) + pasture_total
+        feed_use["grassland"] = feed_use.get("grassland", 0.0) + pasture_total
 
     return pd.Series(human_use, dtype=float), pd.Series(feed_use, dtype=float)
 

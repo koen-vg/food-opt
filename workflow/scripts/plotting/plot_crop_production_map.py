@@ -56,10 +56,15 @@ def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataF
             region = _region_from_bus0(str(bus0.loc[name]))
             add(region, crop, abs(float(value)))
 
-    graze_links = [name for name in n.links.index if str(name).startswith("graze_")]
-    if graze_links:
-        p1 = n.links_t.p1.loc[snapshot, graze_links]
-        bus0 = n.links.loc[graze_links, "bus0"]
+    grassland_links = [
+        name
+        for name in n.links.index
+        if str(name).startswith("grassland_region")
+        or str(name).startswith("grassland_marginal")
+    ]
+    if grassland_links:
+        p1 = n.links_t.p1.loc[snapshot, grassland_links]
+        bus0 = n.links.loc[grassland_links, "bus0"]
         for name, value in p1.items():
             region = _region_from_bus0(str(bus0.loc[name]))
             add(region, "grassland", abs(float(value)))
@@ -92,10 +97,15 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
             region = _region_from_bus0(str(bus0.loc[name]))
             add(region, crop, max(float(value), 0.0) * 1e6)
 
-    graze_links = [name for name in n.links.index if str(name).startswith("graze_")]
-    if graze_links:
-        p0 = n.links_t.p0.loc[snapshot, graze_links]
-        bus0 = n.links.loc[graze_links, "bus0"]
+    grassland_links = [
+        name
+        for name in n.links.index
+        if str(name).startswith("grassland_region")
+        or str(name).startswith("grassland_marginal")
+    ]
+    if grassland_links:
+        p0 = n.links_t.p0.loc[snapshot, grassland_links]
+        bus0 = n.links.loc[grassland_links, "bus0"]
         for name, value in p0.items():
             region = _region_from_bus0(str(bus0.loc[name]))
             add(region, "grassland", max(float(value), 0.0) * 1e6)
