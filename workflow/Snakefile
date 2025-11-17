@@ -61,6 +61,7 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/food_production.csv",
     "results/{name}/plots/objective_breakdown.pdf",
     "results/{name}/plots/objective_breakdown.csv",
+    "results/{name}/plots/emissions_breakdown.pdf",
     "results/{name}/plots/health_risk_map.pdf",
     "results/{name}/plots/health_risk_by_region.csv",
     "results/{name}/plots/health_baseline_map.pdf",

@@ -294,3 +294,18 @@ rule plot_water_value_map:
         f"logs/{name}/plot_water_value_map.log",
     script:
         "../scripts/plotting/plot_water_value_map.py"
+
+
+rule plot_emissions_breakdown:
+    input:
+        network=f"results/{name}/solved/model.nc",
+    output:
+        pdf=f"results/{name}/plots/emissions_breakdown.pdf",
+        csv=f"results/{name}/plots/emissions_breakdown.csv",
+    params:
+        ch4_gwp=config["emissions"]["ch4_to_co2_factor"],
+        n2o_gwp=config["emissions"]["n2o_to_co2_factor"],
+    log:
+        f"logs/{name}/plot_emissions_breakdown.log",
+    script:
+        "../scripts/plotting/plot_emissions_breakdown.py"
