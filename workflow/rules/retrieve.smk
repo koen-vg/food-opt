@@ -151,13 +151,24 @@ rule retrieve_faostat_crop_production:
         mapping="data/faostat_item_map.csv",
     params:
         countries=config["countries"],
-        production_year=config.get("validation", {}).get("production_year", 2019),
+        production_year=config["validation"]["production_year"],
     output:
         f"processing/{name}/faostat_crop_production.csv",
     log:
         f"logs/{name}/retrieve_faostat_crop_production.log",
     script:
         "../scripts/retrieve_faostat_crop_production.py"
+
+
+rule retrieve_faostat_animal_production:
+    params:
+        production_year=config["validation"]["production_year"],
+    output:
+        f"processing/{name}/faostat_animal_production.csv",
+    log:
+        f"logs/{name}/retrieve_faostat_animal_production.log",
+    script:
+        "../scripts/retrieve_faostat_animal_production.py"
 
 
 rule download_gaez_yield_data:

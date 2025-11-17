@@ -668,16 +668,35 @@ rule build_model:
         "scripts/build_model.py"
 
 
+def solve_model_inputs(w):
+    """Get input files for solve_model rule.
+
+    Includes validation-specific inputs (e.g., FAO animal production data)
+    only when validation mode is enabled.
+    """
+    inputs = {
+        "network": f"results/{w.name}/build/model.nc",
+        "health_risk_breakpoints": f"processing/{w.name}/health/risk_breakpoints.csv",
+        "health_cluster_cause": f"processing/{w.name}/health/cluster_cause_baseline.csv",
+        "health_cause_log": f"processing/{w.name}/health/cause_log_breakpoints.csv",
+        "health_cluster_summary": f"processing/{w.name}/health/cluster_summary.csv",
+        "health_clusters": f"processing/{w.name}/health/country_clusters.csv",
+        "population": f"processing/{w.name}/population.csv",
+        "food_groups": "data/food_groups.csv",
+    }
+
+    # Add validation-specific inputs
+    if config.get("validation", {}).get("use_actual_production", False):
+        inputs["animal_production"] = (
+            f"processing/{w.name}/faostat_animal_production.csv"
+        )
+
+    return inputs
+
+
 rule solve_model:
     input:
-        network="results/{name}/build/model.nc",
-        health_risk_breakpoints="processing/{name}/health/risk_breakpoints.csv",
-        health_cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
-        health_cause_log="processing/{name}/health/cause_log_breakpoints.csv",
-        health_cluster_summary="processing/{name}/health/cluster_summary.csv",
-        health_clusters="processing/{name}/health/country_clusters.csv",
-        population="processing/{name}/population.csv",
-        food_groups="data/food_groups.csv",
+        unpack(solve_model_inputs),
     params:
         health_risk_factors=config["health"]["risk_factors"],
         health_value_per_yll=config["health"]["value_per_yll"],

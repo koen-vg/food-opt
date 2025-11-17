@@ -17,6 +17,7 @@ validation:
   use_actual_production: false
   enforce_gdd_baseline: false # Set food consumption equal to current day values
   food_group_slack_marginal_cost: 1e9 # USD per Mt when validation slack supply is used
+  production_year: 2021
 
 # --- section: primary ---
 primary:
