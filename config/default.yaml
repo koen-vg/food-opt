@@ -706,6 +706,73 @@ animal_costs:
       production: ["2510", "5510"]
       stocks: ["2111", "5111"]
       producing_animals: ["2313", "5318", "5313"]
+
+crop_costs:
+  averaging_period:
+    start_year: 2015
+    end_year: 2024
+
+  fadn:
+    per_year_costs:
+      SE340: "Machinery & building current costs"
+      SE345: "Energy"
+      SE350: "Contract work"
+      SE360: "Depreciation"
+      SE370: "Wages paid"
+      SE380: "Interest paid"
+    per_planting_costs:
+      SE285: "Seeds and plants"
+      SE300: "Crop protection"
+      SE305: "Other crop specific costs"
+    exclude_costs:
+      SE295: "Fertilisers"
+      SE375: "Rent paid"
+    crop_groups:
+      Cereals:
+        outputs: ["SE140"]
+        area: "SE035"
+        crops: ["SE140"]
+      Vegetables:
+        outputs: ["SE170"]
+        area: "SE046"
+        crops: ["SE170"]
+      Wine:
+        outputs: ["SE185"]
+        area: "SE050"
+        crops: ["SE185"]
+      Olives:
+        outputs: ["SE190"]
+        area: "SE060"
+        crops: ["SE190"]
+      Fruit & Citrus:
+        outputs: ["SE175", "SE180"]
+        area: "SE055"
+        crops: ["SE175", "SE180"]
+      Other Field Crops:
+        outputs: ["SE145", "SE150", "SE155", "SE160", "SE165", "SE146", "SE200"]
+        area: "SE041"
+        crops: ["SE145", "SE150", "SE155", "SE160", "SE165"]
+
+  usda:
+    request_timeout_seconds: 120
+    per_year_costs:
+    - "Capital recovery of machinery and equipment"
+    - "General farm overhead"
+    - "Taxes and insurance"
+    per_planting_costs:
+    - "Chemicals"
+    - "Custom services"
+    - "Fuel, lube, and electricity"
+    - "Interest on operating capital"
+    - "Repairs"
+    - "Seed"
+    - "Hired labor"
+    - "Opportunity cost of unpaid labor"
+    exclude_items:
+    - "Fertilizer"
+    - "Opportunity cost of land"
+    - "Purchased irrigation water"
+
 # --- section: solving ---
 solving:
   solver: highs

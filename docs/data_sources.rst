@@ -258,9 +258,9 @@ FADN — Farm Accountancy Data Network (EU)
 
 **Cost allocation methodology**:
 
-1. Costs are allocated to crop categories proportionally by output value share (e.g., if cereals represent 30% of total crop output value, they receive 30% of total costs)
-2. Within each FADN category, costs are distributed equally among model crops (e.g., cereals category costs are split among wheat, rice, maize, barley, etc.)
-3. Costs are divided by total utilized agricultural area (UAA) to obtain cost per hectare
+1. **Allocation by Value**: Costs are first allocated to crop categories proportionally by output value share (e.g., if cereals represent 30% of total farm output value, they receive 30% of total costs).
+2. **Normalization by Specific Area**: To correctly reflect production intensity, the allocated costs are normalized using **crop-specific area variables** (e.g., SE035 for Cereals, SE046 for Vegetables, SE050 for Vineyards) rather than total farm area. This ensures that intensive crops like vegetables receive a higher cost-per-hectare than extensive crops like cereals, even within the same aggregated farm data.
+3. **Group Aggregation**: Crops without specific area variables (e.g., potatoes, sugar beet, oilseeds) are grouped into the "Other Field Crops" category (SE041 area) to calculate a representative group-average cost per hectare.
 
 **Currency and inflation adjustment**:
 

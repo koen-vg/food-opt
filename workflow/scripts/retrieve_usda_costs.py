@@ -45,41 +45,9 @@ import requests
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
-# Years to average over
-YEARS = list(range(2015, 2025))  # inclusive [2015, 2024]
-
 # Conversion factor: acres to hectares
 ACRES_TO_HA = 0.404686
 HA_PER_ACRE = 1.0 / ACRES_TO_HA  # 2.47105
-
-# Cost categories split into per-year and per-planting
-# Per-year costs: Fixed annual costs that don't multiply with number of plantings
-PER_YEAR_COSTS = {
-    "Capital recovery of machinery and equipment",  # Annual depreciation
-    "General farm overhead",  # Fixed annual overhead
-    "Taxes and insurance",  # Annual fixed costs
-}
-
-# Per-planting costs: Variable costs incurred for each crop planted
-PER_PLANTING_COSTS = {
-    # Operating costs
-    "Chemicals",  # Each crop needs its own applications
-    "Custom services",  # Hired for each planting/harvest operation
-    "Fuel, lube, and electricity",  # Each crop requires field operations
-    "Interest on operating capital",  # Borrowed for each crop cycle
-    "Repairs",  # More plantings = more wear and tear
-    "Seed",  # Each crop needs its own seed
-    # Labor costs
-    "Hired labor",  # Labor for each crop operation
-    "Opportunity cost of unpaid labor",  # Time spent on each crop
-}
-
-# Explicitly EXCLUDE these
-EXCLUDE_ITEMS = {
-    "Fertilizer",  # Modeled endogenously
-    "Opportunity cost of land",  # Modeled endogenously
-    "Purchased irrigation water",  # Water modeled endogenously
-}
 
 
 def load_cpi_data(cpi_path: str) -> dict[int, float]:
@@ -109,16 +77,43 @@ def inflate_to_base_year(
     return value * (cpi_values[base_year] / cpi_values[year])
 
 
-def fetch_usda_csv(url: str) -> pd.DataFrame:
-    """Download USDA CSV from URL and return as DataFrame."""
-    response = requests.get(url, timeout=30)
-    response.raise_for_status()
-    # Use StringIO to parse the CSV content
-    return pd.read_csv(StringIO(response.text))
+def fetch_usda_csv(url: str, timeout_seconds: int = 120) -> pd.DataFrame:
+    """Download USDA CSV from URL and return as DataFrame with robust retries."""
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+
+    # Configure robust retry strategy
+    retry_strategy = Retry(
+        total=5,
+        backoff_factor=1,  # wait 1s, 2s, 4s, 8s, 16s
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["HEAD", "GET", "OPTIONS"],
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    http = requests.Session()
+    http.mount("https://", adapter)
+    http.mount("http://", adapter)
+
+    try:
+        response = http.get(url, timeout=timeout_seconds)  # Increased timeout
+        response.raise_for_status()
+        # Use StringIO to parse the CSV content
+        return pd.read_csv(StringIO(response.text))
+    except Exception as e:
+        logger.error(f"Failed to download from {url} after retries: {e}")
+        logger.error("Please manually download the file if this persists.")
+        raise
 
 
 def process_usda_crop_costs(
-    df: pd.DataFrame, usda_crop: str, base_year: int, cpi_values: dict[int, float]
+    df: pd.DataFrame,
+    usda_crop: str,
+    base_year: int,
+    cpi_values: dict[int, float],
+    years: list[int],
+    per_year_costs: list[str],
+    per_planting_costs: list[str],
+    exclude_items: list[str],
 ) -> dict:
     """
     Extract relevant cost data from USDA DataFrame for a single crop.
@@ -132,10 +127,10 @@ def process_usda_crop_costs(
 
     # Filter to relevant years
     df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
-    df = df[df["Year"].isin(YEARS)]
+    df = df[df["Year"].isin(years)]
 
     if df.empty:
-        logger.warning(f"No data for {usda_crop} in years {YEARS}")
+        logger.warning(f"No data for {usda_crop} in years {years}")
         return {
             "n_years": 0,
             f"cost_per_year_usd_{base_year}_per_ha": float("nan"),
@@ -143,11 +138,11 @@ def process_usda_crop_costs(
         }
 
     # Filter to cost categories we want to include
-    all_costs = PER_YEAR_COSTS | PER_PLANTING_COSTS
+    all_costs = set(per_year_costs) | set(per_planting_costs)
     df = df[df["Item"].isin(all_costs)].copy()
 
     # Explicitly exclude certain items
-    df = df[~df["Item"].isin(EXCLUDE_ITEMS)]
+    df = df[~df["Item"].isin(exclude_items)]
 
     # Extract numeric values
     df["Value"] = pd.to_numeric(df["Value"], errors="coerce")
@@ -162,8 +157,8 @@ def process_usda_crop_costs(
         }
 
     # Split into per-year and per-planting costs
-    df_per_year = df[df["Item"].isin(PER_YEAR_COSTS)].copy()
-    df_per_planting = df[df["Item"].isin(PER_PLANTING_COSTS)].copy()
+    df_per_year = df[df["Item"].isin(per_year_costs)].copy()
+    df_per_planting = df[df["Item"].isin(per_planting_costs)].copy()
 
     # Sum costs within each year
     yearly_per_year_costs = df_per_year.groupby("Year")["Value"].sum()
@@ -218,7 +213,18 @@ def main():
     sources_path: str = snakemake.input.sources  # type: ignore[name-defined]
     cpi_path: str = snakemake.input.cpi  # type: ignore[name-defined]
     base_year: int = int(snakemake.params.base_year)  # type: ignore[name-defined]
+    cost_params: dict = snakemake.params.cost_params  # type: ignore[name-defined]
+    averaging_period: dict = snakemake.params.averaging_period  # type: ignore[name-defined]
     out_path: str = snakemake.output.costs  # type: ignore[name-defined]
+
+    # Extract params
+    years = list(
+        range(averaging_period["start_year"], averaging_period["end_year"] + 1)
+    )
+    per_year_costs = cost_params["per_year_costs"]
+    per_planting_costs = cost_params["per_planting_costs"]
+    exclude_items = cost_params["exclude_items"]
+    timeout = int(cost_params.get("request_timeout_seconds", 120))
 
     # Load CPI data for inflation adjustment
     cpi_values = load_cpi_data(cpi_path)
@@ -238,8 +244,17 @@ def main():
         logger.info(f"Fetching USDA data for {crop} from {url}")
 
         try:
-            df = fetch_usda_csv(url)
-            cost_data = process_usda_crop_costs(df, crop, base_year, cpi_values)
+            df = fetch_usda_csv(url, timeout_seconds=timeout)
+            cost_data = process_usda_crop_costs(
+                df,
+                crop,
+                base_year,
+                cpi_values,
+                years,
+                per_year_costs,
+                per_planting_costs,
+                exclude_items,
+            )
 
             # Only include if we got valid data
             if cost_data["n_years"] > 0:

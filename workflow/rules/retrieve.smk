@@ -103,6 +103,8 @@ rule retrieve_usda_costs:
         cpi="processing/shared/cpi_annual.csv",
     params:
         base_year=config["currency_base_year"],
+        cost_params=config["crop_costs"]["usda"],
+        averaging_period=config["crop_costs"]["averaging_period"],
     output:
         costs=f"processing/{name}/usda_costs.csv",
     log:
@@ -120,6 +122,8 @@ rule retrieve_fadn_costs:
     params:
         crops=config["crops"],
         base_year=config["currency_base_year"],
+        cost_params=config["crop_costs"]["fadn"],
+        averaging_period=config["crop_costs"]["averaging_period"],
     output:
         costs=f"processing/{name}/fadn_costs.csv",
     log:

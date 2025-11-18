@@ -26,7 +26,7 @@ Notes
 - Per-year costs (annual fixed): Machinery, energy, contract work, depreciation, wages, interest
 - Per-planting costs (variable): Seeds, crop protection, other crop-specific costs
 - Costs explicitly EXCLUDED: Fertilizer (SE295), rent (SE375 - land opportunity cost)
-- Costs are allocated proportionally to crops by output value share within each FADN category
+- Costs are allocated to crop groups using specific area variables (SE codes) to capture intensity differences.
 - Inflation-adjusted using EU HICP, then converted to international $ using PPP rates
 - PPP (Purchasing Power Parity) conversion accounts for price level differences between EUR and USD
 - Averaged over 2015-2020 period (FADN data ends 2020)
@@ -40,50 +40,6 @@ import yaml
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
-
-# Years to average over (FADN data available 2004-2020)
-YEARS = list(range(2015, 2021))  # [2015, 2020] inclusive
-
-# Conversion factor: hectares (data is already in ha)
-HA_TO_HA = 1.0
-
-# FADN cost variable definitions
-# Per-year costs: Fixed annual costs that don't multiply with number of plantings
-PER_YEAR_COSTS = {
-    "SE340": "Machinery & building current costs",
-    "SE345": "Energy",
-    "SE350": "Contract work",
-    "SE360": "Depreciation",
-    "SE370": "Wages paid",
-    "SE380": "Interest paid",  # Interest on operating capital
-}
-
-# Per-planting costs: Variable costs incurred for each crop planted
-PER_PLANTING_COSTS = {
-    "SE285": "Seeds and plants",
-    "SE300": "Crop protection",
-    "SE305": "Other crop specific costs",
-}
-
-# Explicitly EXCLUDE these (modeled endogenously)
-EXCLUDE_COSTS = {
-    "SE295": "Fertilisers",  # Modeled endogenously
-    "SE375": "Rent paid",  # Land opportunity cost, modeled endogenously
-}
-
-# FADN crop output value variables (SE1xx codes)
-CROP_OUTPUT_VARS = {
-    "SE140": "Cereals",
-    "SE145": "Protein crops",
-    "SE150": "Potatoes",
-    "SE155": "Sugar beet",
-    "SE160": "Oil-seed crops",
-    "SE170": "Vegetables & flowers",
-    "SE175": "Fruit trees and berries",
-    "SE180": "Citrus fruit",
-    "SE185": "Wine and grapes",
-    "SE190": "Olives & olive oil",
-}
 
 
 def load_hicp_data(hicp_path: str) -> dict[int, float]:
@@ -142,21 +98,22 @@ def process_fadn_costs(
     base_year: int,
     ppp_rate: float,
     hicp_values: dict[int, float],
+    years: list[int],
+    per_year_costs: dict[str, str],
+    per_planting_costs: dict[str, str],
+    crop_groups: dict,
 ) -> pd.DataFrame:
     """
-    Extract and process FADN cost data, allocating to model crops.
-
-    Returns DataFrame with columns: crop, fadn_category, n_years, n_countries,
-    cost_per_year_usd_{base_year}_per_ha, cost_per_planting_usd_{base_year}_per_ha
+    Extract and process FADN cost data, allocating to model crops using specific area variables.
     """
     # Filter to relevant years
-    fadn_df = fadn_df[fadn_df["year"].isin(YEARS)].copy()
+    fadn_df = fadn_df[fadn_df["year"].isin(years)].copy()
 
     # Remove rows with missing data
     fadn_df = fadn_df[fadn_df["SE025"].notna()].copy()  # SE025 = Total UAA
 
     if fadn_df.empty:
-        logger.warning(f"No FADN data available for years {YEARS}")
+        logger.warning(f"No FADN data available for years {years}")
         return pd.DataFrame()
 
     logger.info(
@@ -164,89 +121,86 @@ def process_fadn_costs(
         f"from {fadn_df['year'].min()}-{fadn_df['year'].max()}"
     )
 
-    # Calculate cost allocation for each row (country-year)
     results = []
 
     for _, row in fadn_df.iterrows():
         year = int(row["year"])
         country = row["NUTS"]
-        total_uaa = row["SE025"]  # Total Utilized Agricultural Area (ha)
 
-        # Calculate total crop output value and output shares by category
-        crop_outputs = {}
-        total_crop_output = 0.0
-        for se_code in CROP_OUTPUT_VARS:
-            if se_code in row.index and pd.notna(row[se_code]):
-                output_value = float(row[se_code])
-                if output_value > 0:
-                    crop_outputs[se_code] = output_value
-                    total_crop_output += output_value
-
-        if total_crop_output == 0:
-            logger.debug(f"No crop output for {country} {year}, skipping")
+        # 1. Calculate Total Farm Output (SE131) and Total Costs
+        if "SE131" not in row or pd.isna(row["SE131"]) or float(row["SE131"]) == 0:
             continue
 
-        # Calculate output shares
-        output_shares = {
-            se_code: value / total_crop_output
-            for se_code, value in crop_outputs.items()
-        }
+        total_output = float(row["SE131"])
 
-        # Sum per-year and per-planting costs
         total_per_year = sum(
-            float(row.get(se_code, 0) or 0) for se_code in PER_YEAR_COSTS
+            float(row.get(se_code, 0) or 0) for se_code in per_year_costs
         )
         total_per_planting = sum(
-            float(row.get(se_code, 0) or 0) for se_code in PER_PLANTING_COSTS
+            float(row.get(se_code, 0) or 0) for se_code in per_planting_costs
         )
 
-        # Allocate costs to each crop category proportionally by output share
-        for se_code, share in output_shares.items():
-            if se_code not in crop_mapping:
-                logger.debug(f"No mapping for FADN category {se_code}, skipping")
+        # 2. Process each Crop Group
+        for group_name, config in crop_groups.items():
+            area_code = config["area"]
+
+            # Check if we have area data for this group
+            if (
+                area_code not in row
+                or pd.isna(row[area_code])
+                or float(row[area_code]) <= 0
+            ):
                 continue
 
-            # Costs allocated to this category (EUR)
-            category_per_year_eur = total_per_year * share
-            category_per_planting_eur = total_per_planting * share
+            group_area_ha = float(row[area_code])
 
-            # Inflate to base year EUR
-            category_per_year_eur_base = inflate_eur_to_base_year(
-                category_per_year_eur, year, base_year, hicp_values
+            # Sum output value for this group
+            group_output_value = 0.0
+            for out_code in config["outputs"]:
+                if out_code in row and pd.notna(row[out_code]):
+                    group_output_value += float(row[out_code])
+
+            if group_output_value <= 0:
+                continue
+
+            # Calculate Output Share for this group
+            group_share = group_output_value / total_output
+
+            # Allocate Costs to Group (EUR)
+            group_per_year_eur = total_per_year * group_share
+            group_per_planting_eur = total_per_planting * group_share
+
+            # Calculate Cost per Hectare (EUR/ha)
+            # This correctly captures the intensity: High Value Share / Low Area -> High Cost/ha
+            per_year_eur_ha = group_per_year_eur / group_area_ha
+            per_planting_eur_ha = group_per_planting_eur / group_area_ha
+
+            # Inflate and Convert to USD
+            per_year_usd_ha = convert_eur_to_intl_dollar(
+                inflate_eur_to_base_year(per_year_eur_ha, year, base_year, hicp_values),
+                ppp_rate,
             )
-            category_per_planting_eur_base = inflate_eur_to_base_year(
-                category_per_planting_eur, year, base_year, hicp_values
+            per_planting_usd_ha = convert_eur_to_intl_dollar(
+                inflate_eur_to_base_year(
+                    per_planting_eur_ha, year, base_year, hicp_values
+                ),
+                ppp_rate,
             )
 
-            # Convert to international $ using PPP
-            category_per_year_usd = convert_eur_to_intl_dollar(
-                category_per_year_eur_base, ppp_rate
-            )
-            category_per_planting_usd = convert_eur_to_intl_dollar(
-                category_per_planting_eur_base, ppp_rate
-            )
-
-            # Divide by the category's share of UAA to get per-hectare costs.
-            # Use output share as a proxy for area share so the allocation shares
-            # cancel out instead of shrinking the result.
-            category_uaa = total_uaa * share
-            if category_uaa > 0:
-                cost_per_year_per_ha = category_per_year_usd / category_uaa
-                cost_per_planting_per_ha = category_per_planting_usd / category_uaa
-            else:
-                cost_per_year_per_ha = 0.0
-                cost_per_planting_per_ha = 0.0
-
-            results.append(
-                {
-                    "fadn_category": se_code,
-                    "country": country,
-                    "year": year,
-                    "output_share": share,
-                    "cost_per_year_usd_per_ha": cost_per_year_per_ha,
-                    "cost_per_planting_usd_per_ha": cost_per_planting_per_ha,
-                }
-            )
+            # Assign this cost to all FADN categories (SE codes) in this group
+            for se_code in config["crops"]:
+                # Only add if this specific SE code exists in our mapping
+                if se_code in crop_mapping:
+                    results.append(
+                        {
+                            "fadn_category": se_code,
+                            "country": country,
+                            "year": year,
+                            "group": group_name,
+                            "cost_per_year_usd_per_ha": per_year_usd_ha,
+                            "cost_per_planting_usd_per_ha": per_planting_usd_ha,
+                        }
+                    )
 
     if not results:
         logger.warning("No valid FADN cost data after processing")
@@ -271,7 +225,7 @@ def process_fadn_costs(
     logger.info(f"Averaged costs across {len(results_df)} observations")
     for cat, row in category_costs.iterrows():
         logger.info(
-            f"  {CROP_OUTPUT_VARS.get(cat, cat)}: "
+            f"  {cat}: "
             f"per-year=${row['cost_per_year_usd_per_ha']:.2f}/ha, "
             f"per-planting=${row['cost_per_planting_usd_per_ha']:.2f}/ha "
             f"({row['n_countries']} countries, {row['n_observations']} obs)"
@@ -295,7 +249,7 @@ def process_fadn_costs(
                 {
                     "crop": crop,
                     "fadn_category": se_code,
-                    "n_years": len(YEARS),
+                    "n_years": len(years),
                     "n_countries": int(cat_data["n_countries"]),
                     cost_per_year_column: cat_data["cost_per_year_usd_per_ha"],
                     cost_per_planting_column: cat_data["cost_per_planting_usd_per_ha"],
@@ -311,7 +265,17 @@ def main():
     hicp_path: str = snakemake.input.hicp  # type: ignore[name-defined]
     ppp_path: str = snakemake.input.ppp  # type: ignore[name-defined]
     base_year: int = int(snakemake.params.base_year)  # type: ignore[name-defined]
+    cost_params: dict = snakemake.params.cost_params  # type: ignore[name-defined]
+    averaging_period: dict = snakemake.params.averaging_period  # type: ignore[name-defined]
     out_path: str = snakemake.output.costs  # type: ignore[name-defined]
+
+    # Extract params
+    years = list(
+        range(averaging_period["start_year"], averaging_period["end_year"] + 1)
+    )
+    per_year_costs = cost_params["per_year_costs"]
+    per_planting_costs = cost_params["per_planting_costs"]
+    crop_groups = cost_params["crop_groups"]
 
     # Load inflation and PPP data
     hicp_values = load_hicp_data(hicp_path)
@@ -328,7 +292,15 @@ def main():
 
     # Process costs
     costs_df = process_fadn_costs(
-        fadn_df, crop_mapping, base_year, ppp_rate, hicp_values
+        fadn_df,
+        crop_mapping,
+        base_year,
+        ppp_rate,
+        hicp_values,
+        years,
+        per_year_costs,
+        per_planting_costs,
+        crop_groups,
     )
 
     if costs_df.empty:
