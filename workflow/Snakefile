@@ -637,6 +637,7 @@ rule build_model:
         baseline_diet="processing/{name}/gdd_dietary_intake.csv",
         food_loss_waste="processing/{name}/food_loss_waste.csv",
         costs="processing/{name}/crop_costs.csv",
+        animal_costs="processing/{name}/animal_costs.csv",
         grassland_yields="processing/{name}/grassland_yields.csv",
         monthly_region_water="processing/{name}/water/monthly_region_water.csv",
         growing_season_water="processing/{name}/water/region_growing_season_water.csv",

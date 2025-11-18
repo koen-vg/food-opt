@@ -646,6 +646,66 @@ irrigation:
   # List specific crops here if you want to restrict irrigation, or use "all" for all crops.
   irrigated_crops: "all"
 
+# --- section: costs ---
+animal_costs:
+  averaging_period:
+    start_year: 2015
+    end_year: 2024
+
+  fadn:
+    high_cost_threshold_usd_per_mt: 50000
+    livestock_specific_costs:
+      SE330: "Other livestock specific costs"
+    shared_farm_costs:
+      SE340: "Machinery & building current costs"
+      SE345: "Energy"
+      SE350: "Contract work"
+      SE356: "Other direct inputs"
+      SE360: "Depreciation"
+      SE370: "Wages paid"
+      SE380: "Interest paid"
+      SE390: "Taxes"
+    exclude_costs:
+      SE310: "Feed for grazing livestock"
+      SE315: "Feed for grazing livestock home-grown"
+      SE320: "Feed for pigs & poultry"
+      SE325: "Feed for pigs & poultry home-grown"
+      SE375: "Rent paid"
+
+  usda:
+    request_timeout_seconds: 120
+    # Conversion factors: kg per head dressed weight
+    dressed_weight_kg_per_head:
+      meat-cattle: 350.0
+      meat-pig: 90.0
+    include_items:
+    - "Hired labor"
+    - "Opportunity cost of unpaid labor"
+    - "Bedding and litter"
+    - "Custom services"
+    - "Fuel, lube, and electricity"
+    - "Repairs"
+    - "Interest on operating capital"
+    - "Marketing"
+    - "Veterinary and medicine"
+    - "Capital recovery of machinery and equipment"
+    - "General farm overhead"
+    - "Taxes and insurance"
+    exclude_items:
+    - "Grazed feed"
+    - "Homegrown harvested feed"
+    - "Purchased feed"
+    - "Total, feed costs"
+    - "Opportunity cost of land"
+    - "Total, operating costs"
+    - "Costs listed"
+
+  faostat:
+    aggregate_area_code_limit: 5000
+    element_codes:
+      production: ["2510", "5510"]
+      stocks: ["2111", "5111"]
+      producing_animals: ["2313", "5318", "5313"]
 # --- section: solving ---
 solving:
   solver: highs

@@ -421,6 +421,97 @@ All livestock produce emissions from manure storage, handling, and application:
 
 Manure CH₄ emissions are calculated for all animal products (ruminants and monogastrics) and combined with enteric emissions in the model. See :ref:`manure-management` for full methodology.
 
+Production Costs
+----------------
+
+The model incorporates animal product production costs to represent the economic considerations of livestock farming beyond feed costs (which are modeled endogenously).
+
+Cost Structure
+~~~~~~~~~~~~~~
+
+Animal product costs are represented as marginal costs on feed-to-product conversion links, excluding costs already modeled:
+
+**Included costs**:
+  * Labor (hired and opportunity cost of unpaid labor)
+  * Veterinary services and animal health
+  * Energy (electricity, fuel for operations)
+  * Housing and equipment depreciation
+  * Interest on operating capital
+
+**Excluded costs** (modeled endogenously):
+  * Feed costs (crops, crop residues, grassland)
+  * Land costs and rent (land opportunity cost in model)
+
+Data Sources
+~~~~~~~~~~~~
+
+Costs are sourced from two agricultural accounting systems:
+
+**USDA (United States):**
+  * Milk Cost of Production estimates (dairy)
+  * Cow-Calf Cost and Returns (beef cattle)
+  * Hog Cost and Returns (pork)
+  * Data from USDA Economic Research Service (ERS)
+  * Averaged over 2015-2024, inflation-adjusted to base year
+
+**FADN (European Union):**
+  * Farm Accountancy Data Network country-level data
+  * Livestock production costs allocated by output value
+  * Covers all EU member states, 2004-2020
+  * Inflation-adjusted using HICP, converted to international $ using PPP
+
+Processing and Merging
+~~~~~~~~~~~~~~~~~~~~~~~
+
+1. **USDA processing**: Download Excel files, extract cost categories, exclude feed line items, convert from per-head costs to per-tonne-product costs
+2. **FADN processing**: Allocate farm-level costs to livestock categories proportionally by output value, convert to per-head costs, then to per-tonne using physical yields (FADN/FAOSTAT)
+3. **Merging**: Average costs across sources where available, apply fallback mappings for products without direct data
+
+**Fallback mappings** (for products without direct cost data):
+  * Chicken → Pork (similar intensive production systems)
+  * Eggs → Pork (intensive housed production)
+
+Cost Application
+~~~~~~~~~~~~~~~~
+
+The model implements a "full economic cost" methodology, capturing both direct inputs and allocated overheads. Costs are derived from FADN financial data (numerator) and physical yields (denominator) to produce a robust cost-per-tonne metric.
+
+**1. Financial Costs (Numerator)**
+   Total costs are calculated per livestock unit (LU) from FADN farm accounting data:
+
+   * **Cost components**: Labor, veterinary, energy, depreciation, interest, etc.
+   * **Excluded**: Feed (endogenous) and Rent (land opportunity cost).
+   * **Allocation**: Farm-level costs are allocated to livestock categories. Specific costs (e.g., veterinary) are allocated by livestock output share. Shared overheads (e.g., electricity, buildings) are allocated by the livestock sector's share of **Total Farm Output** (SE131) to avoid over-allocating general costs in mixed crop-livestock systems.
+   * **Normalization**: Costs are normalized to **Cost per Head** using standard LU coefficients (e.g., 1 Dairy Cow = 1 LU, 1 Pig = 0.3 LU).
+
+**2. Physical Yields (Denominator)**
+   To ensure costs reflect real-world productivity, we divide the per-head cost by physical yields:
+
+   * **All Products**: Uses country-specific yields calculated from FAOSTAT data (Total Production / Total Stocks). This captures regional differences in slaughter weights, cycles per year, herd structure, and dairy productivity more reliably than internal FADN physical quantity variables.
+
+   .. math::
+
+      \text{Cost per Tonne} = \frac{\text{Cost per Head (FADN)}}{\text{Yield (Tonnes/Head)}}
+
+**3. Final Model Input**
+   The resulting **Cost per Tonne Product** is converted to **Cost per Tonne Feed** using the model's feed conversion efficiencies, ensuring consistency with the flow-based network structure:
+
+   .. math::
+
+      \text{marginal\_cost} = \frac{\text{Cost per Tonne Product}}{\text{Efficiency (Tonnes Product per Tonne Feed)}}
+
+Workflow
+~~~~~~~~
+
+Three rules process animal cost data:
+
+* ``retrieve_usda_animal_costs``: Processes USDA data (US-specific), handling unit conversions (e.g., $/cwt gain to $/tonne).
+* ``retrieve_faostat_yields``: Calculates country-specific livestock yields from FAOSTAT production and stock data.
+* ``retrieve_fadn_animal_costs``: Combines FADN financial data with FAOSTAT yields to compute EU production costs.
+* ``merge_animal_costs``: Combines sources, averaging where overlaps occur and applying fallbacks (e.g., using Pork costs for Poultry if direct data is missing).
+
+Output: ``processing/{name}/animal_costs.csv`` with columns: ``product``, ``cost_per_mt_usd_{base_year}``
+
 Configuration Parameters
 ------------------------
 

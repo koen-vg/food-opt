@@ -60,6 +60,17 @@ Brief descriptions of key external datasets used by this project, with links and
 - Citation: U.S. Department of Agriculture, Economic Research Service. Commodity Costs and Returns. https://www.ers.usda.gov/data-products/commodity-costs-and-returns/
 - Workflow integration: Retrieved via the `retrieve_usda_costs` rule, which downloads CSV files, extracts relevant cost categories, applies inflation adjustment using CPI-U, splits costs into per-year (annual fixed) and per-planting (variable per crop) components, and converts from USD/acre to USD/ha. Output: `processing/{name}/usda_costs.csv`. Cost categories are documented in `docs/crop_production.rst` and `docs/data_sources.rst`.
 
+## USDA ERS — Livestock Cost Data
+
+- Description: Economic Research Service (ERS) livestock production cost data providing estimates for major U.S. animal products. Includes milk cost of production estimates (cost per hundredweight of milk), cow-calf cost and returns (cost per head per year), and hog cost and returns (cost per head marketed). Data includes operating costs (labor, veterinary, energy) and allocated overhead (housing, equipment depreciation, interest).
+- Website (Milk): https://www.ers.usda.gov/data-products/milk-cost-of-production-estimates/
+- Website (Livestock Commodity Costs): https://www.ers.usda.gov/data-products/commodity-costs-and-returns/
+- Version/format: Excel files retrieved via direct download. URLs are listed in `data/usda_animal_cost_sources.csv`.
+- Coverage: U.S. animal products (milk, cow-calf for beef, hogs for pork). Temporal coverage varies by product (milk: 2005-present, cow-calf: 2008-present, hogs: 2010-present).
+- License/terms (summary): Creative Commons Attribution (CC BY). Free to use with attribution to USDA Economic Research Service.
+- Citation: U.S. Department of Agriculture, Economic Research Service. Milk Cost of Production Estimates / Commodity Costs and Returns (Livestock).
+- Workflow integration: Retrieved via the `retrieve_usda_animal_costs` rule, which downloads Excel files, extracts cost categories excluding feed costs (modeled endogenously), applies inflation adjustment using CPI-U, and converts from per-head or per-cwt to per-tonne-product. Output: `processing/{name}/usda_animal_costs.csv`. Cost categories are documented in `docs/livestock.rst` and `docs/data_sources.rst`.
+
 ## BLS — Consumer Price Index for All Urban Consumers (CPI-U)
 
 - Description: Bureau of Labor Statistics (BLS) Consumer Price Index for All Urban Consumers (CPI-U), All items, U.S. city average, not seasonally adjusted. This project uses annual averages to adjust nominal USD values throughout the workflow to real USD in a configurable base year (default: 2024).

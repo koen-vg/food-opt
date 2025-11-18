@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# USDA animal product cost data sources
+# Data from USDA ERS Commodity Costs and Returns and Milk Cost of Production programs
+product,url,units,region,categories,notes
+dairy,https://ers.usda.gov/sites/default/files/_laserfiche/DataFiles/52180/MilkState2021base.csv,cwt,U.S. total,"Operating costs;Allocated overhead",Milk cost of production estimates (state level 2021 base)
+meat-cattle,https://www.ers.usda.gov/media/4982/cow-calf.csv?v=99844,head,U.S. total,"Operating costs;Allocated overhead",Cow-calf cost and returns
+meat-pig,https://www.ers.usda.gov/media/4984/hogs-all.csv?v=28163,cwt_gain,U.S. total,"Operating costs;Allocated overhead",Hog cost and returns

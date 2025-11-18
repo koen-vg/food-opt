@@ -312,6 +312,13 @@ if __name__ == "__main__":
         cost_per_planting_column
     ].astype(float)
 
+    # Read animal production costs (USD/Mt in base year dollars)
+    animal_costs_df = read_csv(snakemake.input.animal_costs)
+    cost_per_mt_column = f"cost_per_mt_usd_{base_year}"
+    animal_costs_per_mt = animal_costs_df.set_index("product")[
+        cost_per_mt_column
+    ].astype(float)
+
     # ═══════════════════════════════════════════════════════════════
     # NETWORK BUILDING
     # ═══════════════════════════════════════════════════════════════
@@ -540,6 +547,7 @@ if __name__ == "__main__":
         nutrition_data,
         snakemake.params.primary["fertilizer"],
         cfg_countries,
+        animal_costs_per_mt,
     )
 
     # Nutrition constraints

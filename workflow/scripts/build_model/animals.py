@@ -30,6 +30,7 @@ def add_feed_to_animal_product_links(
     nutrition: pd.DataFrame,
     fertilizer_config: dict,
     countries: list,
+    animal_costs: pd.Series | None = None,
 ) -> None:
     """Add links that convert feed pools into animal products with emissions and manure N.
 
@@ -75,6 +76,10 @@ def add_feed_to_animal_product_links(
         Fertilizer configuration with manure_n_to_fertilizer and manure_n2o_factor
     countries : list
         List of country codes
+    animal_costs : pd.Series | None, optional
+        Animal product costs indexed by product (USD per Mt product).
+        If provided, converted to cost per Mt feed via efficiency.
+        If None, marginal_cost defaults to 0.
     """
 
     produce_carriers = sorted({f"produce_{product!s}" for product in animal_products})
@@ -114,6 +119,7 @@ def add_feed_to_animal_product_links(
     all_ch4 = []
     all_n_fert = []
     all_n2o = []
+    all_marginal_cost = []
 
     skipped_count = 0
     for _, row in df.iterrows():
@@ -150,6 +156,21 @@ def add_feed_to_animal_product_links(
                 manure_n2o_factor=manure_n2o_factor,
             )
 
+            # Calculate marginal cost (cost per Mt feed input)
+            # animal_costs is in USD per Mt product, efficiency is Mt product per Mt feed
+            # So: cost per Mt feed = (cost per Mt product) / (Mt product per Mt feed)
+            if animal_costs is not None and row["product"] in animal_costs.index:
+                cost_per_mt_product = float(animal_costs.loc[row["product"]])
+                if row["efficiency"] > 0:
+                    # Convert from USD/Mt to billion USD/Mt
+                    marginal_cost = (
+                        cost_per_mt_product / row["efficiency"] * constants.USD_TO_BNUSD
+                    )
+                else:
+                    marginal_cost = 0.0
+            else:
+                marginal_cost = 0.0
+
             all_names.append(
                 f"produce_{row['product']}_from_{row['feed_category']}_{country}"
             )
@@ -162,6 +183,7 @@ def add_feed_to_animal_product_links(
             all_ch4.append(ch4_per_t_feed * constants.MEGATONNE_TO_TONNE)
             all_n_fert.append(n_fert_per_t_feed * constants.TONNE_TO_MEGATONNE)
             all_n2o.append(n2o_per_t_feed * constants.MEGATONNE_TO_TONNE)
+            all_marginal_cost.append(marginal_cost)
 
     # All animal production links now have multiple outputs:
     # bus1: animal product, bus2: CH4, bus3: manure N fertilizer (country-specific), bus4: N2O
@@ -171,7 +193,7 @@ def add_feed_to_animal_product_links(
         bus1=all_bus1,
         carrier=all_carrier,
         efficiency=all_efficiency,
-        marginal_cost=0.0,
+        marginal_cost=all_marginal_cost,
         p_nom_extendable=True,
         bus2="ch4",
         efficiency2=all_ch4,

@@ -80,7 +80,9 @@ USDA Cost and Returns Data
 
 **License**: Creative Commons Attribution (CC BY)
 
-**Retrieval**: Direct CSV download via ``workflow/scripts/retrieve_usda_costs.py``
+**Retrieval**: Direct CSV download via ``workflow/scripts/retrieve_usda_costs.py``. The script implements robust retries (5 attempts with backoff) to handle server instability.
+
+  * **Manual Fallback**: If automated retrieval fails, download the CSVs from the URLs listed in ``data/usda_cost_sources.csv``.
 
 **Coverage**: 9 major crops (corn/maize, wheat, rice, barley, oats, sorghum, soybeans, groundnut/peanuts, cotton)
 
@@ -98,6 +100,40 @@ Costs explicitly **excluded** (modeled endogenously):
 **Inflation adjustment**: All costs are inflation-adjusted to a configurable base year (default: 2024) using US CPI-U data from BLS. See :ref:`bls-cpi-data` for details.
 
 **Note**: USDA data is merged with EU FADN data (see :ref:`fadn-cost-data`) via the ``merge_crop_costs`` rule to provide comprehensive global coverage. For crops without direct cost data from either source, fallback mappings are applied via ``data/crop_cost_fallbacks.yaml`` (e.g., other cereals use wheat costs, other legumes use soybean costs). When data is available from multiple sources, costs are averaged.
+
+USDA Livestock Cost Data
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: United States Department of Agriculture Economic Research Service (USDA ERS)
+
+**Description**: Production cost estimates for major livestock products in the United States, including operating costs and allocated overhead.
+
+**Temporal coverage**: Varies by product (milk: 2005-present, cow-calf: 2008-present, hogs: 2010-present)
+
+**Access**:
+  * Milk: https://www.ers.usda.gov/data-products/milk-cost-of-production-estimates/
+  * Commodity Costs and Returns (includes cow-calf, hogs): https://www.ers.usda.gov/data-products/commodity-costs-and-returns/
+
+**License**: Creative Commons Attribution (CC BY)
+
+**Retrieval**: Excel download and processing via ``workflow/scripts/retrieve_usda_animal_costs.py``. The script implements robust retries (5 attempts with backoff) to handle intermittent server timeouts.
+
+  * **Manual Fallback**: If automated retrieval fails, users can manually download the CSVs from the URLs listed in ``data/usda_animal_cost_sources.csv`` and place them in the processing directory, or simply re-run the workflow as the server often recovers.
+
+**Coverage**: 3 major animal products (dairy/milk, beef cattle via cow-calf, pork via hogs)
+
+**Usage**: Production cost estimates per unit of output. Costs are converted from per-head-per-year or per-cwt to per-tonne-product for model integration.
+
+Costs explicitly **excluded** (modeled endogenously):
+
+* Feed costs (crops and grassland modeled separately)
+* Land costs and grazing rent (land allocation is optimized)
+
+**Included costs**: Labor, veterinary services, energy, housing, equipment depreciation, interest on operating capital
+
+**Inflation adjustment**: Costs are inflation-adjusted to the configurable base year (default: 2024) using US CPI-U data from BLS.
+
+**Note**: USDA animal cost data is merged with EU FADN livestock data via the ``merge_animal_costs`` rule. For products without direct cost data (chicken, eggs), fallback mappings are applied via ``data/animal_cost_fallbacks.yaml`` using pork costs as a proxy. When data is available from multiple sources, costs are averaged.
 
 .. _bls-cpi-data:
 
@@ -237,6 +273,29 @@ FADN — Farm Accountancy Data Network (EU)
 **Workflow integration**: Processed via ``retrieve_fadn_costs`` script → ``processing/{name}/fadn_costs.csv`` → merged with USDA costs → ``processing/{name}/crop_costs.csv`` (final output used by ``build_model``).
 
 **Citation**: Wögerer, M. (2024). LAMASUS NUTS-level agricultural data derived from public FADN 1989-2009 (SGM) & 2004-2020 (SO) (0.1) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.10939892
+
+FADN Livestock Costs
+^^^^^^^^^^^^^^^^^^^^
+
+The same FADN dataset provides livestock production cost data for animal products:
+
+**Coverage**: 4 livestock categories (dairy cattle, beef cattle, pigs, poultry)
+
+**Cost variables**: Same farm overhead costs as crops (SE340-SE380), plus livestock-specific costs (SE320 - veterinary, breeding, etc.)
+
+**Explicitly EXCLUDED**: Purchased feed costs (SE310 - modeled endogenously), rent paid (SE375)
+
+**Methodology**: A yield-based "bottom-up" approach is used to calculate costs per tonne:
+
+1.  **Allocation**: Farm costs are allocated to livestock categories proportionally by output value, normalized by Total Farm Output (SE131) to properly account for mixed farming systems.
+2.  **Unit Cost**: Costs are normalized to **Cost per Head** using Eurostat livestock unit (LU) coefficients (e.g., 1 Dairy Cow = 1 LU, 1 Pig = 0.3 LU).
+3.  **Yield Conversion**: Cost per Head is converted to **Cost per Tonne** using country-specific physical yields derived from FAOSTAT (Production / Stocks). This ensures consistent physical metrics across all products and countries, correcting for internal data gaps in FADN reporting.
+
+**Currency adjustment**: Same as crops (EUR → USD using PPP, inflation-adjusted to base year)
+
+**Usage**: Provides EU livestock production cost estimates, complementing USDA data. Costs are merged with USDA animal cost data via ``merge_animal_costs`` rule; when both sources have data for a product, values are averaged.
+
+**Workflow integration**: Processed via ``retrieve_fadn_animal_costs`` script → ``processing/{name}/fadn_animal_costs.csv`` → merged with USDA animal costs → ``processing/{name}/animal_costs.csv`` (final output used by ``build_model``).
 
 Grassland Yield Data
 ~~~~~~~~~~~~~~~~~~~~

@@ -146,6 +146,73 @@ rule merge_crop_costs:
         "../scripts/merge_crop_costs.py"
 
 
+rule retrieve_usda_animal_costs:
+    input:
+        sources="data/usda_animal_cost_sources.csv",
+        cpi="processing/shared/cpi_annual.csv",
+    params:
+        base_year=config["currency_base_year"],
+        cost_params=config["animal_costs"]["usda"],
+        averaging_period=config["animal_costs"]["averaging_period"],
+    output:
+        costs=f"processing/{name}/usda_animal_costs.csv",
+    log:
+        f"logs/{name}/retrieve_usda_animal_costs.log",
+    script:
+        "../scripts/retrieve_usda_animal_costs.py"
+
+
+rule retrieve_faostat_yields:
+    input:
+        mapping="data/faostat_animal_yield_mapping.yaml",
+    params:
+        cost_params=config["animal_costs"]["faostat"],
+        averaging_period=config["animal_costs"]["averaging_period"],
+    output:
+        f"processing/{name}/faostat_animal_yields.csv",
+    log:
+        f"logs/{name}/retrieve_faostat_yields.log",
+    script:
+        "../scripts/retrieve_faostat_yields.py"
+
+
+rule retrieve_fadn_animal_costs:
+    input:
+        data="data/downloads/fadn_nuts0_so.csv",
+        mapping="data/fadn_animal_mapping.yaml",
+        hicp="processing/shared/hicp_annual.csv",
+        ppp="processing/shared/ppp_eur_intl_dollar.csv",
+        yields=f"processing/{name}/faostat_animal_yields.csv",
+    params:
+        animal_products=config["animal_products"]["include"],
+        base_year=config["currency_base_year"],
+        cost_params=config["animal_costs"]["fadn"],
+        averaging_period=config["animal_costs"]["averaging_period"],
+    output:
+        costs=f"processing/{name}/fadn_animal_costs.csv",
+    log:
+        f"logs/{name}/retrieve_fadn_animal_costs.log",
+    script:
+        "../scripts/retrieve_fadn_animal_costs.py"
+
+
+rule merge_animal_costs:
+    input:
+        cost_sources=[
+            f"processing/{name}/usda_animal_costs.csv",
+            f"processing/{name}/fadn_animal_costs.csv",
+        ],
+    params:
+        animal_products=config["animal_products"]["include"],
+        base_year=config["currency_base_year"],
+    output:
+        costs=f"processing/{name}/animal_costs.csv",
+    log:
+        f"logs/{name}/merge_animal_costs.log",
+    script:
+        "../scripts/merge_animal_costs.py"
+
+
 rule retrieve_faostat_crop_production:
     input:
         mapping="data/faostat_item_map.csv",

@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Mapping of model animal products to FAOSTAT Production and Stock items
+# Used to calculate average yields (Production / Stock) for cost estimation
+
+dairy:
+  production_item: "Raw milk of cattle"
+  use_element_producing_animals: true # Element 2313
+
+meat-cattle:
+  production_item: "Meat of cattle with the bone, fresh or chilled"
+  stock_item: "Cattle"
+
+meat-pig:
+  production_item: "Meat of pig with the bone, fresh or chilled"
+  stock_item: "Swine / pigs"
+
+meat-chicken:
+  production_item: "Meat of chickens, fresh or chilled"
+  stock_item: "Chickens"
+
+eggs:
+  production_item: "Hen eggs in shell, fresh"
+  use_element_producing_animals: true # Element 2313 (Layers)

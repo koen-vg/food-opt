@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Mapping of FADN livestock output categories (SE codes) to model animal products
+# Each FADN category is distributed among the listed products
+# SE codes from FADN Standard Results variable definitions
+
+SE216:  # Cows' milk & milk products
+  name: "Cows' milk & milk products"
+  products:
+    - dairy
+  animal_number_se_codes: ["SE085"] # Dairy cows
+  lu_conversion_factor: 1.0 # Dairy cow = 1 LU
+
+SE220:  # Beef and veal
+  name: "Beef and veal"
+  products:
+    - meat-cattle
+  animal_number_se_codes: ["SE085", "SE090"] # Dairy cows + Other cattle
+  lu_conversion_factor: 0.6 # Weighted average for mixed herd (Eurostat: <1 yr = 0.4, 1-2 yr = 0.7, >2 yr = 1.0)
+
+SE225:  # Pigmeat
+  name: "Pigmeat"
+  products:
+    - meat-pig
+  animal_number_se_codes: ["SE100"] # Pigs
+  lu_conversion_factor: 0.3 # Weighted average (Eurostat: Sows 0.5, Piglets 0.027, Fattening 0.3)
+
+SE235:  # Poultrymeat
+  name: "Poultrymeat"
+  products:
+    - meat-chicken
+  animal_number_se_codes: ["SE105"] # Poultry
+  lu_conversion_factor: 0.014 # Broilers 0.007, Layers 0.014. Turkeys 0.03. Using 0.014 as safe estimate.
+
+SE240:  # Eggs
+  name: "Eggs"
+  products:
+    - eggs
+  animal_number_se_codes: ["SE105"] # Poultry
+  lu_conversion_factor: 0.014 # Layers 0.014
