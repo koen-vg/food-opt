@@ -93,10 +93,9 @@ def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, 
     if level_mt == 0.0:
         return {}
 
-    # Convert: [USD/tCO2] * [MtCO2] * [1e-6 t/Mt] * [1e-9 bnUSD/USD] => bnUSD
-    # The TONNE_TO_MEGATONME factor here simply encodes 1 Mt = 1e6 t
-    # without introducing an extra bnUSD factor in this debugging/aggregate routine.
-    contribution = ghg_price * level_mt / TONNE_TO_MEGATONNE
+    # Convert: [USD/tCO2] * [MtCO2] * [1e6 t/Mt] * [1e-9 bnUSD/USD] => bnUSD
+    # = USD/tCO2 * MtCO2 * 1e-3 => bnUSD
+    contribution = ghg_price * level_mt / TONNE_TO_MEGATONNE / 1e9
     label = "GHG pricing (CO₂-eq)"
     logger.info(
         "Computed %s contribution %.3e bnUSD (level %.3e MtCO2-eq, price %.2f USD/tCO2-eq)",
@@ -109,14 +108,15 @@ def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, 
 
 
 def choose_scale(values: Iterable[float]) -> tuple[float, str]:
+    """Choose appropriate scale for cost values in billion USD (bnUSD)."""
     max_val = max((abs(v) for v in values), default=1.0)
-    if max_val >= 1e12:
-        return 1e12, "trillion USD"
     if max_val >= 1e9:
-        return 1e9, "billion USD"
+        return 1e9, "quintillion USD"
     if max_val >= 1e6:
-        return 1e6, "million USD"
-    return 1.0, "USD"
+        return 1e6, "quadrillion USD"
+    if max_val >= 1e3:
+        return 1e3, "trillion USD"
+    return 1.0, "billion USD"
 
 
 def plot_cost_breakdown(series: pd.Series, output_path: Path) -> None:
@@ -237,7 +237,7 @@ def main() -> None:
     breakdown_pdf = Path(snakemake.output.breakdown_pdf)
     breakdown_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    total_series.rename("cost_usd").to_csv(breakdown_csv, header=True)
+    total_series.rename("cost_bnusd").to_csv(breakdown_csv, header=True)
     logger.info("Wrote objective breakdown table to %s", breakdown_csv)
     plot_cost_breakdown(total_series, breakdown_pdf)
     logger.info("Wrote objective breakdown plot to %s", breakdown_pdf)
