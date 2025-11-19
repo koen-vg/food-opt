@@ -106,9 +106,9 @@ rule retrieve_usda_costs:
         cost_params=config["crop_costs"]["usda"],
         averaging_period=config["crop_costs"]["averaging_period"],
     output:
-        costs=f"processing/{name}/usda_costs.csv",
+        costs="processing/{name}/usda_costs.csv",
     log:
-        f"logs/{name}/retrieve_usda_costs.log",
+        "logs/{name}/retrieve_usda_costs.log",
     script:
         "../scripts/retrieve_usda_costs.py"
 
@@ -125,9 +125,9 @@ rule retrieve_fadn_costs:
         cost_params=config["crop_costs"]["fadn"],
         averaging_period=config["crop_costs"]["averaging_period"],
     output:
-        costs=f"processing/{name}/fadn_costs.csv",
+        costs="processing/{name}/fadn_costs.csv",
     log:
-        f"logs/{name}/retrieve_fadn_costs.log",
+        "logs/{name}/retrieve_fadn_costs.log",
     script:
         "../scripts/retrieve_fadn_costs.py"
 
@@ -135,17 +135,17 @@ rule retrieve_fadn_costs:
 rule merge_crop_costs:
     input:
         cost_sources=[
-            f"processing/{name}/usda_costs.csv",
-            f"processing/{name}/fadn_costs.csv",
+            "processing/{name}/usda_costs.csv",
+            "processing/{name}/fadn_costs.csv",
         ],
         fallbacks="data/crop_cost_fallbacks.yaml",
     params:
         crops=config["crops"],
         base_year=config["currency_base_year"],
     output:
-        costs=f"processing/{name}/crop_costs.csv",
+        costs="processing/{name}/crop_costs.csv",
     log:
-        f"logs/{name}/merge_crop_costs.log",
+        "logs/{name}/merge_crop_costs.log",
     script:
         "../scripts/merge_crop_costs.py"
 
@@ -159,9 +159,9 @@ rule retrieve_usda_animal_costs:
         cost_params=config["animal_costs"]["usda"],
         averaging_period=config["animal_costs"]["averaging_period"],
     output:
-        costs=f"processing/{name}/usda_animal_costs.csv",
+        costs="processing/{name}/usda_animal_costs.csv",
     log:
-        f"logs/{name}/retrieve_usda_animal_costs.log",
+        "logs/{name}/retrieve_usda_animal_costs.log",
     script:
         "../scripts/retrieve_usda_animal_costs.py"
 
@@ -173,9 +173,9 @@ rule retrieve_faostat_yields:
         cost_params=config["animal_costs"]["faostat"],
         averaging_period=config["animal_costs"]["averaging_period"],
     output:
-        f"processing/{name}/faostat_animal_yields.csv",
+        "processing/{name}/faostat_animal_yields.csv",
     log:
-        f"logs/{name}/retrieve_faostat_yields.log",
+        "logs/{name}/retrieve_faostat_yields.log",
     script:
         "../scripts/retrieve_faostat_yields.py"
 
@@ -186,16 +186,16 @@ rule retrieve_fadn_animal_costs:
         mapping="data/fadn_animal_mapping.yaml",
         hicp="processing/shared/hicp_annual.csv",
         ppp="processing/shared/ppp_eur_intl_dollar.csv",
-        yields=f"processing/{name}/faostat_animal_yields.csv",
+        yields="processing/{name}/faostat_animal_yields.csv",
     params:
         animal_products=config["animal_products"]["include"],
         base_year=config["currency_base_year"],
         cost_params=config["animal_costs"]["fadn"],
         averaging_period=config["animal_costs"]["averaging_period"],
     output:
-        costs=f"processing/{name}/fadn_animal_costs.csv",
+        costs="processing/{name}/fadn_animal_costs.csv",
     log:
-        f"logs/{name}/retrieve_fadn_animal_costs.log",
+        "logs/{name}/retrieve_fadn_animal_costs.log",
     script:
         "../scripts/retrieve_fadn_animal_costs.py"
 
@@ -203,16 +203,16 @@ rule retrieve_fadn_animal_costs:
 rule merge_animal_costs:
     input:
         cost_sources=[
-            f"processing/{name}/usda_animal_costs.csv",
-            f"processing/{name}/fadn_animal_costs.csv",
+            "processing/{name}/usda_animal_costs.csv",
+            "processing/{name}/fadn_animal_costs.csv",
         ],
     params:
         animal_products=config["animal_products"]["include"],
         base_year=config["currency_base_year"],
     output:
-        costs=f"processing/{name}/animal_costs.csv",
+        costs="processing/{name}/animal_costs.csv",
     log:
-        f"logs/{name}/merge_animal_costs.log",
+        "logs/{name}/merge_animal_costs.log",
     script:
         "../scripts/merge_animal_costs.py"
 
@@ -224,9 +224,9 @@ rule retrieve_faostat_crop_production:
         countries=config["countries"],
         production_year=config["validation"]["production_year"],
     output:
-        f"processing/{name}/faostat_crop_production.csv",
+        "processing/{name}/faostat_crop_production.csv",
     log:
-        f"logs/{name}/retrieve_faostat_crop_production.log",
+        "logs/{name}/retrieve_faostat_crop_production.log",
     script:
         "../scripts/retrieve_faostat_crop_production.py"
 
@@ -235,20 +235,20 @@ rule retrieve_faostat_animal_production:
     params:
         production_year=config["validation"]["production_year"],
     output:
-        f"processing/{name}/faostat_animal_production.csv",
+        "processing/{name}/faostat_animal_production.csv",
     log:
-        f"logs/{name}/retrieve_faostat_animal_production.log",
+        "logs/{name}/retrieve_faostat_animal_production.log",
     script:
         "../scripts/retrieve_faostat_animal_production.py"
 
 
 rule retrieve_faostat_emissions:
     output:
-        f"processing/{name}/faostat_emissions.csv",
+        "processing/{name}/faostat_emissions.csv",
     params:
         year=config["validation"]["production_year"],
     log:
-        f"logs/{name}/retrieve_faostat_emissions.log",
+        "logs/{name}/retrieve_faostat_emissions.log",
     script:
         "../scripts/retrieve_faostat_emissions.py"
 

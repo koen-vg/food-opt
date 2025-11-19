@@ -18,13 +18,13 @@ def yield_gap_raster_inputs(wildcards):
 rule yield_gap_by_country:
     input:
         unpack(yield_gap_raster_inputs),
-        regions=f"processing/{name}/regions.geojson",
+        regions="processing/{name}/regions.geojson",
     params:
         countries=config["countries"],
     output:
-        csv=f"processing/{name}/yield_gap_by_country_{{crop}}.csv",
+        csv="processing/{name}/yield_gap_by_country_{crop}.csv",
     log:
-        f"logs/{name}/yield_gap_by_country_{{crop}}.log",
+        "logs/{name}/yield_gap_by_country_{crop}.log",
     script:
         "scripts/compute_yield_gap_by_country.py"
 
@@ -32,7 +32,7 @@ rule yield_gap_by_country:
 def yield_gap_country_csvs(wildcards):
     # Per-crop country CSVs produced by rule yield_gap_by_country
     return [
-        f"processing/{name}/yield_gap_by_country_{crop}.csv"
+        f"processing/{wildcards.name}/yield_gap_by_country_{crop}.csv"
         for crop in config["crops"]
         if gaez_cfg["crops"][crop] in gaez_cfg["actual_yield_crops"]
     ]
@@ -43,8 +43,8 @@ rule average_yield_gap_by_country:
     input:
         yield_gap_country_csvs,
     output:
-        csv=f"processing/{name}/yield_gap_by_country_all_crops.csv",
+        csv="processing/{name}/yield_gap_by_country_all_crops.csv",
     log:
-        f"logs/{name}/average_yield_gap_by_country.log",
+        "logs/{name}/average_yield_gap_by_country.log",
     script:
         "scripts/aggregate_yield_gap_all_crops.py"
