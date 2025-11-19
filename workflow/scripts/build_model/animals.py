@@ -29,6 +29,7 @@ def add_feed_to_animal_product_links(
     manure_emissions: pd.DataFrame,
     nutrition: pd.DataFrame,
     fertilizer_config: dict,
+    emissions_config: dict,
     countries: list,
     animal_costs: pd.Series | None = None,
 ) -> None:
@@ -107,7 +108,7 @@ def add_feed_to_animal_product_links(
 
     # Get config parameters
     manure_n_to_fert = fertilizer_config["manure_n_to_fertilizer"]
-    manure_n2o_factor = fertilizer_config["manure_n2o_factor"]
+    manure_n2o_factor = emissions_config["fertilizer"]["manure_n2o_factor"]
 
     # Build all link names and buses (expand each row for all countries)
     all_names = []

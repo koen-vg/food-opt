@@ -218,7 +218,11 @@ def add_regional_crop_production_links(
 
             if crop == "wetland-rice" and rice_methane_factor > 0:
                 # Methane emissions from rice cultivation
-                # Factor is kg CH4/ha -> Mt CH4/Mha (factor * 1e-3)
+                # Factor is kg CH4/ha.
+                # We need Tonnes CH4 per Mha (input is Mha).
+                # kg/ha * 1e-3 = t/ha.
+                # t/ha * 1e6 (ha/Mha) = t/Mha.
+                # So: factor * 1e-3 * 1e6 = factor * 1e3.
 
                 # IPCC 2019 Refinement, Vol 4, Chapter 5, Table 5.12
                 # Scaling factor for water regime during cultivation (SFw)
@@ -229,7 +233,12 @@ def add_regional_crop_production_links(
                 )
 
                 ch4_emissions = np.full(
-                    len(df), rice_methane_factor * scaling_factor * 1e-3, dtype=float
+                    len(df),
+                    rice_methane_factor
+                    * scaling_factor
+                    * 1e-3
+                    * constants.MEGATONNE_TO_TONNE,
+                    dtype=float,
                 )
                 emission_outputs["ch4"] = ch4_emissions
 

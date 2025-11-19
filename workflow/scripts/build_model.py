@@ -555,6 +555,7 @@ if __name__ == "__main__":
         manure_ch4_emissions,
         nutrition_data,
         snakemake.params.fertilizer,
+        snakemake.params.emissions,
         cfg_countries,
         animal_costs_per_mt,
     )
