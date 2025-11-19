@@ -159,6 +159,39 @@ Data Sources
 * **Emission factor**: IPCC 2019 Refinement, Table 11.1 (EF\ :sub:`1` aggregated default = 0.010)
 * **Removal limits**: Model assumption based on sustainable residue management practices
 
+Rice Cultivation (CH₄)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Flooded rice paddies are a major source of methane emissions due to anaerobic decomposition of organic matter in the soil.
+
+Methodology
+^^^^^^^^^^^
+
+The model applies a per-hectare emission factor to wetland rice production, distinguishing between irrigated and rainfed water regimes:
+
+.. math::
+
+   \text{CH}_4 = \text{Area}_\text{irrigated} \times \text{EF}_\text{base} + \text{Area}_\text{rainfed} \times \text{EF}_\text{base} \times \text{SF}_\text{rainfed}
+
+where:
+  * **Area** is the harvested area of wetland rice (hectares) by water supply
+  * **EF**\ :sub:`base` is the baseline methane emission factor for continuously flooded fields (kg CH₄ per hectare per crop cycle)
+  * **SF**\ :sub:`rainfed` is the scaling factor for the rainfed water regime (dimensionless)
+
+Configuration
+^^^^^^^^^^^^^
+
+The emission parameters are configured via ``emissions.rice``:
+
+* **methane_emission_factor_kg_per_ha**: Baseline factor for continuously flooded fields (~134.5 kg CH₄/ha/crop). Based on the IPCC 2019 Tier 1 global default daily emission factor (1.19 kg CH₄/ha/day) and cultivation period (113 days).
+* **rainfed_wetland_rice_ch4_scaling_factor**: Scaling factor for "Regular rainfed" fields (0.54). Reduces emissions to account for non-continuous flooding.
+
+Dryland (upland) rice is assumed to have zero methane emissions.
+
+Reference
+^^^^^^^^^
+IPCC 2019 Refinement to the 2006 IPCC Guidelines for National Greenhouse Gas Inventories, Volume 4, Chapter 5.5, Tables 5.11, 5.11A, and 5.12.
+
 .. _enteric-fermentation:
 
 Enteric Fermentation (CH₄)

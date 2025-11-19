@@ -21,24 +21,26 @@ logger = logging.getLogger(__name__)
 pypsa.options.api.new_components_api = True
 
 
-def categorize_emission_carrier(carrier: str) -> str:
-    """Categorize an emission source by its carrier.
+def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
+    """Categorize an emission source by its carrier and gas type.
 
     Parameters
     ----------
     carrier : str
         Link carrier name
+    bus_carrier : str
+        The emission bus being fed ("co2", "ch4", "n2o")
 
     Returns
     -------
     str
         Category name for plotting
     """
-    # Map specific carriers to categories
+    # Map specific carriers to categories based on documentation
     carrier_map = {
-        "residue_incorporation": "Residue incorporation",
+        "residue_incorporation": "Crop residue incorporation",
         "spared_land": "Carbon sequestration",
-        "convert_to_feed": "Feed processing",
+        "fertilizer": "Synthetic fertilizer application",
     }
 
     if carrier in carrier_map:
@@ -46,12 +48,19 @@ def categorize_emission_carrier(carrier: str) -> str:
 
     # Pattern-based categorization
     if carrier.startswith("crop_"):
+        if bus_carrier == "ch4":
+            return "Rice cultivation"
         return "Crop production"
     elif carrier.startswith("multi_crop_"):
         return "Multi-cropping"
     elif carrier.startswith("produce_"):
         # Animal production carriers
-        return "Livestock"
+        if bus_carrier == "n2o":
+            return "Manure management & application"
+        elif bus_carrier == "ch4":
+            # Combined enteric + manure CH4
+            return "Enteric fermentation & Manure management"
+        return "Livestock production"
     elif carrier.startswith("feed_"):
         return "Grassland"
     elif carrier.startswith("food_"):
@@ -71,6 +80,7 @@ def extract_emissions_by_source(
     """Extract emissions by gas type and source category in CO2eq units.
 
     Uses n.statistics.energy_balance() to efficiently extract emission flows.
+    Excludes conversion links (co2, ch4, n2o) that move emissions to the GHG bus.
 
     Parameters
     ----------
@@ -101,6 +111,9 @@ def extract_emissions_by_source(
         "n2o": ("N₂O", n2o_gwp),
     }
 
+    # Carriers representing conversion links to be excluded (sinks)
+    conversion_carriers = {"co2", "ch4", "n2o"}
+
     # Get energy balance with grouping by bus_carrier and carrier
     # This gives us flows into each bus, grouped by component carrier
     try:
@@ -116,6 +129,10 @@ def extract_emissions_by_source(
         if bus_carrier not in gwp_factors:
             continue
 
+        # Skip conversion links (which appear as negative flows/sinks)
+        if carrier in conversion_carriers:
+            continue
+
         # Skip zero or negligible flows
         if abs(value) < 1e-9:
             continue
@@ -127,8 +144,8 @@ def extract_emissions_by_source(
 
         emission_co2eq = value_mt * gwp_factor
 
-        # Categorize by carrier
-        category = categorize_emission_carrier(carrier)
+        # Categorize by carrier, passing the bus_carrier (gas type) context
+        category = categorize_emission_carrier(carrier, bus_carrier)
 
         # Add to the appropriate category
         emissions[gas_name][category] += emission_co2eq
@@ -162,15 +179,21 @@ def plot_emissions_breakdown(
     source_colors = {
         "Crop production": "#8dd3c7",
         "Multi-cropping": "#80b1d3",
-        "Livestock": "#fb8072",
+        "Livestock production": "#fb8072",
+        "Enteric fermentation & Manure management": "#fb8072",  # Same color as livestock
+        "Manure management & application": "#d95f02",  # Darker orange/brown for manure N2O
         "Grassland": "#bebada",
-        "Residue incorporation": "#fdb462",
-        "Synthetic fertilizer": "#b3de69",
+        "Crop residue incorporation": "#fdb462",
+        "Synthetic fertilizer application": "#b3de69",
+        "Rice cultivation": "#a6cee3",  # Light blue for flooded rice methane
         "Carbon sequestration": "#fccde5",
         "Food processing": "#ffffb3",
-        "Feed processing": "#ccebc5",
         "Trade": "#bc80bd",
     }
+
+    fig.suptitle(
+        "Global Emissions Breakdown by Source", fontsize=16, fontweight="bold", y=1.02
+    )
 
     # Plot each gas
     for idx, (gas, gas_data) in enumerate(emissions.items()):

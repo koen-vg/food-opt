@@ -438,6 +438,13 @@ if __name__ == "__main__":
                 n, marginal_bus_names, land_slack_cost
             )
 
+    # Rice methane factor and scaling factor for rainfed wetland rice
+    rice_cfg = snakemake.params.emissions["rice"]
+    rice_methane_factor = float(rice_cfg["methane_emission_factor_kg_per_ha"])
+    rainfed_wetland_rice_ch4_scaling_factor = float(
+        rice_cfg["rainfed_wetland_rice_ch4_scaling_factor"]
+    )
+
     # Crop production
     crops.add_spared_land_links(
         n, land_class_df, luc_lef_lookup, grazing_only_area=grazing_only_area_series
@@ -451,8 +458,10 @@ if __name__ == "__main__":
         crop_costs_per_year,
         crop_costs_per_planting,
         fertilizer_n_rates,
-        luc_lef_lookup,
-        residue_lookup,
+        rice_methane_factor=rice_methane_factor,
+        rainfed_wetland_rice_ch4_scaling_factor=rainfed_wetland_rice_ch4_scaling_factor,
+        luc_lef_lookup=luc_lef_lookup,
+        residue_lookup=residue_lookup,
         harvested_area_data=harvested_area_data if use_actual_production else None,
         use_actual_production=use_actual_production,
     )

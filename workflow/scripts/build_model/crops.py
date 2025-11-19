@@ -30,6 +30,8 @@ def add_regional_crop_production_links(
     crop_costs_per_year: pd.Series,
     crop_costs_per_planting: pd.Series,
     fertilizer_n_rates: Mapping[str, float],
+    rice_methane_factor: float,
+    rainfed_wetland_rice_ch4_scaling_factor: float,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
     harvested_area_data: Mapping[str, pd.DataFrame] | None = None,
@@ -214,7 +216,22 @@ def add_regional_crop_production_links(
 
             emission_outputs: dict[str, np.ndarray] = {}
 
-            # Note: Methane emissions from rice cultivation will be added in a separate module
+            if crop == "wetland-rice" and rice_methane_factor > 0:
+                # Methane emissions from rice cultivation
+                # Factor is kg CH4/ha -> Mt CH4/Mha (factor * 1e-3)
+
+                # IPCC 2019 Refinement, Vol 4, Chapter 5, Table 5.12
+                # Scaling factor for water regime during cultivation (SFw)
+                # Continuously flooded (irrigated baseline): 1.0
+                # Regular rainfed: uses config parameter
+                scaling_factor = (
+                    1.0 if ws == "i" else rainfed_wetland_rice_ch4_scaling_factor
+                )
+
+                ch4_emissions = np.full(
+                    len(df), rice_methane_factor * scaling_factor * 1e-3, dtype=float
+                )
+                emission_outputs["ch4"] = ch4_emissions
 
             luc_emissions = (
                 luc_lefs * 1e6 * constants.TONNE_TO_MEGATONNE

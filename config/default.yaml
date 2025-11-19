@@ -41,6 +41,9 @@ emissions:
   ghg_price: 200 # USD_2024/tCO2-eq (emissions stored in MtCO2-eq internally)
   ch4_to_co2_factor: 27.0 # IPCC AR6 GWP100 (WG1, Chapter 7, Table 7.15; https://www.ipcc.ch/report/ar6/wg1/chapter/chapter-7/)
   n2o_to_co2_factor: 273.0 # IPCC AR6 GWP100 (WG1, Chapter 7, Table 7.15; https://www.ipcc.ch/report/ar6/wg1/chapter/chapter-7/)
+  rice:
+    methane_emission_factor_kg_per_ha: 134.47 # kg CH4 per ha per crop (IPCC 2019 Refinement, Vol 4, Chapter 5, Tables 5.11 and 5.11A. Default for continuously flooded fields.)
+    rainfed_wetland_rice_ch4_scaling_factor: 0.54 # IPCC 2019 Refinement, Vol 4, Chapter 5, Table 5.12. Scaling factor for "Regular rainfed" water regime.
 
 # --- section: land use change ---
 luc:
