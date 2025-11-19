@@ -299,6 +299,7 @@ rule plot_water_value_map:
 rule plot_emissions_breakdown:
     input:
         network=f"results/{name}/solved/model.nc",
+        faostat_emissions=f"processing/{name}/faostat_emissions.csv",
     output:
         pdf=f"results/{name}/plots/emissions_breakdown.pdf",
         csv=f"results/{name}/plots/emissions_breakdown.csv",

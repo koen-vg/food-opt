@@ -242,6 +242,17 @@ rule retrieve_faostat_animal_production:
         "../scripts/retrieve_faostat_animal_production.py"
 
 
+rule retrieve_faostat_emissions:
+    output:
+        f"processing/{name}/faostat_emissions.csv",
+    params:
+        year=config["validation"]["production_year"],
+    log:
+        f"logs/{name}/retrieve_faostat_emissions.log",
+    script:
+        "../scripts/retrieve_faostat_emissions.py"
+
+
 rule download_gaez_yield_data:
     output:
         "data/downloads/gaez_yield_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
