@@ -310,3 +310,19 @@ rule plot_emissions_breakdown:
         "logs/{name}/plot_emissions_breakdown.log",
     script:
         "../scripts/plotting/plot_emissions_breakdown.py"
+
+
+rule plot_consumption_balance:
+    input:
+        network="results/{name}/solved/model.nc",
+        population="processing/{name}/population.csv",
+        clusters="processing/{name}/health/country_clusters.csv",
+        food_groups="data/food_groups.csv",
+    output:
+        pdf="results/{name}/plots/consumption_balance.pdf",
+    params:
+        group_colors=food_group_colors,
+    log:
+        "logs/{name}/plot_consumption_balance.log",
+    script:
+        "../scripts/plotting/plot_consumption_balance.py"
