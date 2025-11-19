@@ -631,6 +631,7 @@ rule build_model:
         nutrition="data/nutrition.csv",
         regions="processing/{name}/regions.geojson",
         land_area_by_class="processing/{name}/land_area_by_class.csv",
+        cropland_baseline="processing/{name}/cropland_baseline_by_class.csv",
         multi_cropping_area="processing/{name}/multi_cropping/eligible_area.csv",
         multi_cropping_yields="processing/{name}/multi_cropping/cycle_yields.csv",
         edible_portion="processing/{name}/fao_edible_portion.csv",

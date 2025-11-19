@@ -32,7 +32,6 @@ def add_regional_crop_production_links(
     fertilizer_n_rates: Mapping[str, float],
     rice_methane_factor: float,
     rainfed_wetland_rice_ch4_scaling_factor: float,
-    luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
     harvested_area_data: Mapping[str, pd.DataFrame] | None = None,
     use_actual_production: bool = False,
@@ -43,7 +42,6 @@ def add_regional_crop_production_links(
     provided by the preprocessing pipeline. Output links produce into the same
     crop bus per country; link names encode supply type (i/r) and resource class.
     """
-    luc_lef_lookup = luc_lef_lookup or {}
     residue_lookup = residue_lookup or {}
     harvested_area_data = harvested_area_data or {}
 
@@ -98,6 +96,27 @@ def add_regional_crop_production_links(
             if df.empty:
                 continue
 
+            bus0_series = df.apply(
+                lambda r,
+                ws=ws: f"land_pool_{r['region']}_class{int(r['resource_class'])}_{'i' if ws == 'i' else 'r'}",
+                axis=1,
+            )
+            missing_bus_mask = ~bus0_series.isin(n.buses.static.index)
+            if missing_bus_mask.any():
+                missing_buses = bus0_series[missing_bus_mask].unique()
+                preview = ", ".join(missing_buses[:5])
+                logger.debug(
+                    "Skipping %d %s links due to missing land buses (examples: %s)",
+                    int(missing_bus_mask.sum()),
+                    crop,
+                    preview,
+                )
+                df = df.loc[~missing_bus_mask].copy()
+                bus0_series = bus0_series.loc[df.index]
+
+            if df.empty:
+                continue
+
             # Cost for this crop: per-year + per-planting costs (USD/ha); if missing, use 0
             cost_year = float(crop_costs_per_year.get(crop, float("nan")))
             cost_planting = float(crop_costs_per_planting.get(crop, float("nan")))
@@ -122,15 +141,6 @@ def add_regional_crop_production_links(
             resource_classes = df["resource_class"].astype(int).to_numpy()
             regions = df["region"].astype(str).to_numpy()
             water_code = "i" if ws == "i" else "r"
-            luc_lefs = np.array(
-                [
-                    luc_lef_lookup.get(
-                        (region, int(resource_class), water_code, "cropland"), 0.0
-                    )
-                    for region, resource_class in zip(regions, resource_classes)
-                ],
-                dtype=float,
-            )  # tCO2/ha/yr
             # Cost is per hectare; convert to per Mha in bnUSD/Mha
             base_cost = cost_per_ha * 1e6 * constants.USD_TO_BNUSD
 
@@ -140,11 +150,7 @@ def add_regional_crop_production_links(
                 "name": df.index,
                 # Use the crop's own carrier so no extra carrier is needed
                 "carrier": f"crop_{crop}",
-                "bus0": df.apply(
-                    lambda r,
-                    ws=ws: f"land_{r['region']}_class{int(r['resource_class'])}_{'i' if ws == 'i' else 'r'}",
-                    axis=1,
-                ).tolist(),
+                "bus0": bus0_series.tolist(),
                 "bus1": df["country"]
                 .apply(lambda c, crop=crop: f"crop_{crop}_{c}")
                 .tolist(),
@@ -242,15 +248,6 @@ def add_regional_crop_production_links(
                 )
                 emission_outputs["ch4"] = ch4_emissions
 
-            luc_emissions = (
-                luc_lefs * 1e6 * constants.TONNE_TO_MEGATONNE
-            )  # tCO2/ha/yr → MtCO2/Mha/yr
-            if not np.allclose(luc_emissions, 0.0):
-                emission_outputs["co2"] = emission_outputs.get(
-                    "co2", np.zeros(len(luc_emissions), dtype=float)
-                )
-                emission_outputs["co2"] += luc_emissions
-
             for bus_name in sorted(emission_outputs.keys()):
                 values = emission_outputs[bus_name]
                 key_bus = f"bus{next_bus_idx}"
@@ -272,7 +269,6 @@ def add_multi_cropping_links(
     crop_costs_per_planting: Mapping[str, float],
     fertilizer_n_rates: Mapping[str, float],
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
-    luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
 ) -> None:
     """Add multi-cropping production links with a vectorised workflow."""
 
@@ -281,7 +277,6 @@ def add_multi_cropping_links(
         return
 
     residue_lookup = residue_lookup or {}
-    luc_lef_lookup = luc_lef_lookup or {}
 
     key_cols = ["combination", "region", "resource_class", "water_supply"]
 
@@ -447,7 +442,7 @@ def add_multi_cropping_links(
     index_df["resource_class"] = index_df["resource_class"].astype(int)
     index_df["carrier"] = "multi_crop_" + index_df["combination"].astype(str)
     index_df["bus0"] = (
-        "land_"
+        "land_pool_"
         + index_df["region"].astype(str)
         + "_class"
         + index_df["resource_class"].astype(str)
@@ -469,7 +464,7 @@ def add_multi_cropping_links(
     if not missing_land.empty:
         missing_count = missing_land.shape[0]
         missing_preview = ", ".join(missing_land["bus0"].unique()[:5])
-        logger.warning(
+        logger.debug(
             "Skipping %d multi-cropping links due to missing land buses (examples: %s)",
             missing_count,
             missing_preview,
@@ -503,19 +498,6 @@ def add_multi_cropping_links(
         fert_valid, -fert_total * 1e6 * constants.KG_TO_MEGATONNE, 0.0
     )
     index_df["has_fertilizer"] = fert_valid.astype(int)
-
-    luc_keys = list(
-        zip(
-            index_df["region"].astype(str),
-            index_df["resource_class"].astype(int),
-            index_df["water_supply"].astype(str),
-            ["cropland"] * len(index_df),
-        )
-    )
-    luc_values = np.array([float(luc_lef_lookup.get(key, 0.0)) for key in luc_keys])
-    luc_valid = ~np.isclose(luc_values, 0.0)
-    index_df["luc_efficiency"] = luc_values * 1e6 * constants.TONNE_TO_MEGATONNE
-    index_df["has_luc"] = luc_valid.astype(int)
 
     outputs = merged.merge(index_df[[*key_cols, "link_name"]], on=key_cols, how="left")
     outputs["offset"] = outputs["output_idx"] + 1
@@ -602,6 +584,12 @@ def add_multi_cropping_links(
             on=key_cols,
             how="left",
         )
+        residue_entries = residue_entries.dropna(subset=["link_name"])
+        if residue_entries.empty:
+            residue_entries = pd.DataFrame(columns=residue_entries.columns)
+        residue_entries[["crop_count", "has_water", "has_fertilizer"]] = (
+            residue_entries[["crop_count", "has_water", "has_fertilizer"]].fillna(0)
+        )
         residue_entries = residue_entries.sort_values([*key_cols, "feed_item"])
         residue_entries["entry_order"] = residue_entries.groupby(key_cols).cumcount()
         residue_entries["offset"] = (
@@ -633,41 +621,6 @@ def add_multi_cropping_links(
                 ]
             ]
         )
-
-    luc_entries = index_df[index_df["has_luc"] == 1][
-        [
-            *key_cols,
-            "link_name",
-            "luc_efficiency",
-            "crop_count",
-            "has_water",
-            "has_fertilizer",
-            "residue_count",
-        ]
-    ].copy()
-    if not luc_entries.empty:
-        luc_entries["offset"] = (
-            luc_entries["crop_count"]
-            + luc_entries["has_water"]
-            + luc_entries["has_fertilizer"]
-            + luc_entries["residue_count"]
-            + 1
-        )
-        offset_str = luc_entries["offset"].astype(int).astype(str)
-        luc_entries["bus_col"] = "bus" + offset_str
-        luc_entries["eff_col"] = "efficiency" + offset_str
-        luc_entries.loc[luc_entries["offset"].eq(1), "eff_col"] = "efficiency"
-        luc_entries["bus_value"] = "co2"
-        luc_entries = luc_entries[
-            [
-                "link_name",
-                "bus_col",
-                "bus_value",
-                "eff_col",
-                "luc_efficiency",
-            ]
-        ].rename(columns={"luc_efficiency": "eff_value"})
-        entry_frames.append(luc_entries)
 
     entries = pd.concat(entry_frames, ignore_index=True)
     bus_wide = entries.pivot_table(
@@ -733,14 +686,11 @@ def add_grassland_feed_links(
     land_rainfed: pd.DataFrame,
     region_to_country: pd.Series,
     allowed_countries: set,
-    luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
     current_grassland_area: pd.DataFrame | None = None,
     pasture_land_area: pd.Series | None = None,
     use_actual_production: bool = False,
 ) -> None:
     """Add links supplying ruminant feed directly from rainfed land."""
-
-    luc_lef_lookup = luc_lef_lookup or {}
 
     grass_df = grassland.copy()
     grass_df = grass_df[np.isfinite(grass_df["yield"]) & (grass_df["yield"] > 0)]
@@ -840,21 +790,6 @@ def add_grassland_feed_links(
         work["bus0"] = work.apply(bus0_builder, axis=1)
         work["bus1"] = work["country"].apply(lambda c: f"feed_ruminant_grassland_{c}")
 
-        luc_emissions = (
-            np.array(
-                [
-                    luc_lef_lookup.get(
-                        (row["region"], int(row["resource_class"]), "r", "pasture"),
-                        0.0,
-                    )
-                    for _, row in work.iterrows()
-                ],
-                dtype=float,
-            )
-            * 1e6
-            * constants.TONNE_TO_MEGATONNE
-        )
-
         available_mha = work["available_area"].to_numpy() / 1e6
         params = {
             "carrier": "feed_ruminant_grassland",
@@ -869,9 +804,6 @@ def add_grassland_feed_links(
             params["p_nom"] = available_mha
             params["p_nom_min"] = available_mha
             params["p_min_pu"] = 1.0
-        if not np.allclose(luc_emissions, 0.0):
-            params["bus2"] = "co2"
-            params["efficiency2"] = luc_emissions
 
         n.links.add(work["name"].tolist(), **params)
         return True
@@ -884,7 +816,7 @@ def add_grassland_feed_links(
     link_added |= _add_links_for_frame(
         cropland_frame,
         "grassland",
-        lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_r",
+        lambda r: f"land_pool_{r['region']}_class{int(r['resource_class'])}_r",
     )
 
     if marginal_frame is not None and not marginal_frame.empty:
@@ -902,21 +834,20 @@ def add_grassland_feed_links(
 
 def add_spared_land_links(
     n: pypsa.Network,
-    land_class_df: pd.DataFrame,
+    baseline_land_df: pd.DataFrame,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float],
-    grazing_only_area: pd.Series | None = None,
 ) -> None:
     """Add optional links to allocate spared land and credit CO2 sinks.
 
-    The AGB threshold filtering is now applied directly in the LEF calculation,
-    so this function simply uses the LEF values as provided.
+    Only baseline cropland (i.e., currently managed area) can be spared. Newly
+    converted land must first revert to baseline before becoming eligible.
 
     Parameters
     ----------
     n : pypsa.Network
         The network to add links to.
-    land_class_df : pd.DataFrame
-        Land area by region/water_supply/resource_class.
+    baseline_land_df : pd.DataFrame
+        Current cropland area by region/water_supply/resource_class.
     luc_lef_lookup : Mapping
         Land-use change emission factors (tCO2/ha/yr) by (region, class, water, use).
         The spared land LEFs already incorporate AGB threshold filtering.
@@ -926,28 +857,17 @@ def add_spared_land_links(
         logger.info("No LUC LEF entries available for spared land; skipping")
         return
 
-    frames: list[pd.DataFrame] = []
-
-    base_df = land_class_df.reset_index()
+    base_df = baseline_land_df.reset_index()
     base_df["resource_class"] = base_df["resource_class"].astype(int)
     base_df["water_supply"] = base_df["water_supply"].astype(str)
-    base_df["lookup_ws"] = base_df["water_supply"]
-    frames.append(base_df)
+    df = base_df[base_df["area_ha"] > 0].copy()
+    if df.empty:
+        logger.info("No baseline cropland available for sparing; skipping spared links")
+        return
 
-    if grazing_only_area is not None and not grazing_only_area.empty:
-        marginal_df = (
-            grazing_only_area.rename("area_ha")
-            .reset_index()
-            .astype({"resource_class": int})
-        )
-        marginal_df["water_supply"] = "m"
-        marginal_df["lookup_ws"] = "r"
-        frames.append(marginal_df)
-
-    df = pd.concat(frames, ignore_index=True)
     df["lef"] = df.apply(
         lambda r: luc_lef_lookup.get(
-            (r["region"], int(r["resource_class"]), r["lookup_ws"], "spared"), 0.0
+            (r["region"], int(r["resource_class"]), r["water_supply"], "spared"), 0.0
         ),
         axis=1,
     )
@@ -963,19 +883,22 @@ def add_spared_land_links(
         return
 
     def _bus0(row: pd.Series) -> str:
-        if row["water_supply"] == "m":
-            return f"land_marginal_{row['region']}_class{int(row['resource_class'])}"
-        return f"land_{row['region']}_class{int(row['resource_class'])}_{row['water_supply']}"
+        return (
+            f"land_existing_{row['region']}_class{int(row['resource_class'])}_"
+            f"{row['water_supply']}"
+        )
 
     def _sink_bus(row: pd.Series) -> str:
-        if row["water_supply"] == "m":
-            return f"land_spared_marginal_{row['region']}_class{int(row['resource_class'])}"
-        return f"land_spared_{row['region']}_class{int(row['resource_class'])}_{row['water_supply']}"
+        return (
+            f"land_spared_{row['region']}_class{int(row['resource_class'])}_"
+            f"{row['water_supply']}"
+        )
 
     def _link_name(row: pd.Series) -> str:
-        if row["water_supply"] == "m":
-            return f"spare_marginal_{row['region']}_class{int(row['resource_class'])}"
-        return f"spare_{row['region']}_class{int(row['resource_class'])}_{row['water_supply']}"
+        return (
+            f"spare_{row['region']}_class{int(row['resource_class'])}_"
+            f"{row['water_supply']}"
+        )
 
     df["bus0"] = df.apply(_bus0, axis=1)
     df["sink_bus"] = df.apply(_sink_bus, axis=1)

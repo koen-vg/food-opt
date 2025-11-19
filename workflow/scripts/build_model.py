@@ -35,6 +35,7 @@ from workflow.scripts.build_model import (  # noqa: E402
     crops,
     food,
     infrastructure,
+    land,
     nutrition,
     primary_resources,
     trade,
@@ -180,6 +181,23 @@ if __name__ == "__main__":
     land_class_df = land_class_df.set_index(
         ["region", "water_supply", "resource_class"]
     ).sort_index()
+
+    cropland_baseline_df = read_csv(snakemake.input.cropland_baseline)
+    if cropland_baseline_df.empty:
+        cropland_baseline_df = pd.DataFrame(
+            columns=["region", "water_supply", "resource_class", "area_ha"]
+        )
+    cropland_baseline_df = cropland_baseline_df.set_index(
+        ["region", "water_supply", "resource_class"]
+    ).sort_index()
+
+    combined_index = land_class_df.index.union(cropland_baseline_df.index)
+    land_class_df = land_class_df.reindex(combined_index, fill_value=0.0)
+    baseline_land_df = (
+        cropland_baseline_df.reindex(combined_index, fill_value=0.0)
+        .astype(float)
+        .rename(columns={"area_ha": "area_ha"})
+    )
 
     multi_cropping_area_df = read_csv(snakemake.input.multi_cropping_area)
     multi_cropping_cycle_df = read_csv(snakemake.input.multi_cropping_yields)
@@ -401,22 +419,18 @@ if __name__ == "__main__":
         n, cfg_countries, synthetic_n2o_factor
     )
 
-    # Land buses and generators (class-level pools)
     land_cfg = snakemake.params.land
     reg_limit = float(land_cfg["regional_limit"])
     land_slack_cost = float(land_cfg["slack_marginal_cost"]) * constants.USD_TO_BNUSD
-    # Land generators operate in Mha, so marginal_cost is bnUSD per Mha.
-    bus_names = [f"land_{r}_class{int(k)}_{ws}" for (r, ws, k) in land_class_df.index]
-    n.buses.add(bus_names, carrier=["land"] * len(bus_names))
-    n.generators.add(
-        bus_names,
-        bus=bus_names,
-        carrier="land",
-        p_nom_extendable=True,
-        p_nom_max=(reg_limit * land_class_df["area_ha"] / 1e6).values,  # ha → Mha
+    land.add_land_components(
+        n,
+        land_class_df,
+        baseline_land_df,
+        luc_lef_lookup,
+        reg_limit=reg_limit,
+        land_slack_cost=land_slack_cost,
+        use_actual_production=use_actual_production,
     )
-    if use_actual_production:
-        primary_resources._add_land_slack_generators(n, bus_names, land_slack_cost)
 
     # Marginal land buses (grazing-only)
     marginal_bus_names: list[str] = []
@@ -446,9 +460,7 @@ if __name__ == "__main__":
     )
 
     # Crop production
-    crops.add_spared_land_links(
-        n, land_class_df, luc_lef_lookup, grazing_only_area=grazing_only_area_series
-    )
+    crops.add_spared_land_links(n, baseline_land_df, luc_lef_lookup)
     crops.add_regional_crop_production_links(
         n,
         crop_list,
@@ -460,7 +472,6 @@ if __name__ == "__main__":
         fertilizer_n_rates,
         rice_methane_factor=rice_methane_factor,
         rainfed_wetland_rice_ch4_scaling_factor=rainfed_wetland_rice_ch4_scaling_factor,
-        luc_lef_lookup=luc_lef_lookup,
         residue_lookup=residue_lookup,
         harvested_area_data=harvested_area_data if use_actual_production else None,
         use_actual_production=use_actual_production,
@@ -479,7 +490,6 @@ if __name__ == "__main__":
             crop_costs_per_planting,
             fertilizer_n_rates,
             residue_lookup,
-            luc_lef_lookup,
         )
     elif use_actual_production:
         logger.info("Skipping multiple cropping links under actual production mode")
@@ -490,7 +500,6 @@ if __name__ == "__main__":
             land_rainfed_df,
             region_to_country,
             set(cfg_countries),
-            luc_lef_lookup,
             current_grassland_area=current_grassland_area_df,
             pasture_land_area=grazing_only_area_series,
             use_actual_production=use_actual_production,

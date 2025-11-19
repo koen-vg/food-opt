@@ -100,6 +100,20 @@ rule build_current_grassland_area:
         "../scripts/build_current_grassland_area.py"
 
 
+rule build_current_cropland_area:
+    input:
+        classes="processing/{name}/resource_classes.nc",
+        lc_masks=rules.prepare_luc_inputs.output.lc_masks,
+        irrigated_share="data/downloads/gaez_land_equipped_for_irrigation_share.tif",
+        regions="processing/{name}/regions.geojson",
+    output:
+        cropland_area="processing/{name}/cropland_baseline_by_class.csv",
+    log:
+        "logs/{name}/build_current_cropland_area.log",
+    script:
+        "../scripts/build_current_cropland_area.py"
+
+
 rule build_grazing_only_land:
     input:
         classes="processing/{name}/resource_classes.nc",

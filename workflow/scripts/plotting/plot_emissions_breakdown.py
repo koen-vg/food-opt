@@ -41,6 +41,7 @@ def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
         "residue_incorporation": "Crop residue incorporation",
         "spared_land": "Carbon sequestration",
         "fertilizer": "Synthetic fertilizer application",
+        "land_new": "Land Use Change",
     }
 
     if carrier in carrier_map:
@@ -57,6 +58,8 @@ def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
         if bus_carrier == "co2":
             return "Land Use Change"
         return "Multi-cropping"
+    elif carrier.startswith("convert_new_land"):
+        return "Land Use Change"
     elif carrier.startswith("produce_"):
         # Animal production carriers
         if bus_carrier == "n2o":

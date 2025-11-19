@@ -25,8 +25,8 @@ Optional parameters (snakemake.params):
 - csv_prefix: prefix for CSV column names (default determined from `water_supply`).
 
 Notes:
-- Cropland use is computed from link capacities (p_nom_opt) for links that
-  consume from land buses (bus0 matching 'land_{region}_class{k}_{ws}').
+- Cropland use is computed from link flows for links that
+  consume from land pool buses (bus0 matching 'land_pool_{region}_class{k}_{ws}').
   Water supply filtering (irrigated vs rainfed) happens via the optional
   parameter above. This reflects actual cropland allocated by the solver.
 - Total land area per (region, resource class) pair is computed directly from
@@ -61,8 +61,8 @@ import pypsa
 from rasterio.transform import array_bounds
 import xarray as xr
 
-_LAND_GEN_RE = re.compile(
-    r"^land_(?P<region>.+?)_class(?P<resource_class>\d+)_?(?P<water_supply>[a-z]*)$"
+_LAND_BUS_RE = re.compile(
+    r"^land_(?P<kind>pool|marginal)_(?P<region>.+?)_class(?P<resource_class>\d+)_?(?P<water_supply>[a-z]*)$"
 )
 
 logger = logging.getLogger(__name__)
@@ -206,7 +206,7 @@ def _used_cropland_area_by_region_class(
     for idx in land_links.index:
         link = land_links.loc[idx]
         bus0 = str(link["bus0"])
-        match = _LAND_GEN_RE.match(bus0)
+        match = _LAND_BUS_RE.match(bus0)
         if not match:
             continue
 
@@ -233,8 +233,9 @@ def _used_cropland_area_by_region_class(
         .sum()
         .astype(float)
     )
-    used.index = used.index.set_levels(
-        used.index.levels[1].astype(int), level="resource_class"
+    used.index = pd.MultiIndex.from_tuples(
+        [(region, int(resource_class)) for region, resource_class in used.index],
+        names=["region", "resource_class"],
     )
     return used
 
@@ -261,6 +262,19 @@ def _normalize_water_supply(value: object) -> str | None:
         raise ValueError(
             "Unsupported water_supply parameter (expected irrigated/rainfed)"
         ) from exc
+
+
+def _level_values(index: pd.Index, name: str, fallback_level: int) -> pd.Index:
+    """Return index level by name, with fallbacks for unnamed/empty indexes."""
+    if not isinstance(index, pd.MultiIndex):
+        return pd.Index([], dtype=int)
+    try:
+        return index.get_level_values(name)
+    except KeyError:
+        try:
+            return index.get_level_values(fallback_level)
+        except (KeyError, IndexError):
+            return pd.Index([], dtype=int)
 
 
 def main() -> None:
@@ -324,8 +338,8 @@ def main() -> None:
     )
 
     classes = sorted(
-        set(total_ha.index.get_level_values("resource_class"))
-        | set(used_ha.index.get_level_values("resource_class"))
+        set(_level_values(total_ha.index, "resource_class", 1))
+        | set(_level_values(used_ha.index, "resource_class", 1))
     )
     if not classes:
         raise ValueError("No resource classes found")

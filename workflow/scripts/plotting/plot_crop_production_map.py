@@ -6,6 +6,7 @@
 from collections.abc import Iterable, Mapping
 import logging
 from pathlib import Path
+import re
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -23,10 +24,20 @@ import pypsa
 
 logger = logging.getLogger(__name__)
 
+_LAND_BUS_RE = re.compile(
+    r"^land_(?:pool|existing|new|marginal)_(?P<region>[^_]+)_class\d+"
+)
+
 
 def _region_from_bus0(bus0: str) -> str:
-    parts = bus0.split("_")
-    return parts[1] if len(parts) >= 2 else "unknown"
+    match = _LAND_BUS_RE.match(bus0)
+    if match:
+        return match.group("region")
+    if bus0.startswith("grassland_"):
+        parts = bus0.split("_")
+        if len(parts) >= 2:
+            return parts[1]
+    raise ValueError(f"Unexpected land bus name: {bus0}")
 
 
 def _dict_to_df(data: dict[tuple[str, str], float]) -> pd.DataFrame:

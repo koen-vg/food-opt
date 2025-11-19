@@ -8,7 +8,7 @@ Environmental Impacts
 Overview
 --------
 
-The environmental module accounts for greenhouse gas emissions, land use change and nitrogen pollution from food production. These impacts are monetized and included in the objective function via configurable prices/penalties.
+The environmental module accounts for greenhouse gas emissions and land use change from food production. These impacts are monetized and included in the objective function via configurable prices/penalties. Land-use change accounting distinguishes between existing cropland and newly converted area so that only new conversions bear LUC costs, while existing cropland can generate regrowth credits when spared.
 
 This is currently a work in progress and not all relevant environmental impacts are implemented and monetized yet.
 
@@ -17,9 +17,9 @@ Greenhouse Gas Emissions
 
 The model tracks three major greenhouse gases using 100-year global warming potentials (GWP100):
 
-* **CO₂** (GWP = 1): From land use change, fuel combustion
-* **CH₄** (GWP = 28): From enteric fermentation (ruminants), rice paddies, manure
-* **N₂O** (GWP = 265): From nitrogen fertilizer application, manure
+* **CO₂** (GWP = 1): From land use change
+* **CH₄** (GWP = 27 by default): From enteric fermentation (ruminants), rice paddies, manure
+* **N₂O** (GWP = 273 by default): From nitrogen fertilizer application, manure, crop residue incorporation
 
 All emissions are aggregated to CO₂-equivalent (internally tracked in MtCO₂-eq; the configured price still applies per tonne) for carbon pricing.
 
@@ -29,19 +29,29 @@ Implementation notes (buses, stores, links)
 The optimisation model represents environmental flows with three PyPSA components that are worth keeping in mind:
 
 * **Buses** act as balance sheets. Process components report raw emissions to the ``co2`` and ``ch4`` buses, while a dedicated ``ghg`` bus tracks the combined CO₂-equivalent balance.
-* **Links** move quantities between buses, applying efficiencies that encode global warming potentials. ``convert_co2_to_ghg`` has efficiency 1.0, and ``convert_ch4_to_ghg`` uses the configured ``emissions.ch4_to_co2_factor`` (27.2 by default). Every megatonne of CH₄ (after scaling from tonnes) therefore appears on the ``ghg`` bus weighted by its 100-year GWP.
-* **Stores** accumulate quantities over the horizon. The extendable ``ghg`` store sits on the combined bus and is priced at ``emissions.ghg_price``. Because neither the ``co2`` nor ``ch4`` buses have stores, their flows must pass through the conversion links before the objective is charged.
+* **Links** move quantities between buses, applying efficiencies that encode global warming potentials. ``convert_co2_to_ghg`` has efficiency 1.0, and ``convert_ch4_to_ghg`` uses the configured ``emissions.ch4_to_co2_factor``; similar for N₂O. Every megatonne of CH₄ and N₂O (after scaling from tonnes) therefore appears on the ``ghg`` bus weighted by its 100-year GWP.
+* **Stores** accumulate quantities over the horizon. The extendable ``ghg`` store sits on the combined bus and is priced at ``emissions.ghg_price``. Because neither the ``co2``, ``ch4`` nor ``n2o`` buses have stores, their flows must pass through the conversion links before the objective is charged.
 
 With this structure the linear program keeps separate ledgers for each greenhouse gas while charging the objective using a single priced stock of CO₂-equivalent. Scenario files can tighten or relax climate policy simply by changing the configuration values—no code modifications are required.
+
+Land representation in the network
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Land is represented with three carriers and corresponding bus groups per (region, resource class, water supply):
+
+* ``land_pool_*`` buses hold the usable cropland area that production links consume.
+* ``land_existing_*`` buses supply the baseline cropland area (from ``processing/{name}/cropland_baseline_by_class.csv``) via fixed-capacity generators and one-way links into the pool.
+* ``land_new_*`` buses supply expansion land up to the configured regional limit; ``convert_new_land_*`` links route this expansion into the pool and emit CO₂ according to the cropland LEFs.
+
+Crop production links draw only from ``land_pool_*``. LUC emissions are carried on the expansion-conversion links, not on crop links. When validation fixes harvested areas, optional slack generators attach to the pool to enforce fixed land use at a configurable penalty.
 
 Sources of Emissions
 ~~~~~~~~~~~~~~~~~~~~
 
 **Crop Production**:
   * N₂O from synthetic fertilizer application (direct and indirect)
-  * N₂O from crop residues incorporated into soil
   * CH₄ from flooded rice cultivation
-  * CO₂ from machinery/fuel (if included)
+  * N₂O from crop residues incorporated into soil
 
 **Livestock**:
   * CH₄ from enteric fermentation (ruminants) - see :ref:`enteric-fermentation`
@@ -49,8 +59,8 @@ Sources of Emissions
   * CO₂ from feed production (indirect)
 
 **Land Use Change**:
-  * CO₂ from clearing vegetation (forest, grassland → cropland)
-  * Soil carbon losses
+  * CO₂ from converting natural land to new cropland (charged on ``convert_new_land_*`` links)
+  * Soil carbon losses embodied in the cropland LEFs; spared land on existing cropland can generate regrowth credits
 
 Direct N₂O emission factors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -636,6 +646,8 @@ The per-hectare land-use change factor (LEF) combines these components over the 
 
 LEFs are computed for three uses (``cropland``, ``pasture``, ``spared``). Cropland and pasture incur positive costs when they release carbon; spared land yields negative LEFs because regrowth produces a CO₂ sink. Area-weighted aggregation over resource classes produces region-level coefficients that the optimisation layer consumes.
 
+Application in the optimisation distinguishes new conversion from existing area: cropland LEFs are charged only when land expands (``convert_new_land_*``), while baseline cropland can be spared to earn the spared LEF. Pasture LEFs attach to grazing supply links so that expanding pasture bears its conversion cost.
+
 Input datasets
 ~~~~~~~~~~~~~~
 
@@ -658,21 +670,22 @@ These layers are reprojected, resampled, and combined by dedicated Snakemake rul
 
    Land-use change input layers harmonised to the modelling grid: forest fraction (Copernicus CCI), above-ground biomass (ESA Biomass CCI v6.0), soil organic carbon 0–30 cm (SoilGrids 2.0), and natural forest regrowth potential (Cook-Patton & Griscom, 2020).
 
-Model integration
-~~~~~~~~~~~~~~~~~
+Model integration and land states
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The land-use change workflow consists of two scripts:
+The land-use change workflow:
 
 1. ``prepare_luc_inputs.py`` aligns the raw rasters to the resource-class grid and stores intermediate masks and carbon pools under ``processing/{config}/luc/``.
 2. ``build_luc_carbon_coefficients.py`` derives pulse emissions, annual LEFs, and aggregates them to ``luc_carbon_coefficients.csv``.
+3. ``build_current_cropland_area.py`` captures irrigated and rainfed cropland already in use as ``cropland_baseline_by_class.csv``.
 
-During model construction, ``build_model.py`` loads these coefficients, converts the LEFs to marginal CO₂ flows (MtCO₂ per Mha-year), and attaches them to:
+During model construction, ``build_model.py`` loads these inputs, converts LEFs to marginal CO₂ flows (MtCO₂ per Mha-year), and applies them by land state:
 
-* Crop production links (cropland LEFs)
-* Grazing links that supply ruminant feed (pasture LEFs)
-* Spared-land allocation links that credit regrowth sinks (filtered by current biomass—see below)
+* Baseline cropland enters via fixed ``land_existing_*`` generators. It does **not** pay conversion costs but can be **spared** via ``spare_*`` links that earn regrowth credits.
+* Expansion cropland lives on ``land_new_*`` buses up to the suitability cap; only the ``convert_new_land_*`` links that move this expansion into ``land_pool_*`` apply cropland LEFs (and emit CO₂).
+* Pasture conversion costs ride on the grazing supply links that tap pasture area.
 
-All flows connect to a single global ``co2`` bus. A flexible CO₂ store with marginal cost equal to the carbon price (``emissions.ghg_price``) accumulates the net balance, so positive flows are penalised while negative flows earn credits. This approach keeps LUC accounting endogenous to the optimisation problem while leveraging a consistent carbon price alongside other greenhouse-gas sources. The spatial pattern of the resulting LEFs is shown in :ref:`fig-luc-lef`.
+All LUC flows connect to the global ``co2`` bus, which feeds a priced CO₂ store (``emissions.ghg_price``). This keeps cropland expansion, pasture expansion, and regrowth credits on the same carbon price scale while avoiding double-charging existing land. The spatial pattern of the resulting LEFs is shown in :ref:`fig-luc-lef`.
 
 Spared land filtering
 ~~~~~~~~~~~~~~~~~~~~~
@@ -698,6 +711,10 @@ This ensures:
 
 The threshold of 20 tC/ha is intermediate between typical agricultural land (0-10 tC/ha) and mature forest (50-200+ tC/ha). Areas above this threshold are assumed to represent established vegetation that would not exhibit the rapid early-successional regrowth rates quantified by Cook-Patton et al.
 
+Only baseline cropland (existing managed area) can be spared in the optimisation; newly converted land must first revert to the baseline pool before becoming eligible for regrowth credits.
+
+Network links that implement this behaviour use the ``spare_*`` naming scheme: they pull from ``land_existing_*`` buses and produce to dedicated ``land_spared_*`` sinks with CO₂ outputs proportional to the spared LEF.
+
 .. _fig-luc-lef:
 
 .. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/environment_luc_lef.png
@@ -721,29 +738,3 @@ The current implementation makes several simplifying assumptions that should be 
 * **Soil organic carbon depth**: SOC stocks in the 0-30 cm layer (from SoilGrids) are scaled to 1 m depth using zone-specific factors from ``data/luc_zone_parameters.csv``. **TODO**: These factors require verification against IPCC 2006/2019 Guidelines Volume 4 Chapter 2 to ensure they match the intended Tier 1 methodology.
 
 * **Managed flux**: Set to zero everywhere (:math:`M_{i,u} = 0`), meaning ongoing emissions from agricultural management (e.g., peat oxidation, tillage-induced decomposition) are not currently modeled. Future work could incorporate organic soil maps and management-specific emission factors.
-
-Nitrogen Pollution
-------------------
-
-Fertilizer application causes nitrogen pollution via:
-
-* **Leaching**: NO₃⁻ contaminating groundwater
-* **Runoff**: Eutrophication of rivers/lakes
-* **Volatilization**: NH₃ → N₂O emissions
-
-Global Fertilizer Limit
-~~~~~~~~~~~~~~~~~~~~~~~
-
-To prevent excessive pollution:
-
-.. literalinclude:: ../config/default.yaml
-   :language: yaml
-   :start-after: # --- section: fertilizer ---
-   :end-before: # --- section: residues ---
-
-This caps total nitrogen-phosphorus-potassium application globally, forcing efficient use.
-
-Nitrogen Use Efficiency (NUE)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Crop-specific fertilizer requirements (in ``data/crops.csv``) implicitly include NUE (currently mock data). More efficient crops (legumes, which fix nitrogen) require less fertilizer.
