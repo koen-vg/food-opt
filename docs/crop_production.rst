@@ -444,8 +444,8 @@ Fertilizer
 
 Crop production requires nitrogen (N), phosphorus (P), and potassium (K) fertilizers. The model includes:
 
-* **Global fertilizer limit**: Total synthetic nitrogen available (``primary.fertilizer.limit`` in config, specified in kg-N and converted to Mt-N internally)
-* **Global marginal cost**: Blanket fertilizer price in USD per tonne-N (``primary.fertilizer.marginal_cost_usd_per_tonne``) converted to bnUSD/Mt-N and applied to the global fertilizer generator
+* **Global fertilizer limit**: Total synthetic nitrogen available (``fertilizer.limit`` in config, specified in kg-N and converted to Mt-N internally)
+* **Global marginal cost**: Blanket fertilizer price in USD per tonne-N (``fertilizer.marginal_cost_usd_per_tonne``) converted to bnUSD/Mt-N and applied to the global fertilizer generator
 * **Crop-specific requirements**: Fertilizer needed per tonne of production (from ``data/crops.csv``)
 * **Emissions factors**: N₂O emissions from nitrogen application
 

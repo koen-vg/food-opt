@@ -707,11 +707,7 @@ if __name__ == "__main__":
             solver_options["LogToConsole"] = 1  # Also print to console
 
     # Add residue feed limit constraints
-    max_feed_fraction = (
-        snakemake.config.get("primary", {})
-        .get("crop_residues", {})
-        .get("max_feed_fraction", 0.30)
-    )
+    max_feed_fraction = float(snakemake.config["residues"]["max_feed_fraction"])
     add_residue_feed_constraints(n, max_feed_fraction)
 
     # Add animal product ratio constraints in validation mode

@@ -19,22 +19,23 @@ validation:
   food_group_slack_marginal_cost: 1e9 # USD per Mt when validation slack supply is used
   production_year: 2021
 
-# --- section: primary ---
-primary:
-  land:
-    regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
-    slack_marginal_cost: 5e9 # USD per Mha when validation slack land is used
-  fertilizer:
-    limit: 2e11 # kg (200 Mt total NPK - realistic global scale; converted to Mt inside the model)
-    # High-input agriculture N application rates (percentile of global FUBC data)
-    n_percentile: 80  # Use 80th percentile for high-input systems (range: 0-100)
-    synthetic_n2o_factor: 0.010 # kg N2O-N per kg N input (IPCC 2019 Refinement, Table 11.1 aggregated default)
-    # Manure nitrogen management
-    manure_n_to_fertilizer: 0.75 # Fraction of excreted N available as fertilizer (accounting for losses during storage/handling)
-    manure_n2o_factor: 0.010 # kg N2O-N per kg manure N applied (IPCC 2019 Refinement, Table 11.1 aggregated default)
-  crop_residues:
-    max_feed_fraction: 0.30 # Maximum fraction of residues that can be removed for animal feed (remainder must be incorporated into soil)
-    incorporation_n2o_factor: 0.010 # kg N2O-N per kg residue N incorporated into soil (IPCC 2019 Refinement, Table 11.1 aggregated default)
+# --- section: land ---
+land:
+  regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
+  slack_marginal_cost: 5e9 # USD per Mha when validation slack land is used
+
+# --- section: fertilizer ---
+fertilizer:
+  limit: 2e11 # kg (200 Mt-N total limit in synthetic fertilizer application)
+  marginal_cost_usd_per_tonne: 500 # USD per t-N of synthetic fertilizer
+  # High-input agriculture N application rates (percentile of global FUBC data)
+  n_percentile: 80  # Use 80th percentile for high-input systems (range: 0-100)
+  # Manure nitrogen management
+  manure_n_to_fertilizer: 0.75 # Fraction of excreted N available as fertilizer (accounting for losses during storage/handling)
+
+# --- section: residues ---
+residues:
+  max_feed_fraction: 0.30 # Maximum fraction of residues that can be removed for animal feed (remainder must be incorporated into soil)
 
 # --- section: emissions ---
 emissions:
@@ -44,6 +45,11 @@ emissions:
   rice:
     methane_emission_factor_kg_per_ha: 134.47 # kg CH4 per ha per crop (IPCC 2019 Refinement, Vol 4, Chapter 5, Tables 5.11 and 5.11A. Default for continuously flooded fields.)
     rainfed_wetland_rice_ch4_scaling_factor: 0.54 # IPCC 2019 Refinement, Vol 4, Chapter 5, Table 5.12. Scaling factor for "Regular rainfed" water regime.
+  fertilizer:
+    synthetic_n2o_factor: 0.010 # kg N2O-N per kg N input (IPCC 2019 Refinement, Table 11.1 aggregated default)
+    manure_n2o_factor: 0.010 # kg N2O-N per kg manure N applied (IPCC 2019 Refinement, Table 11.1 aggregated default)
+  residues:
+    incorporation_n2o_factor: 0.010 # kg N2O-N per kg residue N incorporated into soil (IPCC 2019 Refinement, Table 11.1 aggregated default)
 
 # --- section: land use change ---
 luc:

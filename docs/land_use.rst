@@ -215,15 +215,15 @@ Key configuration parameters for land use aggregation (in ``config/default.yaml`
 
 .. literalinclude:: ../config/default.yaml
    :language: yaml
-   :start-after: # --- section: primary ---
-   :end-before: # --- section: emissions ---
+   :start-after: # --- section: land ---
+   :end-before: # --- section: fertilizer ---
 
 The ``regional_limit`` parameter applies a global constraint on how much of each region's suitable land can be used (0.7 = 70%). This represents institutional, ecological, or social constraints on agricultural expansion.
 
 Validation runs that pin observed harvested area (``validation.use_actual_production: true``)
 may still encounter land-class mismatches. To keep those runs feasible without globally
 loosening land limits, each land bus receives a dedicated ``land_slack`` generator whose
-marginal cost is set by ``primary.land.slack_marginal_cost`` (units: USD per Mha). Set this
+marginal cost is set by ``land.slack_marginal_cost`` (units: USD per Mha). Set this
 value high enough that slack activates only as a last resort; the default 5e9 corresponds to
 roughly 5 000 USD/ha.
 

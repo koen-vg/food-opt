@@ -141,7 +141,7 @@ Residue Management Constraints
 
 To ensure soil health and prevent degradation, the model limits the fraction of crop residues that can be removed for animal feed. The remainder must be left on the field and incorporated into the soil.
 
-* **Maximum removal for feed**: 30% of generated residues (configurable via ``primary.crop_residues.max_feed_fraction``)
+* **Maximum removal for feed**: 30% of generated residues (configurable via ``residues.max_feed_fraction``)
 * **Minimum soil incorporation**: 70% of generated residues
 
 This constraint is implemented as:
@@ -458,7 +458,7 @@ Not all excreted nitrogen becomes available as fertilizer due to volatilization 
 
    N_\text{fertilizer} = N_\text{excretion} \times f_\text{recovery}
 
-where **f**\ :sub:`recovery` is configured via ``primary.fertilizer.manure_n_to_fertilizer`` (default: 0.75, representing 75% recovery and 25% losses).
+where **f**\ :sub:`recovery` is configured via ``fertilizer.manure_n_to_fertilizer`` (default: 0.75, representing 75% recovery and 25% losses).
 
 This manure N is added to the global fertilizer pool (``n_fertilizer`` bus) where it competes with and substitutes for synthetic fertilizer, subject to the global fertilizer limit.
 
@@ -484,18 +484,20 @@ where:
   * **EF**\ :sub:`manure` is the emission factor (kg N₂O-N per kg manure N applied)
   * **44/28** converts N₂O-N to N₂O (molecular weight ratio)
 
-The default emission factor (``primary.fertilizer.manure_n2o_factor = 0.010``) matches the synthetic fertilizer factor and corresponds to the IPCC 2019 aggregated default from Table 11.1 (see Direct N₂O emission factors section above).
+The default emission factor (``emissions.fertilizer.manure_n2o_factor = 0.010``) matches the synthetic fertilizer factor and corresponds to the IPCC 2019 aggregated default from Table 11.1 (see Direct N₂O emission factors section above).
 
 Configuration
 """""""""""""
 
-Manure nitrogen management is configured under ``primary.fertilizer``:
+Manure nitrogen management is configured under ``fertilizer`` and ``emissions.fertilizer``:
 
 .. code-block:: yaml
 
-   primary:
+   fertilizer:
+     manure_n_to_fertilizer: 0.75  # Fraction of excreted N available as fertilizer
+
+   emissions:
      fertilizer:
-       manure_n_to_fertilizer: 0.75  # Fraction of excreted N available as fertilizer
        manure_n2o_factor: 0.010      # kg N₂O-N per kg manure N applied
 
 Implementation
@@ -736,8 +738,8 @@ To prevent excessive pollution:
 
 .. literalinclude:: ../config/default.yaml
    :language: yaml
-   :start-after: # --- section: primary ---
-   :end-before: # --- section: emissions ---
+   :start-after: # --- section: fertilizer ---
+   :end-before: # --- section: residues ---
 
 This caps total nitrogen-phosphorus-potassium application globally, forcing efficient use.
 

@@ -22,10 +22,9 @@ Instead of modifying the default configuration file, it is recommended to explor
    # config/my_scenario.yaml
    name: "my_scenario"           # Scenario name → results/my_scenario/
    planning_horizon: 2040        # Override the default 2030 horizon
-   primary:
-     land:
-       regional_limit: 0.6       # Tighten land availability
-       slack_marginal_cost: 1e10  # Optional: raise slack penalty during validation
+   land:
+     regional_limit: 0.6         # Tighten land availability
+     slack_marginal_cost: 1e10   # Optional: raise slack penalty during validation
    emissions:
      ghg_price: 250              # Raise the carbon price above the default
 
@@ -43,7 +42,7 @@ Validation Options
 .. literalinclude:: ../config/default.yaml
    :language: yaml
    :start-after: # --- section: validation ---
-   :end-before: # --- section: primary ---
+   :end-before: # --- section: land ---
 
 Set ``validation.enforce_gdd_baseline`` to ``true`` to force the optimizer to match
 baseline consumption derived from the processed GDD file. When this flag is active,
@@ -73,7 +72,7 @@ Download Options
 .. literalinclude:: ../config/default.yaml
    :language: yaml
    :start-after: # --- section: downloads ---
-   :end-before: # --- section: primary ---
+   :end-before: # --- section: validation ---
 
 Crop Selection
 ~~~~~~~~~~~~~~
@@ -81,7 +80,7 @@ Crop Selection
 .. literalinclude:: ../config/default.yaml
    :language: yaml
    :start-after: # --- section: crops ---
-   :end-before: # --- section: macronutrients ---
+   :end-before: # --- section: multiple_cropping ---
 
 See :doc:`crop_production` for full list. Add/remove crops to explore specialized vs. diversified production systems.
 
@@ -127,14 +126,24 @@ Controls regional resolution and land classification.
   * More regions → higher spatial resolution, longer solve time
   * Fewer resource classes → faster solving, less yield heterogeneity
 
-Primary Resource Constraints
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Land, Fertilizer, and Residues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Limits on land, water, and fertilizer availability.
+Limits on land, fertilizer availability, and residue management.
 
 .. literalinclude:: ../config/default.yaml
    :language: yaml
-   :start-after: # --- section: primary ---
+   :start-after: # --- section: land ---
+   :end-before: # --- section: fertilizer ---
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: fertilizer ---
+   :end-before: # --- section: residues ---
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: residues ---
    :end-before: # --- section: emissions ---
 
 GAEZ Data Parameters

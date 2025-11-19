@@ -387,7 +387,7 @@ if __name__ == "__main__":
     # Primary resources: water, fertilizer, emissions
     primary_resources.add_primary_resources(
         n,
-        snakemake.params.primary,
+        snakemake.params.fertilizer,
         region_water_limits,
         carbon_price,
         ch4_to_co2_factor,
@@ -395,14 +395,14 @@ if __name__ == "__main__":
         use_actual_production=use_actual_production,
     )
     synthetic_n2o_factor = float(
-        snakemake.params.primary["fertilizer"]["synthetic_n2o_factor"]
+        snakemake.params.emissions["fertilizer"]["synthetic_n2o_factor"]
     )
     primary_resources.add_fertilizer_distribution_links(
         n, cfg_countries, synthetic_n2o_factor
     )
 
     # Land buses and generators (class-level pools)
-    land_cfg = snakemake.params.primary["land"]
+    land_cfg = snakemake.params.land
     reg_limit = float(land_cfg["regional_limit"])
     land_slack_cost = float(land_cfg["slack_marginal_cost"]) * constants.USD_TO_BNUSD
     # Land generators operate in Mha, so marginal_cost is bnUSD per Mha.
@@ -532,7 +532,7 @@ if __name__ == "__main__":
     # Crop residue soil incorporation (with N₂O emissions)
     # Process ALL residues regardless of animal type; N content from feed data
     incorporation_n2o_factor = float(
-        snakemake.params.primary["crop_residues"]["incorporation_n2o_factor"]
+        snakemake.params.emissions["residues"]["incorporation_n2o_factor"]
     )
     crops.add_residue_soil_incorporation_links(
         n,
@@ -554,7 +554,7 @@ if __name__ == "__main__":
         monogastric_feed_categories,
         manure_ch4_emissions,
         nutrition_data,
-        snakemake.params.primary["fertilizer"],
+        snakemake.params.fertilizer,
         cfg_countries,
         animal_costs_per_mt,
     )

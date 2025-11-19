@@ -160,7 +160,7 @@ rule derive_global_fertilizer_rates:
     input:
         fertilizer_rates="processing/{name}/fertilizer_application_rates.csv",
     params:
-        n_percentile=config["primary"]["fertilizer"]["n_percentile"],
+        n_percentile=config["fertilizer"]["n_percentile"],
         crops=config["crops"],
     output:
         "processing/{name}/global_fertilizer_n_rates.csv",
@@ -649,7 +649,9 @@ rule build_model:
         crops=config["crops"],
         multiple_cropping=config["multiple_cropping"],
         countries=config["countries"],
-        primary=config["primary"],
+        land=config["land"],
+        fertilizer=config["fertilizer"],
+        residues=config["residues"],
         biomass=config["biomass"],
         emissions=config["emissions"],
         food_groups=config["food_groups"]["included"],

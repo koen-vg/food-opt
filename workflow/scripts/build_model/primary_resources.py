@@ -35,7 +35,7 @@ def _add_land_slack_generators(
 
 def add_primary_resources(
     n: pypsa.Network,
-    primary_config: dict,
+    fertilizer_config: dict,
     region_water_limits: pd.Series,
     co2_price: float,
     ch4_to_co2_factor: float,
@@ -74,10 +74,9 @@ def add_primary_resources(
     )  # convert USD/tCO2 to bnUSD/MtCO2
 
     # Fertilizer remains global (no regionalization yet)
-    fertilizer_cfg = primary_config["fertilizer"]
-    limit_mt = float(fertilizer_cfg["limit"]) * constants.KG_TO_MEGATONNE
+    limit_mt = float(fertilizer_config["limit"]) * constants.KG_TO_MEGATONNE
     marginal_cost_bnusd_per_mt = (
-        float(fertilizer_cfg["marginal_cost_usd_per_tonne"])
+        float(fertilizer_config["marginal_cost_usd_per_tonne"])
         * constants.MEGATONNE_TO_TONNE
         * constants.USD_TO_BNUSD
     )
