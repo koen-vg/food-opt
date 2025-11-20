@@ -137,6 +137,14 @@ def main():
                         df_year["median"], errors="coerce"
                     ).fillna(0.0)
                     df_year["median"] = beverage_grams * ssb_sugar_per_gram
+                elif varcode == "v35":
+                    # Added sugars in %kcal.
+                    # Assume 2000 kcal/day diet for conversion (v35 / 100 * 2000 / 4)
+                    # 1 g sugar = 4 kcal.
+                    median_val = pd.to_numeric(
+                        df_year["median"], errors="coerce"
+                    ).fillna(0.0)
+                    df_year["median"] = median_val * 2000.0 / 100.0 / 4.0
                 else:
                     df_year["median"] = pd.to_numeric(
                         df_year["median"], errors="coerce"
@@ -314,31 +322,10 @@ def main():
     # Report food groups not available in GDD
     unavailable_in_gdd = requested_food_groups - expected_food_groups
     if unavailable_in_gdd:
-        age_buckets = sorted(result["age"].unique())
-        zero_rows = []
         for missing_item in sorted(unavailable_in_gdd):
             logger.warning(
-                "No GDD intake data for '%s'. Writing zeros so validation can proceed.",
+                "No GDD intake data for '%s'. Skipping.",
                 missing_item,
-            )
-            unit = get_unit(missing_item)
-            for country in sorted(required_countries):
-                for age in age_buckets:
-                    zero_rows.append(
-                        {
-                            "unit": unit,
-                            "item": missing_item,
-                            "country": country,
-                            "age": age,
-                            "year": reference_year,
-                            "value": 0.0,
-                        }
-                    )
-
-        if zero_rows:
-            result = pd.concat([result, pd.DataFrame(zero_rows)], ignore_index=True)
-            result = result.sort_values(["country", "item", "age"]).reset_index(
-                drop=True
             )
 
     logger.info(
