@@ -19,7 +19,7 @@ from . import constants
 from .utils import (
     _log_food_group_target_summary,
     _nutrition_efficiency_factor,
-    _per_capita_food_group_to_mt,
+    _per_capita_mass_to_mt_per_year,
     _per_capita_to_bus_units,
 )
 
@@ -136,7 +136,7 @@ def add_food_group_buses_and_loads(
         if equal_values:
             _log_food_group_target_summary(group, equal_values)
             equal_totals = [
-                _per_capita_food_group_to_mt(value, float(population[country]))
+                _per_capita_mass_to_mt_per_year(value, float(population[country]))
                 for value, country in zip(equal_values, countries)
             ]  # demand in Mt/year because group buses use Mt
             n.loads.add(names, bus=buses, carrier=carriers, p_set=equal_totals)
@@ -165,7 +165,7 @@ def add_food_group_buses_and_loads(
         min_totals: list[float] | None = None
         if min_value is not None and min_value > 0.0:
             min_totals = [
-                _per_capita_food_group_to_mt(min_value, float(population[country]))
+                _per_capita_mass_to_mt_per_year(min_value, float(population[country]))
                 for country in countries
             ]
             n.loads.add(names, bus=buses, carrier=carriers, p_set=min_totals)
@@ -173,7 +173,7 @@ def add_food_group_buses_and_loads(
         max_totals: list[float] | None = None
         if max_value is not None:
             max_totals = [
-                _per_capita_food_group_to_mt(max_value, float(population[country]))
+                _per_capita_mass_to_mt_per_year(max_value, float(population[country]))
                 for country in countries
             ]
 

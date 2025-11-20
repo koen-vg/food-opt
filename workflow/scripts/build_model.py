@@ -80,7 +80,9 @@ if __name__ == "__main__":
     food_groups = read_csv(snakemake.input.food_groups)
 
     # Read nutrition data
-    nutrition_data = read_csv(snakemake.input.nutrition, index_col=["food", "nutrient"])
+    nutrition_data = read_csv(snakemake.input.nutrition)
+    nutrition_data["nutrient"] = nutrition_data["nutrient"].replace("kcal", "cal")
+    nutrition_data = nutrition_data.set_index(["food", "nutrient"])
 
     # Read categorized feed data
     ruminant_feed_categories = read_csv(snakemake.input.ruminant_feed_categories)

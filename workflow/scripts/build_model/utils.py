@@ -19,6 +19,19 @@ from . import constants
 logger = logging.getLogger(__name__)
 
 
+def _per_capita_mass_to_mt_per_year(
+    value_per_person_per_day: float, population: float
+) -> float:
+    """Convert g/person/day to Mt/year."""
+
+    return (
+        value_per_person_per_day
+        * population
+        * constants.DAYS_PER_YEAR
+        / constants.GRAMS_PER_MEGATONNE
+    )
+
+
 def _nutrient_kind(unit: str) -> str:
     try:
         return constants.SUPPORTED_NUTRITION_UNITS[unit]["kind"]
@@ -40,8 +53,7 @@ def _per_capita_to_bus_units(
 ) -> float:
     kind = _nutrient_kind(unit)
     if kind == "mass":
-        # g/person/day → Mt/year (1e-12 = 1e-6 g→t x 1e-6 t→Mt)
-        return value_per_person_per_day * population * constants.DAYS_PER_YEAR * 1e-12
+        return _per_capita_mass_to_mt_per_year(value_per_person_per_day, population)
     if kind == "energy":
         return (
             value_per_person_per_day
@@ -50,14 +62,6 @@ def _per_capita_to_bus_units(
             * constants.KCAL_TO_GCAL
         )
     raise ValueError(f"Unsupported nutrient kind '{kind}' for unit '{unit}'")
-
-
-def _per_capita_food_group_to_mt(
-    value_per_person_per_day: float, population: float
-) -> float:
-    """Convert g/person/day to Mt/year for food group buses."""
-
-    return value_per_person_per_day * population * constants.DAYS_PER_YEAR * 1e-12
 
 
 def _log_food_group_target_summary(group: str, values: Sequence[float]) -> None:

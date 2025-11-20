@@ -105,9 +105,6 @@ def add_carriers_and_buses(
             for nut in nutrient_list_sorted
         ):
             scale_meta["macronutrient_kcal_to_Gcal"] = constants.KCAL_TO_GCAL
-            # Backwards compatibility for any downstream tools expecting the old keys
-            scale_meta["macronutrient_kcal_to_Mkcal"] = constants.KCAL_TO_GCAL
-            scale_meta["macronutrient_kcal_to_Mcal"] = constants.KCAL_TO_GCAL
 
     # Feed carriers per country (9 pools: 5 ruminant + 4 monogastric quality classes)
     feed_categories = [

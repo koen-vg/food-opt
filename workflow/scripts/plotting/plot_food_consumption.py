@@ -24,7 +24,7 @@ except ImportError:  # Fallback to Snakemake's script-directory loader
 logger = logging.getLogger(__name__)
 
 GRAMS_PER_MEGATONNE = 1e12
-KCAL_PER_MCAL = 1e6
+KCAL_PER_GCAL = 1e6
 DAYS_PER_YEAR = 365
 
 
@@ -299,7 +299,7 @@ def main() -> None:
         raise ValueError("Total population must be positive for per-capita conversion")
 
     mass_per_capita = mass * GRAMS_PER_MEGATONNE / (total_population * DAYS_PER_YEAR)
-    calories_per_capita = calories * KCAL_PER_MCAL / (total_population * DAYS_PER_YEAR)
+    calories_per_capita = calories * KCAL_PER_GCAL / (total_population * DAYS_PER_YEAR)
 
     logger.info(
         "Found %d food groups with mass data and %d with calorie data",
