@@ -16,13 +16,12 @@ validation:
   use_actual_yields: false
   use_actual_production: false
   enforce_gdd_baseline: false # Set food consumption equal to current day values
-  food_group_slack_marginal_cost: 1e9 # USD per Mt when validation slack supply is used
+  slack_marginal_cost: 1. # bn USD per Mt/Mha for validation slack (food groups, feed, land)
   production_year: 2021
 
 # --- section: land ---
 land:
   regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
-  slack_marginal_cost: 5e9 # USD per Mha when validation slack land is used
 
 # --- section: fertilizer ---
 fertilizer:

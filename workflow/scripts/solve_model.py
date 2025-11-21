@@ -230,37 +230,24 @@ def _load_fao_animal_production(fao_data_path: str) -> dict[str, float]:
     return production_dict
 
 
-def add_animal_product_ratio_constraints(
-    n: pypsa.Network, use_actual_production: bool, fao_production: dict[str, float]
+def add_animal_production_constraints(
+    n: pypsa.Network, fao_production: pd.DataFrame
 ) -> None:
-    """Add constraints to maintain FAO production ratios between animal products.
+    """Add constraints to fix animal production at FAO levels per country.
 
-    When validation mode is enabled (use_actual_production=True), this adds
-    pairwise ratio constraints between global animal product totals to match
-    observed FAO production patterns. This prevents unrealistic overproduction
-    of any single animal product while maintaining feasibility.
-
-    Ratios are calculated using dairy as the reference product.
+    For each (country, product) combination in the FAO data, adds a constraint
+    that total production from all feed categories equals the FAO target.
 
     Parameters
     ----------
     n : pypsa.Network
         The network containing the model.
-    use_actual_production : bool
-        Whether to enforce FAO production ratios (validation mode).
-    fao_production : dict[str, float]
-        FAO production data (tonnes) for each animal product.
+    fao_production : pd.DataFrame
+        FAO production data with columns: country, product, production_mt.
     """
-
-    if not use_actual_production:
-        logger.info(
-            "Skipping animal product ratio constraints (not in validation mode)"
-        )
-        return
-
-    if not fao_production:
+    if fao_production.empty:
         logger.warning(
-            "No FAO animal production data available; skipping ratio constraints"
+            "No FAO animal production data available; skipping production constraints"
         )
         return
 
@@ -268,92 +255,44 @@ def add_animal_product_ratio_constraints(
     link_p = m.variables["Link-p"].sel(snapshot="now")
     links_df = n.links.static
 
-    # Find all animal production links and group by product
-    product_totals = {}
-    for product in fao_production:
-        # Find all links that produce this product
-        produce_mask = links_df.index.str.startswith(f"produce_{product}_from_")
-        produce_links = links_df[produce_mask]
+    constraint_count = 0
+    for _, row in fao_production.iterrows():
+        country = row["country"]
+        product = row["product"]
+        target_mt = row["production_mt"]
 
-        if produce_links.empty:
-            logger.warning(
-                "No production links found for %s; skipping ratio constraints for this product",
-                product,
-            )
+        # Find all links that produce this product in this country
+        # Link naming: produce_{product}_from_{feed_category}_{country}
+        pattern = f"produce_{product}_from_"
+        suffix = f"_{country}"
+        matching_links = [
+            name
+            for name in links_df.index
+            if name.startswith(pattern) and name.endswith(suffix)
+        ]
+
+        if not matching_links:
+            logger.debug("No production links for %s in %s; skipping", product, country)
             continue
 
-        # Calculate global sum of production (bus1 output)
-        # For links, p represents bus0 input; we need p * efficiency for bus1 output
+        # Sum production from all feed categories
+        # Production = p * efficiency (p is feed input, efficiency is product/feed)
         total_production = sum(
             link_p.sel(name=link_name) * links_df.loc[link_name, "efficiency"]
-            for link_name in produce_links.index
+            for link_name in matching_links
         )
 
-        product_totals[product] = total_production
-
-    if len(product_totals) < 2:
-        logger.warning(
-            "Need at least 2 animal products to add ratio constraints; found %d",
-            len(product_totals),
-        )
-        return
-
-    # Use dairy as reference product (largest production)
-    reference_product = "dairy"
-    if reference_product not in product_totals:
-        # Fall back to first available product
-        reference_product = next(product_totals.keys())
-        logger.warning(
-            "Dairy not found; using %s as reference for ratio constraints",
-            reference_product,
-        )
-
-    reference_total = product_totals[reference_product]
-    reference_fao = fao_production[reference_product]
-
-    # Add ratio constraints for each other product
-    # For now, only constrain ruminant products (dairy and meat-cattle)
-    # Skip monogastric products to avoid infeasibility
-    ruminant_products = {"dairy", "meat-cattle"}
-
-    constraint_count = 0
-    for product, product_total in product_totals.items():
-        if product == reference_product:
-            continue
-
-        # Skip monogastric products temporarily
-        if product not in ruminant_products:
-            logger.info(
-                "Skipping ratio constraint for monogastric product: %s",
-                product,
-            )
-            continue
-
-        # Calculate FAO ratio: product / reference
-        fao_ratio = fao_production[product] / reference_fao
-
-        # Add constraint: product_total = fao_ratio * reference_total
-        # This maintains the observed production ratio
+        # Add constraint: total production = FAO target
         m.add_constraints(
-            product_total == fao_ratio * reference_total,
-            name=f"animal_ratio_{product}_to_{reference_product}",
+            total_production == target_mt,
+            name=f"animal_production_{product}_{country}",
         )
         constraint_count += 1
 
-        logger.info(
-            "Added ratio constraint: %s / %s = %.4f (FAO: %.0f / %.0f tonnes)",
-            product,
-            reference_product,
-            fao_ratio,
-            fao_production[product],
-            reference_fao,
-        )
-
-    if constraint_count > 0:
-        logger.info(
-            "Added %d animal product ratio constraints to match FAO production patterns",
-            constraint_count,
-        )
+    logger.info(
+        "Added %d country-level animal production constraints",
+        constraint_count,
+    )
 
 
 def add_health_objective(
@@ -710,19 +649,13 @@ if __name__ == "__main__":
     max_feed_fraction = float(snakemake.config["residues"]["max_feed_fraction"])
     add_residue_feed_constraints(n, max_feed_fraction)
 
-    # Add animal product ratio constraints in validation mode
+    # Add animal production constraints in validation mode
     use_actual_production = bool(
         snakemake.config["validation"]["use_actual_production"]
     )
     if use_actual_production:
-        fao_animal_production = (
-            pd.read_csv(snakemake.input.animal_production)
-            .set_index("product")["production_tonnes"]
-            .to_dict()
-        )
-        add_animal_product_ratio_constraints(
-            n, use_actual_production, fao_animal_production
-        )
+        fao_animal_production = pd.read_csv(snakemake.input.animal_production)
+        add_animal_production_constraints(n, fao_animal_production)
 
     # Add health impacts to the objective if data is available
     add_health_objective(

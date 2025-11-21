@@ -234,6 +234,7 @@ rule retrieve_faostat_crop_production:
 rule retrieve_faostat_animal_production:
     params:
         production_year=config["validation"]["production_year"],
+        countries=config["countries"],
     output:
         "processing/{name}/faostat_animal_production.csv",
     log:

@@ -5,8 +5,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 Retrieve FAO animal production statistics for validation constraints.
 
-This script queries FAOSTAT for global production totals of major animal
-products (dairy, beef, pork, poultry, eggs) to establish baseline ratios
+This script queries FAOSTAT for country-level production of major animal
+products (dairy, beef, pork, poultry, eggs) to establish production targets
 for validation mode.
 """
 
@@ -47,6 +47,7 @@ def _find_column(df: pd.DataFrame, candidates: set[str]) -> str:
 def main() -> None:
     output_path = Path(snakemake.output[0])  # type: ignore[name-defined]
     production_year = int(snakemake.params.production_year)  # type: ignore[name-defined]
+    countries = list(snakemake.params.countries)  # type: ignore[name-defined]
 
     dataset = "QCL"  # Crops and livestock products
 
@@ -75,7 +76,7 @@ def main() -> None:
     )
 
     # Map FAOSTAT items to codes
-    faostat_to_model: dict[str, str] = {}  # faostat_item -> model_product
+    faostat_to_model: dict[str, str] = {}  # faostat_item_code -> model_product
     item_codes: list[str] = []
 
     for model_product, faostat_item in ANIMAL_PRODUCT_MAPPING.items():
@@ -106,7 +107,7 @@ def main() -> None:
     }
 
     logger.info(
-        "Requesting FAOSTAT global production data for year %s (%d animal products)",
+        "Requesting FAOSTAT country-level production data for year %s (%d animal products)",
         production_year,
         len(item_codes),
     )
@@ -115,6 +116,7 @@ def main() -> None:
             dataset,
             pars=query_pars,
             strval=True,
+            coding={"area": "ISO3"},  # Get ISO3 country codes
         )
     except Exception as exc:  # pragma: no cover - network error
         raise RuntimeError(
@@ -127,10 +129,12 @@ def main() -> None:
         )
 
     # Find required columns
+    iso_candidates = {"area_code_iso3", "area_code_(iso3)", "area_code"}
     item_code_candidates = {"item_code", "item_code_(faostat)"}
     value_candidates = {"value"}
     year_candidates = {"year"}
 
+    iso_col = _find_column(df, iso_candidates)
     item_code_col = _find_column(df, item_code_candidates)
     value_col = _find_column(df, value_candidates)
     year_col = _find_column(df, year_candidates)
@@ -148,42 +152,40 @@ def main() -> None:
             ", ".join(sorted(units_series.unique())),
         )
 
-    # Exclude regional aggregates (area codes >= 1000)
-    area_code_candidates = {"area_code"}
-    area_code_col = _find_column(df, area_code_candidates)
-    df[area_code_col] = pd.to_numeric(df[area_code_col], errors="coerce")
-
+    # Filter to configured countries only
+    df[iso_col] = df[iso_col].astype(str).str.strip()
+    countries_set = set(countries)
     before_filter = len(df)
-    df = df[df[area_code_col] < 1000]
+    df = df[df[iso_col].isin(countries_set)]
     after_filter = len(df)
 
-    if before_filter > after_filter:
-        logger.info(
-            "Excluded %d regional aggregate rows (keeping %d country records)",
-            before_filter - after_filter,
-            after_filter,
-        )
+    logger.info(
+        "Filtered to %d configured countries: %d -> %d rows",
+        len(countries_set),
+        before_filter,
+        after_filter,
+    )
 
     if df.empty:
-        raise RuntimeError(
-            "No country-level production data after filtering aggregates"
-        )
+        raise RuntimeError("No production data for configured countries")
 
-    # Aggregate by product (sum across all countries)
+    # Build country-level records
     records: list[dict[str, object]] = []
     for _, row in df.iterrows():
+        country = str(row[iso_col]).strip()
         item_code = str(row[item_code_col]).strip()
         product = faostat_to_model.get(item_code)
         if not product:
             continue
 
         value = float(row[value_col])
-        if not np.isfinite(value) or value <= 0:
+        if not np.isfinite(value) or value < 0:
             continue
 
         year = int(float(row[year_col]))
         records.append(
             {
+                "country": country,
                 "product": product,
                 "year": year,
                 "production_tonnes": value,
@@ -197,40 +199,77 @@ def main() -> None:
 
     result = pd.DataFrame(records)
 
-    # Aggregate to global totals
+    # Aggregate by country and product (in case of duplicates)
     result = (
-        result.groupby(["product", "year"], as_index=False)["production_tonnes"]
+        result.groupby(["country", "product", "year"], as_index=False)[
+            "production_tonnes"
+        ]
         .sum()
-        .sort_values(["product"])
+        .sort_values(["country", "product"])
     )
 
     # Convert eggs from number to tonnes (approximate: 60g per egg)
     # FAOSTAT reports eggs in "1000 no" units (thousands of eggs)
     egg_mask = result["product"] == "eggs"
     if egg_mask.any():
-        egg_thousands = result.loc[egg_mask, "production_tonnes"].iloc[0]
         # egg_thousands * 1000 eggs/thousand * 60g/egg / 1000 g/kg / 1000 kg/tonne
         # = egg_thousands * 0.06 tonnes
-        egg_tonnes = egg_thousands * 0.06
-        result.loc[egg_mask, "production_tonnes"] = egg_tonnes
+        result.loc[egg_mask, "production_tonnes"] = (
+            result.loc[egg_mask, "production_tonnes"] * 0.06
+        )
         logger.info(
-            "Converted eggs from %.2e thousand to %.0f tonnes (assuming 60g/egg)",
-            egg_thousands,
-            egg_tonnes,
+            "Converted %d egg records from thousands to tonnes (assuming 60g/egg)",
+            egg_mask.sum(),
         )
 
-    logger.info("Retrieved production data:")
-    for _, row in result.iterrows():
+    # Convert tonnes to Mt for consistency with model units
+    result["production_mt"] = result["production_tonnes"] * 1e-6
+    result = result.drop(columns=["production_tonnes"])
+
+    # Log summary statistics
+    logger.info("Retrieved country-level production data:")
+    for product in result["product"].unique():
+        prod_data = result[result["product"] == product]
+        total_mt = prod_data["production_mt"].sum()
+        n_countries = len(prod_data)
         logger.info(
-            "  %s (%d): %.0f tonnes",
-            row["product"],
-            row["year"],
-            row["production_tonnes"],
+            "  %s: %.2f Mt across %d countries",
+            product,
+            total_mt,
+            n_countries,
         )
+
+    # Check for countries with missing products and fill with zeros
+    all_products = list(ANIMAL_PRODUCT_MAPPING.keys())
+    missing_records = []
+    for country in countries:
+        existing = set(result[result["country"] == country]["product"])
+        for product in all_products:
+            if product not in existing:
+                missing_records.append(
+                    {
+                        "country": country,
+                        "product": product,
+                        "year": production_year,
+                        "production_mt": 0.0,
+                    }
+                )
+
+    if missing_records:
+        logger.info(
+            "Added %d zero-production records for missing country-product combinations",
+            len(missing_records),
+        )
+        result = pd.concat([result, pd.DataFrame(missing_records)], ignore_index=True)
+        result = result.sort_values(["country", "product"])
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(output_path, index=False)
-    logger.info("Saved animal production data to %s", output_path)
+    logger.info(
+        "Saved %d country-level animal production records to %s",
+        len(result),
+        output_path,
+    )
 
 
 if __name__ == "__main__":

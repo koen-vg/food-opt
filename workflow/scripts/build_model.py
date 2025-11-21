@@ -31,7 +31,6 @@ if str(_project_root) not in sys.path:
 from workflow.scripts.build_model import (  # noqa: E402
     animals,
     biomass,
-    constants,
     crops,
     food,
     infrastructure,
@@ -55,8 +54,9 @@ if __name__ == "__main__":
     validation_cfg = snakemake.config["validation"]  # type: ignore[attr-defined]
     use_actual_production = bool(validation_cfg["use_actual_production"])
     enforce_baseline = bool(validation_cfg["enforce_gdd_baseline"])
-    slack_food_group_cost = float(validation_cfg["food_group_slack_marginal_cost"])
-    slack_food_group_cost *= constants.USD_TO_BNUSD
+    validation_slack_cost = float(
+        validation_cfg["slack_marginal_cost"]
+    )  # Already in bn USD
 
     # ═══════════════════════════════════════════════════════════════
     # DATA LOADING
@@ -423,14 +423,13 @@ if __name__ == "__main__":
 
     land_cfg = snakemake.params.land
     reg_limit = float(land_cfg["regional_limit"])
-    land_slack_cost = float(land_cfg["slack_marginal_cost"]) * constants.USD_TO_BNUSD
     land.add_land_components(
         n,
         land_class_df,
         baseline_land_df,
         luc_lef_lookup,
         reg_limit=reg_limit,
-        land_slack_cost=land_slack_cost,
+        land_slack_cost=validation_slack_cost,  # Use unified validation slack cost
         use_actual_production=use_actual_production,
     )
 
@@ -451,7 +450,7 @@ if __name__ == "__main__":
         )
         if use_actual_production:
             primary_resources._add_land_slack_generators(
-                n, marginal_bus_names, land_slack_cost
+                n, marginal_bus_names, validation_slack_cost
             )
 
     # Rice methane factor and scaling factor for rainfed wetland rice
@@ -571,6 +570,10 @@ if __name__ == "__main__":
         animal_costs_per_mt,
     )
 
+    # Add feed slack generators for validation mode feasibility
+    if use_actual_production:
+        animals.add_feed_slack_generators(n, marginal_cost=validation_slack_cost)
+
     # Nutrition constraints
     nutrition.add_food_group_buses_and_loads(
         n,
@@ -581,7 +584,7 @@ if __name__ == "__main__":
         population,
         per_country_equal=baseline_equals,
         add_slack_for_fixed_consumption=enforce_baseline,
-        slack_marginal_cost=slack_food_group_cost,
+        slack_marginal_cost=validation_slack_cost,
     )
     nutrition.add_macronutrient_loads(
         n,

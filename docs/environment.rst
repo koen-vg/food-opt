@@ -260,7 +260,7 @@ Enteric emissions are calculated in ``workflow/scripts/build_model.py`` within t
 Manure Management (CH₄)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-All livestock produce methane emissions from manure storage, handling, and treatment. Unlike enteric fermentation, manure CH₄ affects both ruminants and monogastrics (pigs, poultry), with emissions varying significantly by management system.
+Livestock in confined systems produce methane emissions from manure storage, handling, and treatment. Unlike enteric fermentation, manure CH₄ affects both ruminants and monogastrics (pigs, poultry), with emissions varying significantly by management system. However, **manure deposited directly on pasture during grazing produces negligible CH₄** because aerobic decomposition dominates (IPCC MCF ~0.5% for "Pasture, Range & Paddock"). The model therefore excludes manure CH₄ for grassland feed categories.
 
 Methodology
 ^^^^^^^^^^^
@@ -392,6 +392,7 @@ Manure emissions are calculated in ``workflow/scripts/calculate_manure_emissions
 
         \text{CH}_4\text{/t feed} = \text{MY}_\text{enteric} + \text{MY}_\text{manure}
 
+   * **Exception**: For grassland feed categories (``ruminant_grassland``), manure CH₄ is set to zero because pasture-deposited manure decomposes aerobically with negligible methane production
    * Attach total CH₄ to ``bus2`` (methane bus) for all animal production links
    * Emissions scale with feed consumption in the optimization
 

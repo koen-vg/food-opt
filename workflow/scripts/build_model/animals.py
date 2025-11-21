@@ -20,6 +20,65 @@ from .utils import _calculate_ch4_per_feed_intake, _calculate_manure_n_outputs
 logger = logging.getLogger(__name__)
 
 
+def add_feed_slack_generators(
+    n: pypsa.Network,
+    marginal_cost: float,
+) -> None:
+    """Add slack generators and stores to feed buses for validation mode feasibility.
+
+    When both grassland production and animal production are fixed at baseline/FAO levels,
+    the system may have either insufficient feed (needs positive slack) or excess feed
+    (needs negative slack). Following the pattern from food group slack:
+    - Generators provide positive slack (add feed when production is insufficient)
+    - Stores absorb negative slack (consume feed when production exceeds requirements)
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network to add slack components to
+    marginal_cost : float
+        Cost per Mt of slack (billion USD/Mt)
+    """
+    # Find all feed buses (named feed_*_<country>)
+    feed_buses = [bus for bus in n.buses.static.index if bus.startswith("feed_")]
+
+    if not feed_buses:
+        logger.info("No feed buses found; skipping feed slack")
+        return
+
+    # Add carriers for slack
+    n.carriers.add(
+        ["slack_positive_feed", "slack_negative_feed"],
+        unit="Mt",
+    )
+
+    # Add positive slack generators (provide feed when insufficient)
+    gen_names = [f"slack_positive_{bus}" for bus in feed_buses]
+    n.generators.add(
+        gen_names,
+        bus=feed_buses,
+        carrier="slack_positive_feed",
+        p_nom_extendable=True,
+        marginal_cost=marginal_cost,
+    )
+
+    # Add negative slack stores (absorb excess feed)
+    store_names = [f"slack_negative_{bus}" for bus in feed_buses]
+    n.stores.add(
+        store_names,
+        bus=feed_buses,
+        carrier="slack_negative_feed",
+        e_nom_extendable=True,
+        marginal_cost=marginal_cost,
+    )
+
+    logger.info(
+        "Added %d feed slack generators and %d slack stores for validation feasibility",
+        len(gen_names),
+        len(store_names),
+    )
+
+
 def add_feed_to_animal_product_links(
     n: pypsa.Network,
     animal_products: list,
