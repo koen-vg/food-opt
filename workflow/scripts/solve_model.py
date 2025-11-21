@@ -227,23 +227,6 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
     )
 
 
-def _load_fao_animal_production(fao_data_path: str) -> dict[str, float]:
-    """Load FAO animal production data from CSV file.
-
-    Parameters
-    ----------
-    fao_data_path : str
-        Path to FAOSTAT animal production CSV file.
-
-    Returns
-    -------
-    dict[str, float]
-        Mapping from product name to production in tonnes.
-    """
-
-    return production_dict
-
-
 def add_animal_production_constraints(
     n: pypsa.Network, fao_production: pd.DataFrame
 ) -> None:
@@ -269,43 +252,74 @@ def add_animal_production_constraints(
     link_p = m.variables["Link-p"].sel(snapshot="now")
     links_df = n.links.static
 
-    constraint_count = 0
-    for _, row in fao_production.iterrows():
-        country = row["country"]
-        product = row["product"]
-        target_mt = row["production_mt"]
+    # Filter to animal production links using carrier
+    # Animal production links have carriers starting with "produce_"
+    prod_mask = links_df["carrier"].str.startswith("produce_")
+    prod_links = links_df[prod_mask]
 
-        # Find all links that produce this product in this country
-        # Link naming: produce_{product}_from_{feed_category}_{country}
-        pattern = f"produce_{product}_from_"
-        suffix = f"_{country}"
-        matching_links = [
-            name
-            for name in links_df.index
-            if name.startswith(pattern) and name.endswith(suffix)
-        ]
+    if prod_links.empty:
+        logger.info("No animal production links found.")
+        return
 
-        if not matching_links:
-            logger.debug("No production links for %s in %s; skipping", product, country)
-            continue
+    # Extract product from link carrier (remove "produce_" prefix)
+    # Example: "produce_dairy" -> "dairy"
+    products = prod_links["carrier"].str[8:]
 
-        # Sum production from all feed categories
-        # Production = p * efficiency (p is feed input, efficiency is product/feed)
-        total_production = sum(
-            link_p.sel(name=link_name) * links_df.loc[link_name, "efficiency"]
-            for link_name in matching_links
+    # Extract country from bus1 name (output bus pattern: food_{product}_{country})
+    # Example: "food_dairy_USA" -> "USA"
+    countries = prod_links["bus1"].str.rsplit("_", n=1, expand=True)[1]
+
+    # Prepare DataArrays aligned with the filtered links
+    link_names = prod_links.index
+
+    # Efficiencies
+    efficiencies = xr.DataArray(
+        prod_links["efficiency"].values, coords={"name": link_names}, dims="name"
+    )
+
+    # Production = p * efficiency
+    # Group by (product, country) and sum
+    production_vars = link_p.sel(name=link_names)
+
+    # Groupby sum using multiple groupers
+    grouper_series = products.str.cat(countries, sep="|")
+    da_grouper = xr.DataArray(
+        grouper_series.values, coords={"name": link_names}, dims="name"
+    )
+
+    total_production = (production_vars * efficiencies).groupby(da_grouper).sum()
+
+    # Prepare RHS (targets)
+    # Create keys from FAO data without mutating the input DataFrame
+    fao_keys = fao_production["product"] + "|" + fao_production["country"]
+    target_df = fao_production.set_index(fao_keys)["production_mt"]
+
+    # Filter to keys present in the model
+    model_keys = pd.Index(total_production.coords["group"].values)
+
+    # Align targets
+    common_keys = model_keys.intersection(target_df.index)
+
+    if common_keys.empty:
+        logger.warning(
+            "No matching animal production targets found for model structure."
         )
+        return
 
-        # Add constraint: total production = FAO target
-        m.add_constraints(
-            total_production == target_mt,
-            name=f"animal_production_{product}_{country}",
-        )
-        constraint_count += 1
+    # Select relevant model expressions
+    lhs = total_production.sel(group=common_keys)
+
+    # Create RHS DataArray
+    rhs = xr.DataArray(
+        target_df.loc[common_keys].values, coords={"group": common_keys}, dims="group"
+    )
+
+    # Add constraints
+    m.add_constraints(lhs == rhs, name="animal_production_target")
 
     logger.info(
         "Added %d country-level animal production constraints",
-        constraint_count,
+        len(common_keys),
     )
 
 
