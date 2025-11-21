@@ -147,7 +147,7 @@ def add_food_group_buses_and_loads(
                 n.generators.add(
                     f"slack_positive_{group}_" + countries_index,
                     bus=buses,
-                    carrier=f"slack_negative_group_{group}",
+                    carrier=f"slack_positive_group_{group}",
                     p_nom_extendable=True,
                     marginal_cost=slack_marginal_cost,
                 )
@@ -156,7 +156,7 @@ def add_food_group_buses_and_loads(
                     bus=buses,
                     carrier=f"slack_negative_group_{group}",
                     e_nom_extendable=True,
-                    marginal_cost=slack_marginal_cost,
+                    capital_cost=slack_marginal_cost,
                 )
             # Equality constraint fixes consumption; no additional stores required
             continue

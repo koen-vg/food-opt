@@ -69,7 +69,7 @@ def add_feed_slack_generators(
         bus=feed_buses,
         carrier="slack_negative_feed",
         e_nom_extendable=True,
-        marginal_cost=marginal_cost,
+        capital_cost=marginal_cost,
     )
 
     logger.info(
