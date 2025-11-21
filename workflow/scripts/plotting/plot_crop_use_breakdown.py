@@ -39,18 +39,20 @@ def _extract_crop_production(
         if not link.startswith("produce_"):
             continue
 
-        bus1 = str(links_df.at[link, "bus1"]) if link in links_df.index else ""
+        bus1 = str(links_df.at[link, "bus1"])
         if bus1.startswith(("co2", "ch4")):
             continue
         if not bus1.startswith("crop_"):
             continue
 
-        parts = link.split("_")
-        if len(parts) < 3:
+        # Extract crop from carrier (e.g., "crop_maize" -> "maize")
+        carrier = str(links_df.at[link, "carrier"])
+        if not carrier.startswith("crop_"):
             continue
+        crop_token = carrier[5:]  # Remove "crop_" prefix
 
-        crop_token = parts[1]
-        water_supply = parts[2] if len(parts) > 2 else ""
+        # Get water supply from link attribute
+        water_supply = str(links_df.at[link, "water_supply"])
 
         value = abs(float(flows.get(link, 0.0)))
         if value <= 0.0:
@@ -98,31 +100,6 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
     flows_p1 = n.links_t.p1.loc["now"] if "p1" in n.links_t else pd.Series(dtype=float)
     links_df = n.links
 
-    def _strip_prefix(value: str, prefix: str) -> str:
-        return value[len(prefix) :] if value.startswith(prefix) else value
-
-    def _strip_country_suffix(value: str) -> str:
-        return value.rsplit("_", 1)[0] if "_" in value else value
-
-    def _infer_crop_from_food_bus(bus_name: str) -> str:
-        base = _strip_prefix(bus_name, "food_")
-        return _strip_country_suffix(base)
-
-    def _infer_crop_from_crop_bus(bus_name: str) -> str:
-        base = _strip_prefix(bus_name, "crop_")
-        return _strip_country_suffix(base)
-
-    food_bus_to_crop: dict[str, str] = {}
-    for _link, attrs in links_df.iterrows():
-        bus1 = str(attrs.get("bus1", ""))
-        bus0 = str(attrs.get("bus0", ""))
-        if not bus1.startswith("food_"):
-            continue
-        if bus1 in food_bus_to_crop:
-            continue
-        if bus0.startswith("crop_"):
-            food_bus_to_crop[bus1] = _infer_crop_from_crop_bus(bus0)
-
     for link in n.links.index:
         flow_in = abs(float(flows_p0.get(link, 0.0)))
         if flow_in <= 0.0:
@@ -133,15 +110,17 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
         carrier = str(links_df.at[link, "carrier"])
 
         if link.startswith("consume_"):
-            crop = food_bus_to_crop.get(bus0)
-            if not crop:
-                crop = _infer_crop_from_food_bus(bus0)
+            # Use food attribute from consumption link
+            crop = str(links_df.at[link, "food"])
             human_use[crop] += flow_in
         elif link.startswith("convert_") and (
             bus1.startswith("feed_") or carrier.startswith(("convert_to_feed", "feed_"))
         ):
-            crop = _infer_crop_from_crop_bus(bus0)
-            feed_use[crop] += flow_in
+            # Extract crop from bus0 (e.g., "crop_maize_USA" -> "maize")
+            if bus0.startswith("crop_"):
+                crop_with_country = bus0[5:]  # Remove "crop_" prefix
+                crop = crop_with_country.rsplit("_", 1)[0]  # Remove country suffix
+                feed_use[crop] += flow_in
         else:
             continue
 

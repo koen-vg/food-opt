@@ -265,9 +265,8 @@ def add_animal_production_constraints(
     # Example: "produce_dairy" -> "dairy"
     products = prod_links["carrier"].str[8:]
 
-    # Extract country from bus1 name (output bus pattern: food_{product}_{country})
-    # Example: "food_dairy_USA" -> "USA"
-    countries = prod_links["bus1"].str.rsplit("_", n=1, expand=True)[1]
+    # Extract country from link attribute (set during model building)
+    countries = prod_links["country"]
 
     # Prepare DataArrays aligned with the filtered links
     link_names = prod_links.index
@@ -325,35 +324,27 @@ def add_animal_production_constraints(
 
 def _get_consumption_link_map(
     p_names: pd.Index,
+    links_df: pd.DataFrame,
     food_map: pd.DataFrame,
     cluster_lookup: dict[str, int],
     cluster_population: dict[int, float],
 ) -> pd.DataFrame:
     """Map consumption links to health clusters and risk factors."""
-    # Filter for "consume_" prefix
-    # Use a Series for string accessor
-    s = pd.Series(p_names, index=p_names)
-    is_consume = s.str.startswith("consume_")
-    if not is_consume.any():
+    # Filter for consumption links
+    consume_mask = links_df.index.isin(p_names) & links_df.index.str.startswith(
+        "consume_"
+    )
+    consume_links = links_df[consume_mask]
+
+    if consume_links.empty:
         return pd.DataFrame()
 
-    s = s[is_consume]
-
-    # Split: consume_{food}_{country}
-    # rsplit("_", 1) gives [prefix, country]
-    splits = s.str.rsplit("_", n=1, expand=True)
-    if splits.shape[1] != 2:
-        return pd.DataFrame()
-
-    countries = splits[1]
-    # Remove "consume_" from prefix
-    foods = splits[0].str.slice(8)
-
+    # Extract food and country from link attributes (set during model building)
     df = pd.DataFrame(
         {
-            "link_name": s.index,
-            "sanitized_food": foods,
-            "country": countries,
+            "link_name": consume_links.index,
+            "sanitized_food": consume_links["food"],
+            "country": consume_links["country"],
         }
     )
 
@@ -450,6 +441,7 @@ def add_health_objective(
     # Vectorized Link Mapping
     link_map = _get_consumption_link_map(
         pd.Index(p.coords["name"].values),
+        n.links.static,
         food_map,
         cluster_lookup,
         cluster_population,

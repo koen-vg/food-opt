@@ -165,6 +165,7 @@ rule plot_food_consumption:
     input:
         network="results/{name}/solved/model.nc",
         population="processing/{name}/population.csv",
+        food_groups="data/food_groups.csv",
     output:
         pdf="results/{name}/plots/food_consumption.pdf",
     params:
@@ -181,6 +182,7 @@ rule plot_food_consumption_map:
         population="processing/{name}/population.csv",
         clusters="processing/{name}/health/country_clusters.csv",
         regions="processing/{name}/regions.geojson",
+        food_groups="data/food_groups.csv",
     output:
         pdf="results/{name}/plots/food_consumption_map.pdf",
         csv="results/{name}/plots/food_consumption_map.csv",

@@ -112,19 +112,9 @@ def main() -> None:
         if val <= EPSILON:
             continue
 
-        # Parse food and country from bus0
-        # bus0 format: food_{food}_{country}
-        bus0 = n.links.at[link, "bus0"]
-        if not bus0.startswith("food_"):
-            logger.warning("Unexpected bus0 format for link %s: %s", link, bus0)
-            continue
-
-        remainder = bus0[len("food_") :]
-        if "_" not in remainder:
-            logger.warning("Cannot parse country from bus0 %s", bus0)
-            continue
-        food, country = remainder.rsplit("_", 1)
-        country = country.upper()
+        # Extract food and country from link attributes
+        food = n.links.at[link, "food"]
+        country = n.links.at[link, "country"]
 
         cluster = cluster_map.get(country)
         if cluster is None:

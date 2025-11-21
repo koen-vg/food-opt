@@ -332,4 +332,8 @@ def add_food_nutrition_links(
             params[f"bus{idx}"] = [f"group_{group_val}_{c}" for c in countries]
             params[f"efficiency{idx}"] = 1.0
 
+        # Add metadata attributes
+        params["food"] = food
+        params["country"] = countries
+
         n.links.add(names, p_nom_extendable=True, **params)

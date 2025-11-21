@@ -36,13 +36,6 @@ def _select_snapshot(network: pypsa.Network) -> pd.Index | str:
     raise ValueError("Expected snapshot 'now' or single snapshot in solved network")
 
 
-def _group_from_bus(bus: str) -> str:
-    remainder = bus[len("group_") :]
-    if "_" in remainder:
-        return remainder.rsplit("_", 1)[0]
-    return remainder
-
-
 def _bus_column_to_leg(column: str) -> int | None:
     if not column.startswith("bus"):
         return None
@@ -71,17 +64,13 @@ def _link_dispatch_at_snapshot(
     return dispatch
 
 
-def _aggregate_group_mass(network: pypsa.Network, snapshot) -> pd.Series:
+def _aggregate_group_mass(
+    network: pypsa.Network, snapshot, food_to_group: dict[str, str]
+) -> pd.Series:
+    """Aggregate consumption by food group using link attributes."""
     links = network.links
-    if links.empty:
-        return pd.Series(dtype=float)
-
     consume_links = links[links.index.str.startswith("consume_")]
     if consume_links.empty:
-        return pd.Series(dtype=float)
-
-    bus_columns = [col for col in consume_links.columns if col.startswith("bus")]
-    if not bus_columns:
         return pd.Series(dtype=float)
 
     dispatch_lookup = _link_dispatch_at_snapshot(network, snapshot)
@@ -89,21 +78,23 @@ def _aggregate_group_mass(network: pypsa.Network, snapshot) -> pd.Series:
         return pd.Series(dtype=float)
 
     totals: dict[str, float] = {}
-    for link_name, row in consume_links[bus_columns].iterrows():
-        for column, bus_value in row.items():
-            if not isinstance(bus_value, str) or not bus_value.startswith("group_"):
-                continue
-            leg = _bus_column_to_leg(column)
-            if leg is None:
-                continue
-            dispatch = dispatch_lookup.get(leg)
-            if dispatch is None:
-                continue
+    for link_name in consume_links.index:
+        food = str(consume_links.at[link_name, "food"])
+        group = food_to_group.get(food)
+        if group is None:
+            continue
+
+        # Find which leg outputs to the group bus and get its flow
+        for leg, dispatch in dispatch_lookup.items():
             value = float(dispatch.get(link_name, 0.0))
             if value == 0.0 or not np.isfinite(value):
                 continue
-            group = _group_from_bus(bus_value)
-            totals[group] = totals.get(group, 0.0) + abs(value)
+            # Check if this leg goes to a group bus
+            bus_col = f"bus{leg}" if leg > 0 else "bus0"
+            bus_value = consume_links.at[link_name, bus_col]
+            if isinstance(bus_value, str) and bus_value.startswith("group_"):
+                totals[group] = totals.get(group, 0.0) + abs(value)
+                break
 
     return pd.Series(totals, dtype=float)
 
@@ -125,11 +116,11 @@ def _available_legs(links: pd.DataFrame) -> list[int]:
     return sorted(legs)
 
 
-def _aggregate_group_calories(network: pypsa.Network, snapshot) -> pd.Series:
+def _aggregate_group_calories(
+    network: pypsa.Network, snapshot, food_to_group: dict[str, str]
+) -> pd.Series:
+    """Aggregate calorie consumption by food group using link attributes."""
     links = network.links
-    if links.empty:
-        return pd.Series(dtype=float)
-
     legs = _available_legs(links)
     if not legs:
         return pd.Series(dtype=float)
@@ -146,28 +137,25 @@ def _aggregate_group_calories(network: pypsa.Network, snapshot) -> pd.Series:
         return pd.Series(dtype=float)
 
     totals: dict[str, float] = {}
-
     for link_name in links.index:
         if not link_name.startswith("consume_"):
             continue
 
-        group_name: str | None = None
-        kcal_leg: int | None = None
+        food = str(links.at[link_name, "food"])
+        group_name = food_to_group.get(food)
+        if group_name is None:
+            continue
 
+        # Find kcal leg
+        kcal_leg: int | None = None
         for leg in legs:
             column = f"bus{leg}"
-            if column not in links.columns:
-                continue
             bus_value = links.at[link_name, column]
-            if pd.isna(bus_value):
-                continue
-            bus_str = str(bus_value)
-            if bus_str.startswith("group_"):
-                group_name = _group_from_bus(bus_str)
-            if bus_str.startswith("cal_"):
+            if pd.notna(bus_value) and str(bus_value).startswith("cal_"):
                 kcal_leg = leg
+                break
 
-        if group_name is None or kcal_leg is None:
+        if kcal_leg is None:
             continue
 
         series = time_series_lookup.get(kcal_leg)
@@ -175,10 +163,8 @@ def _aggregate_group_calories(network: pypsa.Network, snapshot) -> pd.Series:
             continue
 
         value = abs(float(series.get(link_name, 0.0)))
-        if value <= 0.0:
-            continue
-
-        totals[group_name] = totals.get(group_name, 0.0) + value
+        if value > 0.0:
+            totals[group_name] = totals.get(group_name, 0.0) + value
 
     return pd.Series(totals, dtype=float)
 
@@ -279,17 +265,22 @@ def main() -> None:
 
     network_path = snakemake.input.network  # type: ignore[attr-defined]
     population_path = snakemake.input.population  # type: ignore[attr-defined]
+    food_groups_path = snakemake.input.food_groups  # type: ignore[attr-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[attr-defined]
     output_pdf.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info("Loading solved network from %s", network_path)
     network = pypsa.Network(network_path)
 
+    # Load food->group mapping
+    food_groups_df = pd.read_csv(food_groups_path)
+    food_to_group = food_groups_df.set_index("food")["group"].to_dict()
+
     snapshot = _select_snapshot(network)
     logger.info("Using snapshot '%s' for aggregation", snapshot)
 
-    mass = _aggregate_group_mass(network, snapshot)
-    calories_pj = _aggregate_group_calories(network, snapshot)
+    mass = _aggregate_group_mass(network, snapshot, food_to_group)
+    calories_pj = _aggregate_group_calories(network, snapshot, food_to_group)
 
     population_df = pd.read_csv(population_path)
     if "population" not in population_df.columns:

@@ -164,6 +164,11 @@ def add_regional_crop_production_links(
                 "marginal_cost": base_cost,
                 "p_nom_max": df["suitable_area"] / 1e6,  # ha → Mha
                 "p_nom_extendable": not use_actual_production,
+                # Add metadata attributes
+                "country": df["country"],
+                "region": df["region"],
+                "resource_class": df["resource_class"].astype(int),
+                "water_supply": "irrigated" if ws == "i" else "rainfed",
             }
 
             if use_actual_production:

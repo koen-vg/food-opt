@@ -16,24 +16,18 @@ logger = logging.getLogger(__name__)
 
 
 def extract_crop_production(n: pypsa.Network) -> pd.Series:
-    """Extract total crop production aggregated across regions/classes.
-
-    Link naming convention from build_model.py:
-    produce_{crop}_{region}_class{resource_class}
-    We aggregate by the {crop} token only.
-    """
+    """Extract total crop production aggregated across regions/classes."""
     crop_totals: dict[str, float] = {}
+    production_links = n.links[n.links.index.str.startswith("produce_")]
 
-    # All crop production links
-    production_links = [link for link in n.links.index if link.startswith("produce_")]
+    for link in production_links.index:
+        carrier = str(production_links.at[link, "carrier"])
 
-    for link in production_links:
-        # Extract crop token between 'produce_' and the next underscore
-        # Fallback to conservative behavior if pattern unexpected
-        try:
-            crop = link.split("_", 2)[1]
-        except Exception:
-            crop = link.replace("produce_", "").split("_")[0]
+        # Extract crop from carrier (e.g., "crop_maize" -> "maize")
+        if carrier.startswith("crop_"):
+            crop = carrier[5:]  # Remove "crop_" prefix
+        else:
+            continue
 
         # Flow at bus1 is crop output (megatonnes)
         flow = float(n.links_t.p1.loc["now", link])

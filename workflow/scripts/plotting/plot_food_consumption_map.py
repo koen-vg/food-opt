@@ -38,16 +38,6 @@ def _select_snapshot(network: pypsa.Network) -> pd.Index | str:
     raise ValueError("Expected snapshot 'now' or single snapshot in solved network")
 
 
-def _parse_group_and_iso(bus: str) -> tuple[str, str] | None:
-    if not bus.startswith("group_"):
-        return None
-    remainder = bus[len("group_") :]
-    if "_" not in remainder:
-        return None
-    group, iso = remainder.rsplit("_", 1)
-    return group, iso.upper()
-
-
 def _bus_column_to_leg(column: str) -> int | None:
     if not column.startswith("bus"):
         return None
@@ -79,17 +69,12 @@ def _link_dispatch_at_snapshot(
 
 
 def _aggregate_consume_link_totals(
-    network: pypsa.Network, snapshot
+    network: pypsa.Network, snapshot, food_to_group: dict[str, str]
 ) -> dict[tuple[str, str], float]:
+    """Aggregate consumption by country and food group using link attributes."""
     links = network.links
-    if links.empty:
-        return {}
     consume_links = links[links.index.str.startswith("consume_")]
     if consume_links.empty:
-        return {}
-
-    bus_columns = [col for col in consume_links.columns if col.startswith("bus")]
-    if not bus_columns:
         return {}
 
     dispatch_lookup = _link_dispatch_at_snapshot(network, snapshot)
@@ -97,34 +82,36 @@ def _aggregate_consume_link_totals(
         return {}
 
     totals: dict[tuple[str, str], float] = {}
-    bus_values = consume_links[bus_columns]
-    for link_name, row in bus_values.iterrows():
-        for column, bus_value in row.items():
-            if not isinstance(bus_value, str):
-                continue
-            parsed = _parse_group_and_iso(bus_value)
-            if parsed is None:
-                continue
-            leg = _bus_column_to_leg(column)
-            if leg is None:
-                continue
-            dispatch = dispatch_lookup.get(leg)
-            if dispatch is None:
-                continue
+    for link_name in consume_links.index:
+        food = str(consume_links.at[link_name, "food"])
+        country = str(consume_links.at[link_name, "country"]).upper()
+
+        group = food_to_group.get(food)
+        if group is None:
+            continue
+
+        # Find which leg outputs to the group bus
+        for leg, dispatch in dispatch_lookup.items():
             value = float(dispatch.get(link_name, 0.0))
             if value == 0.0 or not np.isfinite(value):
                 continue
-            group, iso = parsed
-            key = (iso, group)
-            totals[key] = totals.get(key, 0.0) + abs(value)
+            # Check if this leg goes to a group bus
+            bus_col = f"bus{leg}" if leg > 0 else "bus0"
+            bus_value = consume_links.at[link_name, bus_col]
+            if isinstance(bus_value, str) and bus_value.startswith("group_"):
+                key = (country, group)
+                totals[key] = totals.get(key, 0.0) + abs(value)
+                break
+
     return totals
 
 
 def _aggregate_country_group_mass(
     network: pypsa.Network,
     snapshot,
+    food_to_group: dict[str, str],
 ) -> pd.DataFrame:
-    totals = _aggregate_consume_link_totals(network, snapshot)
+    totals = _aggregate_consume_link_totals(network, snapshot, food_to_group)
 
     if not totals:
         return pd.DataFrame()
@@ -456,6 +443,7 @@ def main() -> None:
     population_path = snakemake.input.population  # type: ignore[attr-defined]
     clusters_path = snakemake.input.clusters  # type: ignore[attr-defined]
     regions_path = snakemake.input.regions  # type: ignore[attr-defined]
+    food_groups_path = snakemake.input.food_groups  # type: ignore[attr-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[attr-defined]
     output_csv = Path(snakemake.output.csv)
 
@@ -464,8 +452,12 @@ def main() -> None:
     snapshot = _select_snapshot(network)
     logger.info("Using snapshot '%s'", snapshot)
 
+    # Load food->group mapping
+    food_groups_df = pd.read_csv(food_groups_path)
+    food_to_group = food_groups_df.set_index("food")["group"].to_dict()
+
     logger.info("Aggregating country-level consumption")
-    country_group = _aggregate_country_group_mass(network, snapshot)
+    country_group = _aggregate_country_group_mass(network, snapshot, food_to_group)
     logger.info("Found %d countries with food group loads", country_group.shape[0])
 
     cluster_df = pd.read_csv(clusters_path)

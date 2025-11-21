@@ -180,6 +180,7 @@ def add_feed_to_animal_product_links(
     all_n_fert = []
     all_n2o = []
     all_marginal_cost = []
+    all_country = []
 
     skipped_count = 0
     for _, row in df.iterrows():
@@ -245,6 +246,7 @@ def add_feed_to_animal_product_links(
             all_n_fert.append(n_fert_per_t_feed)
             all_n2o.append(n2o_per_t_feed * constants.MEGATONNE_TO_TONNE)
             all_marginal_cost.append(marginal_cost)
+            all_country.append(country)
 
     # All animal production links now have multiple outputs:
     # bus1: animal product, bus2: CH4, bus3: manure N fertilizer (country-specific), bus4: N2O
@@ -262,6 +264,7 @@ def add_feed_to_animal_product_links(
         efficiency3=all_n_fert,
         bus4="n2o",
         efficiency4=all_n2o,
+        country=all_country,
     )
 
     logger.info(
