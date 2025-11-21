@@ -309,6 +309,7 @@ trade:
 
 # --- section: health ---
 health:
+  enabled: true  # Whether to include health costs in the objective function
   region_clusters: 30
   reference_year: 2018
   intake_grid_step: 20  # Intake resolution in g/person/day

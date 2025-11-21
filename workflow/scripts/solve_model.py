@@ -658,20 +658,22 @@ if __name__ == "__main__":
         fao_animal_production = pd.read_csv(snakemake.input.animal_production)
         add_animal_production_constraints(n, fao_animal_production)
 
-    # Add health impacts to the objective if data is available
-    add_health_objective(
-        n,
-        snakemake.input.health_risk_breakpoints,
-        snakemake.input.health_cluster_cause,
-        snakemake.input.health_cause_log,
-        snakemake.input.health_cluster_summary,
-        snakemake.input.health_clusters,
-        snakemake.input.population,
-        snakemake.params.health_risk_factors,
-        solver_name,
-        float(snakemake.params.health_value_per_yll)
-        * constants.USD_TO_BNUSD,  # convert USD/YLL to bnUSD/YLL
-    )
+    # Add health impacts to the objective if enabled
+    health_enabled = bool(snakemake.config["health"]["enabled"])
+    if health_enabled:
+        add_health_objective(
+            n,
+            snakemake.input.health_risk_breakpoints,
+            snakemake.input.health_cluster_cause,
+            snakemake.input.health_cause_log,
+            snakemake.input.health_cluster_summary,
+            snakemake.input.health_clusters,
+            snakemake.input.population,
+            snakemake.params.health_risk_factors,
+            solver_name,
+            float(snakemake.params.health_value_per_yll)
+            * constants.USD_TO_BNUSD,  # convert USD/YLL to bnUSD/YLL
+        )
 
     # Temporary debug export of the raw linopy model for coefficient inspection.
     # linopy_debug_path = Path(snakemake.output.network).with_name("linopy_model.nc")
