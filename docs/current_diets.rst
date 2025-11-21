@@ -8,13 +8,13 @@ Current Diets
 Overview
 --------
 
-The model uses empirical dietary intake data from the Global Dietary Database (GDD) [GDD2024]_ [Miller2021]_ to represent current consumption patterns. This baseline data serves multiple purposes:
+The model uses a hybrid approach to represent current consumption patterns, combining empirical dietary intake data from the **Global Dietary Database (GDD)** [GDD2024]_ [Miller2021]_ with food supply data from **FAOSTAT Food Balance Sheets (FBS)**. This baseline data serves multiple purposes:
 
 * **Health impact assessment**: Calculating disease burden attributable to current dietary patterns
 * **Baseline reference**: Comparing optimized diets against current consumption
 * **Model constraints**: Optionally constrain the optimization to remain near current diets
 
-Data Source
+Data Sources
 -----------
 
 **Global Dietary Database (GDD)**
@@ -24,7 +24,11 @@ Data Source
   * **Download**: Requires free registration at https://globaldietarydatabase.org/data-download
   * **Citation**: [GDD2024]_
 
-The GDD compiles and harmonizes national dietary surveys from around the world using standardized protocols. Data are stratified by age, sex, urban/rural residence, and education level, then aggregated to national-level estimates using population weights.
+**FAOSTAT Food Balance Sheets (FBS)**
+  * **Provider**: FAO Statistics Division
+  * **Coverage**: Global, annual estimates of food supply
+  * **Variables**: Food supply quantity (kg/capita/year)
+  * **Usage**: Supplements GDD for food groups where intake survey data is sparse or inconsistent (Dairy, Poultry, Vegetable Oils)
 
 Weight Conventions
 ~~~~~~~~~~~~~~~~~~
@@ -88,31 +92,47 @@ The following food groups are populated from GDD variables:
    * - ``eggs``
      - v12
      - Eggs
-   * - ``dairy``
-     - v57
-     - Total Milk (includes milk equivalents from all dairy products)
+   * - ``sugar``
+     - v15, v35
+     - Sugar-sweetened beverages and added sugars
 
 **Notes:**
 
 * Multiple GDD variables can map to a single food group (e.g., starchy_vegetable = v03 potatoes + v04 other starchy veg)
 * When aggregating, values are summed within each food group
-* The ``dairy`` food group uses v57 "Total Milk", which represents milk equivalents from all dairy consumption including liquid milk, cheese, yogurt, and other dairy products
 * The ``fruits`` food group uses only v01 (whole fruits), excluding v16 (fruit juices), to align with the GBD fruit risk factor definition used in health impact modeling
 
-Food Groups Without GDD Data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Food Groups Sourced from FAOSTAT
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Some food groups in the model do not have direct GDD mappings:
+The following food groups are populated from FAOSTAT Food Balance Sheets (FBS) because intake survey data (GDD) is often sparse, inconsistent, or structurally missing for these commodities:
 
-* ``oil``: Not tracked as a dietary intake in GDD (it's an ingredient/processed product)
-* ``poultry``: Not tracked separately in GDD (tracked as part of general meat categories)
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
 
-These food groups rely on model production and trade without baseline dietary constraints.
+   * - Food Group
+     - Description & Source Items
+   * - ``dairy``
+     - **Total Milk Equivalent**. Aggregated from FAOSTAT items: Milk - Excluding Butter (2848), Butter/Ghee (2740), and Cream (2743). Converted to milk equivalents using standard factors (Butter: 20, Cream: 10). Note: "Milk - Excluding Butter" in FBS typically serves as the aggregate for fluid milk and milk used for cheese/yoghurt.
+   * - ``poultry``
+     - **Poultry Meat** (2734).
+   * - ``oil``
+     - **Vegetable Oils** (2586).
+
+**Methodology for FAOSTAT Data:**
+FAOSTAT reports "Food Supply" (retail weight), which typically includes household waste. The model converts this to "Dietary Intake" (consumed weight) by applying country-specific waste fractions derived from the UNSD Food Waste Index (see :doc:`food_processing`).
 
 Data Processing
 ---------------
 
-The GDD data processing pipeline (``workflow/scripts/prepare_gdd_dietary_intake.py``) performs the following steps:
+The dietary data processing pipeline involves three stages:
+
+1. **Prepare GDD Data** (``workflow/scripts/prepare_gdd_dietary_intake.py``): Processes GDD survey data for most food groups.
+2. **Prepare FAOSTAT Data** (``workflow/scripts/prepare_faostat_dietary_intake.py``): Fetches FAOSTAT supply data for dairy, poultry, and oil; converts supply to intake by subtracting waste; fills missing countries using proxies.
+3. **Merge Sources** (``workflow/scripts/merge_dietary_sources.py``): Combines the datasets into a unified ``dietary_intake.csv``.
+
+The GDD processing step (Step 1) performs the following:
 
 1. **Load GDD files**: Read country-level CSV files (``v*_cnty.csv``) for each dietary variable
 2. **Filter to reference year**: Extract data for ``config.health.reference_year`` (default: 2018)
@@ -176,10 +196,14 @@ These proxies are defined in the ``COUNTRY_PROXIES`` dictionary in ``prepare_gdd
 Workflow Integration
 --------------------
 
-**Snakemake rule**: ``prepare_gdd_dietary_intake``
+**Snakemake rules**:
+  * ``prepare_gdd_dietary_intake``
+  * ``prepare_faostat_dietary_intake``
+  * ``merge_dietary_sources``
 
 **Input**:
-  * ``data/manually_downloaded/GDD-dietary-intake/Country-level estimates/*.csv``
+  * ``data/manually_downloaded/GDD-dietary-intake/Country-level estimates/*.csv`` (GDD)
+  * FAOSTAT API (live fetch)
 
 **Configuration parameters**:
   * ``config.countries``: List of countries to process
@@ -187,13 +211,16 @@ Workflow Integration
   * ``config.health.reference_year``: Year for dietary intake data
 
 **Output**:
-  * ``processing/{name}/gdd_dietary_intake.csv``
+  * ``processing/{name}/dietary_intake.csv`` (Final merged file)
 
-**Script**: ``workflow/scripts/prepare_gdd_dietary_intake.py``
+**Scripts**:
+  * ``workflow/scripts/prepare_gdd_dietary_intake.py``
+  * ``workflow/scripts/prepare_faostat_dietary_intake.py``
+  * ``workflow/scripts/merge_dietary_sources.py``
 
 Baseline diet enforcement in the optimization can be toggled via
 ``config.validation.enforce_gdd_baseline``. When enabled, the builder reads
-``processing/{name}/gdd_dietary_intake.csv`` (``All ages`` by default) and adds
+``processing/{name}/dietary_intake.csv`` (``All ages`` by default) and adds
 per-country equality loads for matching food groups, forcing the solution to
 replicate observed intake. ``diet.baseline_age`` and ``diet.baseline_reference_year``
 override which cohort/year slice the model locks to.

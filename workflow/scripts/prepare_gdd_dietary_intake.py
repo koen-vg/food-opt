@@ -60,7 +60,7 @@ def main():
         "v10": "red_meat",  # Unprocessed red meats (cattle, pig)
         "v11": "fish",  # Total seafoods (fish + shellfish)
         "v12": "eggs",  # Eggs
-        "v57": "dairy",  # Total Milk (includes milk equivalents from all dairy)
+        # "v57": "dairy",  # Total Milk - Excluded: Sourced from FAOSTAT
         "v15": "sugar",  # Sugar-sweetened beverages → refined sugar equivalent
         "v35": "sugar",  # Added sugars (g/day already reported)
         "v16": None,  # Fruit juices (excluded - not part of GBD fruit risk factor)

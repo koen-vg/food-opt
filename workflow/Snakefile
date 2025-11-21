@@ -269,6 +269,32 @@ rule prepare_gdd_dietary_intake:
         "scripts/prepare_gdd_dietary_intake.py"
 
 
+rule prepare_faostat_dietary_intake:
+    input:
+        food_loss_waste="processing/{name}/food_loss_waste.csv",
+    params:
+        countries=config["countries"],
+        reference_year=config["health"]["reference_year"],
+    output:
+        diet="processing/{name}/faostat_dietary_intake.csv",
+    log:
+        "logs/{name}/prepare_faostat_dietary_intake.log",
+    script:
+        "scripts/prepare_faostat_dietary_intake.py"
+
+
+rule merge_dietary_sources:
+    input:
+        gdd="processing/{name}/gdd_dietary_intake.csv",
+        faostat="processing/{name}/faostat_dietary_intake.csv",
+    output:
+        diet="processing/{name}/dietary_intake.csv",
+    log:
+        "logs/{name}/merge_dietary_sources.log",
+    script:
+        "scripts/merge_dietary_sources.py"
+
+
 rule prepare_food_loss_waste:
     input:
         m49="data/M49-codes.csv",
@@ -316,7 +342,7 @@ rule prepare_life_table:
 rule prepare_health_costs:
     input:
         regions="processing/{name}/regions.geojson",
-        diet="processing/{name}/gdd_dietary_intake.csv",
+        diet="processing/{name}/dietary_intake.csv",
         relative_risks="processing/{name}/health/relative_risks.csv",
         dr="processing/{name}/health/gbd_mortality_rates.csv",
         population="processing/{name}/population_age.csv",
@@ -636,7 +662,7 @@ rule build_model:
         multi_cropping_yields="processing/{name}/multi_cropping/cycle_yields.csv",
         edible_portion="processing/{name}/fao_edible_portion.csv",
         population="processing/{name}/population.csv",
-        baseline_diet="processing/{name}/gdd_dietary_intake.csv",
+        baseline_diet="processing/{name}/dietary_intake.csv",
         food_loss_waste="processing/{name}/food_loss_waste.csv",
         costs="processing/{name}/crop_costs.csv",
         animal_costs="processing/{name}/animal_costs.csv",

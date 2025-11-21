@@ -169,9 +169,11 @@ FAOSTAT Food Balance Sheets (FBS)
 
 **License**: CC BY 4.0 + FAO database terms
 
-**Retrieval**: Via the ``faostat`` Python client inside ``workflow/scripts/prepare_food_loss_waste.py``.
+**Retrieval**: Via the ``faostat`` Python client inside ``workflow/scripts/prepare_food_loss_waste.py`` and ``workflow/scripts/prepare_faostat_dietary_intake.py``.
 
-**Usage**: Converts per-capita waste (kg) to fractions relative to available food supply.
+**Usage**:
+  * **Food Waste**: Converts per-capita waste (kg) to fractions relative to available food supply.
+  * **Dietary Intake**: Provides baseline consumption data for **dairy**, **poultry**, and **vegetable oils**, supplementing the GDD intake surveys.
 
 UNSD SDG Indicator 12.3.1 (Food Loss & Waste)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
