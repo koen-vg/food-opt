@@ -239,9 +239,10 @@ def add_feed_to_animal_product_links(
             all_bus3.append(f"fertilizer_{country}")
             all_carrier.append(f"produce_{row['product']}")
             all_efficiency.append(row["efficiency"])
-            # Convert per-tonne emissions/nutrients to per-Mt or per-tonne flows
+            # Convert per-tonne emissions to per-Mt flows (CH4, N2O in t; feed in Mt)
+            # Manure N needs no conversion: t N / t feed = Mt N / Mt feed (ratio is scale-invariant)
             all_ch4.append(ch4_per_t_feed * constants.MEGATONNE_TO_TONNE)
-            all_n_fert.append(n_fert_per_t_feed * constants.TONNE_TO_MEGATONNE)
+            all_n_fert.append(n_fert_per_t_feed)
             all_n2o.append(n2o_per_t_feed * constants.MEGATONNE_TO_TONNE)
             all_marginal_cost.append(marginal_cost)
 
