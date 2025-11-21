@@ -169,48 +169,62 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
         return
 
     # Add constraints for each residue bus
-    constraint_count = 0
     ratio = max_feed_fraction / (1.0 - max_feed_fraction)
 
-    # Group feed links by their bus0 (residue bus)
-    for residue_bus, feed_group in feed_links_df.groupby("bus0"):
-        # Find the incorporation link for this residue bus
-        incorp_links_for_bus = incorp_links_df[incorp_links_df["bus0"] == residue_bus]
+    # Identify common residue buses
+    feed_buses = set(feed_links_df["bus0"].unique())
+    incorp_buses = set(incorp_links_df["bus0"].unique())
+    common_buses = sorted(feed_buses.intersection(incorp_buses))
 
-        if incorp_links_for_bus.empty:
-            logger.warning(
-                "No incorporation link found for residue bus %s; skipping constraint",
-                residue_bus,
-            )
-            continue
-
-        # Get the incorporation link name (should be only one per residue bus)
-        incorp_link_name = incorp_links_for_bus.index[0]
-
-        # Sum all feed uses for this residue (may go to multiple feed categories)
-        feed_link_names = feed_group.index.tolist()
-        feed_sum = sum(link_p.sel(name=link_name) for link_name in feed_link_names)
-
-        # Get incorporation flow
-        incorporation_flow = link_p.sel(name=incorp_link_name)
-
-        # Add constraint: feed_sum ≤ ratio x incorporation_flow
-        m.add_constraints(
-            feed_sum <= ratio * incorporation_flow,
-            name=f"residue_feed_limit_{residue_bus}",
-        )
-        constraint_count += 1
-
-    if constraint_count > 0:
-        logger.info(
-            "Added %d residue feed limit constraints (max %.0f%% for feed)",
-            constraint_count,
-            max_feed_fraction * 100,
-        )
-    else:
+    if not common_buses:
         logger.info(
             "No residue feed limit constraints added (no matching residue flows found)"
         )
+        return
+
+    # Filter DataFrames to common buses
+    feed_links_df = feed_links_df[feed_links_df["bus0"].isin(common_buses)]
+    incorp_links_df = incorp_links_df[incorp_links_df["bus0"].isin(common_buses)]
+
+    # Prepare mapping DataArrays for groupby
+    # Map feed link names to their residue bus
+    feed_bus_map = xr.DataArray(
+        feed_links_df["bus0"],
+        coords={"name": feed_links_df.index},
+        dims="name",
+        name="residue_bus",
+    )
+
+    # Map incorp link names to their residue bus
+    incorp_bus_map = xr.DataArray(
+        incorp_links_df["bus0"],
+        coords={"name": incorp_links_df.index},
+        dims="name",
+        name="residue_bus",
+    )
+
+    # Get variables
+    feed_vars = link_p.sel(name=feed_links_df.index)
+    incorp_vars = link_p.sel(name=incorp_links_df.index)
+
+    # Sum/Group
+    # Group feed vars by residue bus and sum
+    feed_sum = feed_vars.groupby(feed_bus_map).sum()
+
+    # Group incorp vars by residue bus and sum (handles alignment)
+    incorp_flow = incorp_vars.groupby(incorp_bus_map).sum()
+
+    # 6. Add constraints
+    m.add_constraints(
+        feed_sum <= ratio * incorp_flow,
+        name="residue_feed_limit",
+    )
+
+    logger.info(
+        "Added %d residue feed limit constraints (max %.0f%% for feed)",
+        len(common_buses),
+        max_feed_fraction * 100,
+    )
 
 
 def _load_fao_animal_production(fao_data_path: str) -> dict[str, float]:
