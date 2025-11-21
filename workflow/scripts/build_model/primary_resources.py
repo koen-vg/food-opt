@@ -131,7 +131,11 @@ def add_fertilizer_distribution_links(
     countries: Iterable[str],
     synthetic_n2o_factor: float,
 ) -> None:
-    """Connect the global fertilizer supply bus to country-level fertilizer buses."""
+    """Connect the global fertilizer supply bus to country-level fertilizer buses.
+
+    Also adds extendable stores at each country's fertilizer bus to absorb excess
+    manure nitrogen when crop demand is insufficient.
+    """
 
     country_list = list(countries)
     if not country_list:
@@ -146,10 +150,19 @@ def add_fertilizer_distribution_links(
         "p_nom_extendable": True,
     }
 
-    emission_mt_per_mt = max(0.0, float(synthetic_n2o_factor)) * constants.N2O_N_TO_N2O
+    emission_mt_per_mt = float(synthetic_n2o_factor) * constants.N2O_N_TO_N2O
     if emission_mt_per_mt > 0.0:
         emission_t_per_mt = emission_mt_per_mt * constants.MEGATONNE_TO_TONNE
         params["bus2"] = "n2o"
         params["efficiency2"] = emission_t_per_mt
 
     n.links.add(names, **params)
+
+    # Add extendable stores to absorb excess fertilizer (primarily manure nitrogen
+    # from animal production when crop demand is insufficient)
+    n.stores.add(
+        [f"fertilizer_store_{country}" for country in country_list],
+        bus=[f"fertilizer_{country}" for country in country_list],
+        carrier="fertilizer",
+        e_nom_extendable=True,
+    )

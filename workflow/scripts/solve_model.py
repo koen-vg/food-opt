@@ -635,7 +635,7 @@ if __name__ == "__main__":
     logger.info("Linopy model created.")
 
     solver_name = snakemake.params.solver
-    solver_options = snakemake.params.solver_options or {}
+    solver_options = snakemake.params.solver_options
     io_api = snakemake.params.io_api
 
     # Configure Gurobi to write detailed logs to the same file
