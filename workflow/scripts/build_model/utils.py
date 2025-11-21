@@ -59,7 +59,7 @@ def _per_capita_to_bus_units(
             value_per_person_per_day
             * population
             * constants.DAYS_PER_YEAR
-            * constants.KCAL_TO_GCAL
+            * constants.KCAL_TO_PJ
         )
     raise ValueError(f"Unsupported nutrient kind '{kind}' for unit '{unit}'")
 
@@ -83,7 +83,7 @@ def _carrier_unit_for_nutrient(unit: str) -> str:
     if kind == "mass":
         return "Mt"
     if kind == "energy":
-        return "Gcal"
+        return "PJ"
     raise ValueError(f"Unsupported nutrient kind '{kind}'")
 
 
@@ -348,17 +348,21 @@ def _calculate_ch4_per_feed_intake(
             enteric_t_per_t = enteric_my_lookup[category] / 1000.0
             total_ch4_per_t_feed += enteric_t_per_t
 
-    # Add manure CH4 (all animal products)
-    manure_row = manure_emissions[
-        (manure_emissions["country"] == country)
-        & (manure_emissions["product"] == product)
-        & (manure_emissions["feed_category"] == feed_category)
-    ]
+    # Add manure CH4 (confined systems only, not pasture)
+    # For grassland grazing, manure is deposited on pasture where aerobic
+    # decomposition results in negligible CH4 (IPCC MCF ~0.5% for PRP).
+    # We therefore skip manure CH4 for grassland feed categories.
+    if not feed_category.endswith("_grassland"):
+        manure_row = manure_emissions[
+            (manure_emissions["country"] == country)
+            & (manure_emissions["product"] == product)
+            & (manure_emissions["feed_category"] == feed_category)
+        ]
 
-    if not manure_row.empty:
-        # Convert from kg CH4/kg DM to t CH4/t DM
-        manure_kg_per_kg = manure_row["manure_ch4_kg_per_kg_DMI"].values[0]
-        manure_t_per_t = manure_kg_per_kg / 1000.0
-        total_ch4_per_t_feed += manure_t_per_t
+        if not manure_row.empty:
+            # Convert from kg CH4/kg DM to t CH4/t DM
+            manure_kg_per_kg = manure_row["manure_ch4_kg_per_kg_DMI"].values[0]
+            manure_t_per_t = manure_kg_per_kg / 1000.0
+            total_ch4_per_t_feed += manure_t_per_t
 
     return total_ch4_per_t_feed  # t CH4 / t feed DM

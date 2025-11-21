@@ -16,10 +16,12 @@ MEGATONNE_TO_TONNE = 1e6  # convert megatonnes to tonnes
 KG_TO_MEGATONNE = 1e-9  # convert kilograms to megatonnes
 GRAMS_PER_MEGATONNE = 1e12  # grams per megatonne of mass
 FOOD_PORTION_TO_MASS_FRACTION = 1e-2  # convert x per 100g to mass fraction
-KCAL_TO_GCAL = 1e-6  # convert kilocalories to gigacalories (Gcal)
-KCAL_PER_100G_TO_GCAL_PER_MEGATONNE = (
-    FOOD_PORTION_TO_MASS_FRACTION * GRAMS_PER_MEGATONNE * KCAL_TO_GCAL
-)  # kcal/100g to Gcal per Mt of food
+# Energy: use petajoules throughout to keep magnitudes modest
+# 1 kcal = 4.184 kJ = 4.184e-12 PJ
+KCAL_TO_PJ = 4.184e-12  # convert kilocalories to petajoules
+KCAL_PER_100G_TO_PJ_PER_MEGATONNE = (
+    FOOD_PORTION_TO_MASS_FRACTION * GRAMS_PER_MEGATONNE * KCAL_TO_PJ
+)  # kcal/100g to PJ per Mt of food
 USD_TO_BNUSD = 1e-9  # convert USD to billion USD
 DAYS_PER_YEAR = 365
 N2O_N_TO_N2O = 44.0 / 28.0  # molecular weight ratio to convert N2O-N to N2O
@@ -32,6 +34,6 @@ SUPPORTED_NUTRITION_UNITS = {
     },
     "kcal/100g": {
         "kind": "energy",
-        "efficiency_factor": KCAL_PER_100G_TO_GCAL_PER_MEGATONNE,
+        "efficiency_factor": KCAL_PER_100G_TO_PJ_PER_MEGATONNE,
     },
 }

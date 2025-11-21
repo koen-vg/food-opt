@@ -174,7 +174,7 @@ The model uses consistent units throughout:
   * Nutritional mass (protein, etc.): grams/person/day → Mt/year
 
 **Energy**
-  * Nutritional energy (calories): kcal/person/day → Gcal (gigacalories)/year
+  * Nutritional energy (calories): kcal/person/day → PJ/year
 
 **Emissions**
   * Methane (CH₄) and nitrous oxide (N₂O): tonnes of gas, converted downstream to Mt CO₂-eq
@@ -190,8 +190,8 @@ The model uses consistent units throughout:
 Key conversion factors used in the code (``workflow/scripts/build_model.py``):
 
 * ``TONNE_TO_MEGATONNE = 1e-6``
-* ``KCAL_TO_GCAL = 1e-6``
-* ``KCAL_PER_100G_TO_GCAL_PER_MEGATONNE = 1e4``
+* ``KCAL_TO_PJ = 4.184e-12``
+* ``KCAL_PER_100G_TO_PJ_PER_MEGATONNE ≈ 4.184e-2``
 * ``DAYS_PER_YEAR = 365``
 
 Solver Configuration

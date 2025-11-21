@@ -24,7 +24,7 @@ except ImportError:  # Fallback to Snakemake's script-directory loader
 logger = logging.getLogger(__name__)
 
 GRAMS_PER_MEGATONNE = 1e12
-KCAL_PER_GCAL = 1e6
+KCAL_PER_PJ = 2.388e8  # kcal in one petajoule
 DAYS_PER_YEAR = 365
 
 
@@ -164,7 +164,7 @@ def _aggregate_group_calories(network: pypsa.Network, snapshot) -> pd.Series:
             bus_str = str(bus_value)
             if bus_str.startswith("group_"):
                 group_name = _group_from_bus(bus_str)
-            if bus_str.startswith("kcal_"):
+            if bus_str.startswith("cal_"):
                 kcal_leg = leg
 
         if group_name is None or kcal_leg is None:
@@ -289,7 +289,7 @@ def main() -> None:
     logger.info("Using snapshot '%s' for aggregation", snapshot)
 
     mass = _aggregate_group_mass(network, snapshot)
-    calories = _aggregate_group_calories(network, snapshot)
+    calories_pj = _aggregate_group_calories(network, snapshot)
 
     population_df = pd.read_csv(population_path)
     if "population" not in population_df.columns:
@@ -299,7 +299,7 @@ def main() -> None:
         raise ValueError("Total population must be positive for per-capita conversion")
 
     mass_per_capita = mass * GRAMS_PER_MEGATONNE / (total_population * DAYS_PER_YEAR)
-    calories_per_capita = calories * KCAL_PER_GCAL / (total_population * DAYS_PER_YEAR)
+    calories_per_capita = calories_pj * KCAL_PER_PJ / (total_population * DAYS_PER_YEAR)
 
     logger.info(
         "Found %d food groups with mass data and %d with calorie data",

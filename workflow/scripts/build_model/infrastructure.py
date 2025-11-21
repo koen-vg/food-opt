@@ -104,7 +104,7 @@ def add_carriers_and_buses(
             _nutrient_kind(nutrient_units[nut]) == "energy"
             for nut in nutrient_list_sorted
         ):
-            scale_meta["macronutrient_kcal_to_Gcal"] = constants.KCAL_TO_GCAL
+            scale_meta["macronutrient_kcal_to_PJ"] = constants.KCAL_TO_PJ
 
     # Feed carriers per country (9 pools: 5 ruminant + 4 monogastric quality classes)
     feed_categories = [

@@ -140,7 +140,7 @@ This is handled internally by ``_per_capita_to_bus_units()`` in ``workflow/scrip
 From the model's perspective:
 
 * Food buses carry total food availability (Mt)
-* Nutrient buses carry total nutrient availability (Mt for mass, Gcal for energy)
+* Nutrient buses carry total nutrient availability (Mt for mass, PJ for energy)
 * Constraints compare these totals to population-scaled requirements
 
 Dietary Patterns
