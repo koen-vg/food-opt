@@ -636,6 +636,7 @@ if __name__ == "__main__":
 
     solver_name = snakemake.params.solver
     solver_options = snakemake.params.solver_options or {}
+    io_api = snakemake.params.io_api
 
     # Configure Gurobi to write detailed logs to the same file
     if solver_name.lower() == "gurobi" and snakemake.log:
@@ -680,6 +681,7 @@ if __name__ == "__main__":
 
     status, condition = n.model.solve(
         solver_name=solver_name,
+        io_api=io_api,
         **solver_options,
     )
     result = (status, condition)

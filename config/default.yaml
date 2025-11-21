@@ -785,6 +785,11 @@ crop_costs:
 solving:
   solver: highs
   # solver: gurobi
+  # io_api controls how the model is communicated to the solver:
+  # - 'lp' or 'mps': Write problem to file (LP/MPS format) which solver reads
+  # - 'direct': Use solver's Python API directly (e.g., gurobipy) for faster performance
+  # - null: Use linopy's default (typically 'lp')
+  io_api: null
   options_gurobi:
     LogToConsole: 0
     OutputFlag: 1

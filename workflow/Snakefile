@@ -709,6 +709,7 @@ rule solve_model:
         solver_options=config["solving"].get(
             f"options_{config['solving']['solver']}", {}
         ),
+        io_api=config["solving"]["io_api"],
     output:
         network="results/{name}/solved/model.nc",
     log:
