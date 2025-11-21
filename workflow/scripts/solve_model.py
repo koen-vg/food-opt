@@ -309,6 +309,60 @@ def add_animal_production_constraints(
     )
 
 
+def _get_consumption_link_map(
+    p_names: pd.Index,
+    food_map: pd.DataFrame,
+    cluster_lookup: dict[str, int],
+    cluster_population: dict[int, float],
+) -> pd.DataFrame:
+    """Map consumption links to health clusters and risk factors."""
+    # Filter for "consume_" prefix
+    # Use a Series for string accessor
+    s = pd.Series(p_names, index=p_names)
+    is_consume = s.str.startswith("consume_")
+    if not is_consume.any():
+        return pd.DataFrame()
+
+    s = s[is_consume]
+
+    # Split: consume_{food}_{country}
+    # rsplit("_", 1) gives [prefix, country]
+    splits = s.str.rsplit("_", n=1, expand=True)
+    if splits.shape[1] != 2:
+        return pd.DataFrame()
+
+    countries = splits[1]
+    # Remove "consume_" from prefix
+    foods = splits[0].str.slice(8)
+
+    df = pd.DataFrame(
+        {
+            "link_name": s.index,
+            "sanitized_food": foods,
+            "country": countries,
+        }
+    )
+
+    # Merge with food_map
+    # food_map index is sanitized_food
+    df = df.merge(food_map, left_on="sanitized_food", right_index=True)
+
+    # Map to cluster
+    df["cluster"] = df["country"].map(cluster_lookup)
+    df = df.dropna(subset=["cluster"])
+    df["cluster"] = df["cluster"].astype(int)
+
+    # Map to population
+    df["population"] = df["cluster"].map(cluster_population)
+    df = df[df["population"] > 0]
+
+    # Calculate coefficient
+    # share * GRAMS_PER_MT / (365 * pop)
+    df["coeff"] = df["share"] * GRAMS_PER_MT / (365.0 * df["population"])
+
+    return df
+
+
 def add_health_objective(
     n: pypsa.Network,
     risk_breakpoints_path: str,
@@ -377,33 +431,17 @@ def add_health_objective(
 
     p = m.variables["Link-p"].sel(snapshot="now")
 
-    terms_by_key: dict[tuple[int, str], list[tuple[float, object]]] = defaultdict(list)
+    # --- Stage 1: Intake to Log-RR ---
 
-    for link_name in p.coords["name"].values:
-        if not isinstance(link_name, str) or not link_name.startswith("consume_"):
-            continue
-        base, _, country = link_name.rpartition("_")
-        if not base.startswith("consume_") or len(country) != 3:
-            continue
-        sanitized_food = base[len("consume_") :]
-        if sanitized_food not in food_map.index:
-            continue
-        risk_factor = food_map.at[sanitized_food, "risk_factor"]
-        share = float(food_map.at[sanitized_food, "share"])
-        if share <= 0:
-            continue
-        cluster = cluster_lookup.get(country)
-        if cluster is None:
-            continue
-        population = float(cluster_population.get(cluster, 0.0))
-        if population <= 0:
-            continue
-        # Convert Mt/year of food flow into g/person/day for each cluster
-        coeff = share * GRAMS_PER_MT / (365.0 * population)
-        var = p.sel(name=link_name)
-        terms_by_key[(int(cluster), str(risk_factor))].append((coeff, var))
+    # Vectorized Link Mapping
+    link_map = _get_consumption_link_map(
+        pd.Index(p.coords["name"].values),
+        food_map,
+        cluster_lookup,
+        cluster_population,
+    )
 
-    if not terms_by_key:
+    if link_map.empty:
         logger.info("No consumption links map to health risk factors; skipping")
         return
 
@@ -429,32 +467,34 @@ def add_health_objective(
         for cause, df in cause_log_breakpoints.groupby("cause")
     }
 
-    log_rr_totals: dict[tuple[int, str], object] = {}
+    # Group (cluster, risk) pairs by intake coordinate patterns
+    # Identify unique (cluster, risk) pairs from the map
+    unique_pairs = link_map[["cluster", "risk_factor"]].drop_duplicates()
 
-    # Group (cluster, risk) pairs by their intake coordinate patterns
     intake_groups: dict[tuple[float, ...], list[tuple[int, str]]] = defaultdict(list)
-    for (cluster, risk), terms in terms_by_key.items():
+    for _, row in unique_pairs.iterrows():
+        cluster = int(row["cluster"])
+        risk = row["risk_factor"]
+
         risk_table = risk_data.get(risk)
-        if risk_table is None or not terms:
+        if risk_table is None:
             continue
-        coords = risk_table["intakes"]
-        if len(coords) == 0:
-            continue
-        coords_key = tuple(coords.values)
+
+        coords_key = tuple(risk_table["intakes"].values)
         intake_groups[coords_key].append((cluster, risk))
 
-    # Process each group with vectorized operations
-    for coords_key, cluster_risk_pairs in intake_groups.items():
+    log_rr_totals_dict = {}
+
+    for coords_key, group_pairs in intake_groups.items():
         coords = pd.Index(coords_key, name="intake")
 
-        # Create flattened index for this group
+        # Identify group labels
         cluster_risk_labels = [
-            f"c{cluster}_r{sanitize_identifier(risk)}"
-            for cluster, risk in cluster_risk_pairs
+            f"c{cluster}_r{sanitize_identifier(risk)}" for cluster, risk in group_pairs
         ]
         cluster_risk_index = pd.Index(cluster_risk_labels, name="cluster_risk")
 
-        # Single vectorized variable creation
+        # Create lambdas (vectorized)
         lambdas_group = m.add_variables(
             lower=0,
             upper=1,
@@ -475,35 +515,107 @@ def add_health_objective(
         # Vectorized convexity constraints
         m.add_constraints(lambdas_group.sum("intake") == 1)
 
-        # Process each (cluster, risk) for balance constraints and log_rr contributions
-        coeff_intake = xr.DataArray(
-            coords.values, coords={"intake": coords.values}, dims=["intake"]
+        # --- Intake Balance ---
+        # LHS: Sum of link flows * coeffs
+        # Filter link_map for this group
+        group_map_df = pd.DataFrame(group_pairs, columns=["cluster", "risk_factor"])
+        group_map_df["cluster_risk"] = cluster_risk_labels
+
+        # Join link_map with group_map_df
+        merged_links = link_map.merge(
+            group_map_df, on=["cluster", "risk_factor"], how="inner"
         )
 
-        for (cluster, risk), label in zip(cluster_risk_pairs, cluster_risk_labels):
-            terms = terms_by_key[(cluster, risk)]
-            lambdas = lambdas_group.sel(cluster_risk=label)
-
-            intake_expr = m.linexpr((coeff_intake, lambdas)).sum("intake")
-            flow_expr = m.linexpr(*terms)
-            m.add_constraints(
-                flow_expr == intake_expr,
-                name=f"health_intake_balance_c{cluster}_r{sanitize_identifier(risk)}",
+        if not merged_links.empty:
+            # Create sparse aggregation
+            relevant_links = merged_links["link_name"].values
+            # Construct DataArrays with "name" coordinate to align with p
+            coeffs = xr.DataArray(
+                merged_links["coeff"].values,
+                coords={"name": relevant_links},
+                dims="name",
+            )
+            grouper = xr.DataArray(
+                merged_links["cluster_risk"].values,
+                coords={"name": relevant_links},
+                dims="name",
             )
 
-            risk_table = risk_data[risk]
-            log_rr_matrix = risk_table["log_rr"]
-            for cause in log_rr_matrix.columns:
-                values = log_rr_matrix[cause].to_numpy()
-                coeff_log = xr.DataArray(
-                    values, coords={"intake": coords.values}, dims=["intake"]
-                )
-                contrib = m.linexpr((coeff_log, lambdas)).sum("intake")
-                key = (cluster, cause)
-                if key in log_rr_totals:
-                    log_rr_totals[key] = log_rr_totals[key] + contrib
+            # Groupby sum on DataArray of LinearExpressions (p) works in linopy
+            flow_expr = (p.sel(name=relevant_links) * coeffs).groupby(grouper).sum()
+
+            # RHS: Intake interpolation
+            coeff_intake = xr.DataArray(
+                coords.values, coords={"intake": coords.values}, dims="intake"
+            )
+            intake_expr = (lambdas_group * coeff_intake).sum("intake")
+
+            # Add constraints vectorized
+            m.add_constraints(
+                flow_expr == intake_expr,
+                name=f"health_intake_balance_group_{hash(coords_key)}",
+            )
+
+        # --- Log RR Calculation ---
+        # Collect log_rr matrices
+        log_rr_frames = []
+        for _cluster, risk in group_pairs:
+            df = risk_data[risk]["log_rr"]  # index=intake, cols=causes
+            log_rr_frames.append(df)
+
+        if not log_rr_frames:
+            continue
+
+        # Concat along cluster_risk dimension
+        combined_log_rr = pd.concat(
+            log_rr_frames,
+            keys=cluster_risk_index,
+            names=["cluster_risk", "intake"],
+        ).fillna(0.0)
+
+        # Convert to DataArray: (cluster_risk, intake, cause)
+        # Use stack() to flatten columns (cause) into index
+        s_log = combined_log_rr.stack()
+        s_log.index.names = ["cluster_risk", "intake", "cause"]
+        da_log = xr.DataArray.from_series(s_log).fillna(0.0)
+
+        # Calculate contribution: sum(lambda * log_rr) over intake
+        # lambdas_group: (cluster_risk, intake)
+        # da_log: (cluster_risk, intake, cause)
+        # Result: (cause, cluster_risk) of LinearExpressions
+        contrib = (lambdas_group * da_log).sum("intake")
+
+        # Accumulate into totals by grouping cluster_risk -> cluster
+        c_map = group_map_df.set_index("cluster_risk")["cluster"]
+        # Ensure we only map coords present in contrib
+        present_cr = contrib.coords["cluster_risk"].values
+        cluster_grouper = xr.DataArray(
+            c_map.loc[present_cr].values,
+            coords={"cluster_risk": present_cr},
+            dims="cluster_risk",
+            name="cluster",
+        )
+
+        # Group sum over cluster_risk -> yields (cause, cluster)
+        group_total = contrib.groupby(cluster_grouper).sum()
+
+        # Accumulate into dictionary for Stage 2
+        # group_total is a LinearExpression with dims (cause, cluster)
+        # We iterate over coordinates to extract scalar expressions
+
+        causes = group_total.coords["cause"].values
+        clusters = group_total.coords["cluster"].values
+
+        for c in clusters:
+            for cause in causes:
+                # Extract scalar expression for this (cluster, cause)
+                expr = group_total.sel(cluster=c, cause=cause)
+
+                key = (c, cause)
+                if key in log_rr_totals_dict:
+                    log_rr_totals_dict[key] = log_rr_totals_dict[key] + expr
                 else:
-                    log_rr_totals[key] = contrib
+                    log_rr_totals_dict[key] = expr
 
     constant_objective = 0.0
     objective_expr = None
@@ -590,7 +702,8 @@ def add_health_objective(
             lambda_total = lambda_total_group.sel(cluster_cause=label)
             rr_scaled = rr_scaled_group.sel(cluster_cause=label)
 
-            total_expr = log_rr_totals.get((cluster, cause), m.linexpr(0.0))
+            # Use dictionary lookup
+            total_expr = log_rr_totals_dict.get((cluster, cause), m.linexpr(0.0))
             cause_bp = data["cause_bp"]
 
             log_interp = m.linexpr((coeff_log_total, lambda_total)).sum("log_total")
