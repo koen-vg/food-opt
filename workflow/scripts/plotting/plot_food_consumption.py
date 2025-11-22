@@ -24,7 +24,7 @@ except ImportError:  # Fallback to Snakemake's script-directory loader
 logger = logging.getLogger(__name__)
 
 GRAMS_PER_MEGATONNE = 1e12
-KCAL_PER_PJ = 2.388e8  # kcal in one petajoule
+KCAL_PER_PJ = 2.388e11  # kcal in one petajoule (1 PJ = 10^15 J ÷ 4184 J/kcal)
 DAYS_PER_YEAR = 365
 
 
