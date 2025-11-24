@@ -47,6 +47,12 @@ emissions:
   fertilizer:
     synthetic_n2o_factor: 0.010 # kg N2O-N per kg N input (IPCC 2019 Refinement, Table 11.1 aggregated default)
     manure_n2o_factor: 0.010 # kg N2O-N per kg manure N applied (IPCC 2019 Refinement, Table 11.1 aggregated default)
+    # Indirect N2O emission parameters (IPCC 2019 Refinement, Chapter 11.2.2, Table 11.3)
+    indirect_ef4: 0.010 # kg N2O-N per kg (NH3-N + NOx-N) volatilized and deposited (EF4)
+    indirect_ef5: 0.011 # kg N2O-N per kg N leached/runoff (EF5)
+    frac_gasf: 0.11 # Fraction of synthetic fertilizer N volatilized as NH3 and NOx (FracGASF)
+    frac_gasm: 0.21 # Fraction of organic N and grazing N volatilized as NH3 and NOx (FracGASM)
+    frac_leach: 0.24 # Fraction of applied/deposited N lost through leaching and runoff in wet climates (FracLEACH-(H))
   residues:
     incorporation_n2o_factor: 0.010 # kg N2O-N per kg residue N incorporated into soil (IPCC 2019 Refinement, Table 11.1 aggregated default)
 

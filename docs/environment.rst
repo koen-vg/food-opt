@@ -485,17 +485,40 @@ This distinction reflects the practical reality that grazing manure cannot be re
 N₂O Emissions from Manure Application
 """"""""""""""""""""""""""""""""""""""
 
-Applied manure nitrogen produces direct N₂O emissions using the same IPCC Tier 1 methodology as synthetic fertilizer:
+Applied manure nitrogen produces both direct and indirect N₂O emissions following IPCC 2019 Refinement Tier 1 methodology (Chapter 11, Equations 11.1, 11.9, 11.10):
+
+**Direct N₂O emissions** (Equation 11.1):
 
 .. math::
 
-   N_2O = N_\text{fertilizer} \times EF_\text{manure} \times \frac{44}{28}
+   N_2O_\text{direct} = N_\text{applied} \times EF_1 \times \frac{44}{28}
+
+**Indirect N₂O from volatilization and atmospheric deposition** (Equation 11.9):
+
+.. math::
+
+   N_2O_\text{vol} = N_\text{applied} \times Frac_\text{GASM} \times EF_4 \times \frac{44}{28}
+
+**Indirect N₂O from leaching and runoff** (Equation 11.10):
+
+.. math::
+
+   N_2O_\text{leach} = N_\text{applied} \times Frac_\text{LEACH} \times EF_5 \times \frac{44}{28}
+
+**Total N₂O emissions**:
+
+.. math::
+
+   N_2O_\text{total} = N_2O_\text{direct} + N_2O_\text{vol} + N_2O_\text{leach}
 
 where:
-  * **EF**\ :sub:`manure` is the emission factor (kg N₂O-N per kg manure N applied)
+  * **N**\ :sub:`applied` is manure N applied to soil (F\ :sub:`ON`) or deposited on pasture (F\ :sub:`PRP`)
+  * **EF**\ :sub:`1` = 0.010 kg N₂O-N per kg N (direct emission factor, IPCC Table 11.1)
+  * **Frac**\ :sub:`GASM` = 0.21 kg NH₃-N + NOₓ-N per kg N (volatilization fraction for organic N, IPCC Table 11.3)
+  * **EF**\ :sub:`4` = 0.010 kg N₂O-N per kg volatilized N (indirect volatilization/deposition factor, IPCC Table 11.3)
+  * **Frac**\ :sub:`LEACH` = 0.24 kg N per kg N (leaching fraction in wet climates, IPCC Table 11.3)
+  * **EF**\ :sub:`5` = 0.011 kg N₂O-N per kg leached N (indirect leaching/runoff factor, IPCC Table 11.3)
   * **44/28** converts N₂O-N to N₂O (molecular weight ratio)
-
-The default emission factor (``emissions.fertilizer.manure_n2o_factor = 0.010``) matches the synthetic fertilizer factor and corresponds to the IPCC 2019 aggregated default from Table 11.1 (see Direct N₂O emission factors section above).
 
 Configuration
 """""""""""""
@@ -509,32 +532,42 @@ Manure nitrogen management is configured under ``fertilizer`` and ``emissions.fe
 
    emissions:
      fertilizer:
-       manure_n2o_factor: 0.010      # kg N₂O-N per kg manure N applied
+       manure_n2o_factor: 0.010      # kg N₂O-N per kg manure N (direct, EF1)
+       indirect_ef4: 0.010           # kg N₂O-N per kg volatilized N
+       indirect_ef5: 0.011           # kg N₂O-N per kg leached N
+       frac_gasm: 0.21               # Fraction of organic N volatilized
+       frac_leach: 0.24              # Fraction of N leached (wet climate)
 
 Implementation
 """"""""""""""
 
-Manure nitrogen is implemented in ``workflow/scripts/build_model.py`` within the ``add_feed_to_animal_product_links()`` function:
+Manure nitrogen is implemented in ``workflow/scripts/build_model/utils.py`` within the ``_calculate_manure_n_outputs()`` function:
 
 1. For each animal production link, calculate:
 
    * N excretion from feed N content (GLEAM) minus product N content (protein ÷ 6.25)
    * Manure N available as fertilizer:
 
-     - For ``ruminant_grassland``: 0 (manure deposited on pasture)
-     - For other feed categories: N excretion × recovery fraction
+     - For ``ruminant_grassland``: 0 (manure deposited on pasture, F\ :sub:`PRP`)
+     - For other feed categories: N excretion × recovery fraction (F\ :sub:`ON`)
 
-   * N₂O emissions:
+   * Total N₂O emissions (direct + indirect):
 
-     - For ``ruminant_grassland``: N excretion × emission factor × 44/28 (all excreted N)
-     - For other feed categories: manure N × emission factor × 44/28 (collected N only)
+     - Direct: N\ :sub:`applied` × EF\ :sub:`1` × 44/28
+     - Indirect volatilization: N\ :sub:`applied` × Frac\ :sub:`GASM` × EF\ :sub:`4` × 44/28
+     - Indirect leaching: N\ :sub:`applied` × Frac\ :sub:`LEACH` × EF\ :sub:`5` × 44/28
+
+   where N\ :sub:`applied` is:
+
+     - For ``ruminant_grassland``: All excreted N (pasture deposition)
+     - For other feed categories: Collected manure N (after recovery losses)
 
 2. Attach outputs to the link:
 
-   * ``bus3``: ``n_fertilizer`` (manure N contributing to fertilizer pool)
-   * ``bus4``: ``n2o`` (direct N₂O emissions)
+   * ``bus3``: ``fertilizer_{country}`` (manure N contributing to fertilizer pool)
+   * ``bus4``: ``n2o`` (total N₂O emissions including direct and indirect)
 
-This creates a closed nutrient cycle where livestock manure offsets synthetic fertilizer demand while incurring proportional N₂O emissions, with grazing systems correctly accounting for on-pasture deposition.
+This creates a closed nutrient cycle where livestock manure offsets synthetic fertilizer demand while incurring proportional N₂O emissions, with grazing systems correctly accounting for on-pasture deposition and all N sources including indirect emission pathways.
 
 Example Calculation
 """""""""""""""""""
@@ -547,7 +580,8 @@ Example Calculation
   * Product N: 18.59 ÷ 6.25 = 2.97 g N/100g = 29.7 g N/kg
   * Feed conversion efficiency: 0.15 (6.67 kg feed per kg product)
   * Recovery fraction: 0.75
-  * N₂O emission factor: 0.010
+  * Emission factors: EF\ :sub:`1` = 0.010, EF\ :sub:`4` = 0.010, EF\ :sub:`5` = 0.011
+  * Fractions: Frac\ :sub:`GASM` = 0.21, Frac\ :sub:`LEACH` = 0.24
 
 **Calculation** (per tonne of feed DM):
 
@@ -565,19 +599,22 @@ Example Calculation
 
       N_\text{excretion} = 0.0195 - 0.00446 = 0.0150 \text{ t N/t feed}
 
-3. Manure N fertilizer:
+3. Manure N fertilizer (collected manure):
 
    .. math::
 
-      N_\text{fertilizer} = 0.0150 \times 0.75 = 0.0113 \text{ t N/t feed}
+      N_\text{applied} = N_\text{fertilizer} = 0.0150 \times 0.75 = 0.0113 \text{ t N/t feed}
 
-4. N₂O emissions:
+4. N₂O emissions (direct + indirect):
 
    .. math::
 
-      N_2O = 0.0113 \times 0.010 \times \frac{44}{28} = 0.000178 \text{ t N}_2\text{O/t feed}
+      N_2O_\text{direct} &= 0.0113 \times 0.010 \times \frac{44}{28} = 0.000178 \text{ t N}_2\text{O/t feed} \\
+      N_2O_\text{vol} &= 0.0113 \times 0.21 \times 0.010 \times \frac{44}{28} = 0.000037 \text{ t N}_2\text{O/t feed} \\
+      N_2O_\text{leach} &= 0.0113 \times 0.24 \times 0.011 \times \frac{44}{28} = 0.000043 \text{ t N}_2\text{O/t feed} \\
+      N_2O_\text{total} &= 0.000178 + 0.000037 + 0.000043 = 0.000258 \text{ t N}_2\text{O/t feed}
 
-**Result**: Each tonne of feed produces 11.3 kg of manure N (contributing to the fertilizer pool) and 178 g of N₂O emissions.
+**Result**: Each tonne of feed produces 11.3 kg of manure N (contributing to the fertilizer pool) and 258 g of total N₂O emissions (178 g direct + 37 g volatilization + 43 g leaching).
 
 **Grazing Example**: Beef cattle on pasture (ruminant_grassland)
 
@@ -591,22 +628,25 @@ Using the same parameters as above but with pasture grazing:
 
       N_\text{fertilizer} = 0 \text{ (manure deposited on pasture, not collected)}
 
-4. N₂O emissions (from pasture deposition):
+4. N₂O emissions from pasture deposition (direct + indirect, all excreted N):
 
    .. math::
 
-      N_2O = 0.0150 \times 0.010 \times \frac{44}{28} = 0.000236 \text{ t N}_2\text{O/t feed}
+      N_\text{applied} &= 0.0150 \text{ t N/t feed (all excreted N)} \\
+      N_2O_\text{direct} &= 0.0150 \times 0.010 \times \frac{44}{28} = 0.000236 \text{ t N}_2\text{O/t feed} \\
+      N_2O_\text{vol} &= 0.0150 \times 0.21 \times 0.010 \times \frac{44}{28} = 0.000050 \text{ t N}_2\text{O/t feed} \\
+      N_2O_\text{leach} &= 0.0150 \times 0.24 \times 0.011 \times \frac{44}{28} = 0.000057 \text{ t N}_2\text{O/t feed} \\
+      N_2O_\text{total} &= 0.000236 + 0.000050 + 0.000057 = 0.000343 \text{ t N}_2\text{O/t feed}
 
-**Result**: No manure N enters the fertilizer pool, but 236 g N₂O per tonne feed is emitted from pasture deposition (higher than confined systems since all excreted N remains on pasture).
+**Result**: No manure N enters the fertilizer pool, but 343 g total N₂O per tonne feed is emitted from pasture deposition (236 g direct + 50 g volatilization + 57 g leaching). Higher than confined systems since all excreted N remains on pasture and is subject to emissions.
 
 Future Refinements
 ^^^^^^^^^^^^^^^^^^
 
 Planned improvements to manure emissions modeling:
 
-* **Climate zone differentiation**: Use actual climate zones for each region instead of averaging MCF across zones
+* **Climate zone differentiation**: Use actual climate zones for each region instead of averaging MCF across zones and using wet climate assumption for all regions
 * **Country-specific MMS distributions**: Currently all countries use global GLEAM averages
-* **Indirect N₂O emissions**: Add indirect N₂O from volatilization and leaching of manure N (IPCC EF₄ and EF₅)
 * **Manure management system emissions**: Differentiate N₂O emission factors by storage system (currently uses field-application factor for all)
 
 .. [3] FAO (2003). *Food energy - methods of analysis and conversion factors*. FAO Food and Nutrition Paper 77. Report of a Technical Workshop, Rome, 3-6 December 2002. https://www.fao.org/4/y5022e/y5022e03.htm

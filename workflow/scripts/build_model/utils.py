@@ -226,8 +226,15 @@ def _calculate_manure_n_outputs(
     nutrition: pd.DataFrame,
     manure_n_to_fertilizer: float,
     manure_n2o_factor: float,
+    indirect_ef4: float,
+    indirect_ef5: float,
+    frac_gasm: float,
+    frac_leach: float,
 ) -> tuple[float, float]:
     """Calculate manure N fertilizer and N₂O outputs per tonne feed intake.
+
+    Includes direct and indirect (volatilization and leaching) N₂O emissions
+    following IPCC 2019 Refinement methodology (Chapter 11, Equations 11.1, 11.9, 11.10).
 
     Parameters
     ----------
@@ -246,12 +253,20 @@ def _calculate_manure_n_outputs(
     manure_n_to_fertilizer : float
         Fraction of excreted N available as fertilizer
     manure_n2o_factor : float
-        kg N2O-N per kg manure N applied
+        kg N2O-N per kg manure N applied (direct emissions, EF1)
+    indirect_ef4 : float
+        kg N2O-N per kg (NH3-N + NOx-N) volatilized (indirect volatilization/deposition)
+    indirect_ef5 : float
+        kg N2O-N per kg N leached/runoff (indirect leaching)
+    frac_gasm : float
+        Fraction of organic N volatilized as NH3 and NOx (FracGASM)
+    frac_leach : float
+        Fraction of applied N lost through leaching/runoff (FracLEACH-(H))
 
     Returns
     -------
     tuple[float, float]
-        (N fertilizer t/t feed, N2O emissions t/t feed)
+        (N fertilizer t/t feed, total N2O emissions t/t feed including direct and indirect)
     """
     # Get feed N content (g N/kg DM)
     category_name = feed_category.split("_", 1)[
@@ -290,18 +305,42 @@ def _calculate_manure_n_outputs(
     if feed_category.endswith("_grassland"):
         # No N available as fertilizer (deposited on pasture)
         n_fertilizer_t_per_t_feed = 0.0
-        # But still produce N2O from pasture deposition
-        # Use the same N2O factor as for applied manure
-        n2o_n_t_per_t_feed = n_excreted_t_per_t_feed * manure_n2o_factor
+
+        # N2O from pasture deposition (F_PRP in IPCC terminology)
+        # All excreted N is subject to emissions
+        n_applied = n_excreted_t_per_t_feed
+
+        # Direct N2O (Equation 11.1)
+        n2o_direct_n = n_applied * manure_n2o_factor
+
+        # Indirect N2O from volatilization (Equation 11.9)
+        n2o_indirect_vol_n = n_applied * frac_gasm * indirect_ef4
+
+        # Indirect N2O from leaching (Equation 11.10)
+        n2o_indirect_leach_n = n_applied * frac_leach * indirect_ef5
+
+        # Total N2O-N and convert to N2O
+        n2o_n_t_per_t_feed = n2o_direct_n + n2o_indirect_vol_n + n2o_indirect_leach_n
         n2o_t_per_t_feed = n2o_n_t_per_t_feed * (44.0 / 28.0)
     else:
         # N available as fertilizer (after collection losses)
         n_fertilizer_t_per_t_feed = n_excreted_t_per_t_feed * manure_n_to_fertilizer
 
-        # N2O emissions from applied manure N
-        # N2O-N = manure_n * n2o_factor
-        # N2O = N2O-N * 44/28 (molecular weight conversion)
-        n2o_n_t_per_t_feed = n_fertilizer_t_per_t_feed * manure_n2o_factor
+        # N2O from applied organic fertilizer (F_ON in IPCC terminology)
+        # Only the collected/applied N is subject to emissions
+        n_applied = n_fertilizer_t_per_t_feed
+
+        # Direct N2O (Equation 11.1)
+        n2o_direct_n = n_applied * manure_n2o_factor
+
+        # Indirect N2O from volatilization (Equation 11.9)
+        n2o_indirect_vol_n = n_applied * frac_gasm * indirect_ef4
+
+        # Indirect N2O from leaching (Equation 11.10)
+        n2o_indirect_leach_n = n_applied * frac_leach * indirect_ef5
+
+        # Total N2O-N and convert to N2O
+        n2o_n_t_per_t_feed = n2o_direct_n + n2o_indirect_vol_n + n2o_indirect_leach_n
         n2o_t_per_t_feed = n2o_n_t_per_t_feed * (44.0 / 28.0)
 
     return n_fertilizer_t_per_t_feed, n2o_t_per_t_feed

@@ -417,8 +417,18 @@ if __name__ == "__main__":
     synthetic_n2o_factor = float(
         snakemake.params.emissions["fertilizer"]["synthetic_n2o_factor"]
     )
+    indirect_ef4 = float(snakemake.params.emissions["fertilizer"]["indirect_ef4"])
+    indirect_ef5 = float(snakemake.params.emissions["fertilizer"]["indirect_ef5"])
+    frac_gasf = float(snakemake.params.emissions["fertilizer"]["frac_gasf"])
+    frac_leach = float(snakemake.params.emissions["fertilizer"]["frac_leach"])
     primary_resources.add_fertilizer_distribution_links(
-        n, cfg_countries, synthetic_n2o_factor
+        n,
+        cfg_countries,
+        synthetic_n2o_factor,
+        indirect_ef4,
+        indirect_ef5,
+        frac_gasf,
+        frac_leach,
     )
 
     land_cfg = snakemake.params.land
@@ -553,6 +563,8 @@ if __name__ == "__main__":
         monogastric_feed_categories,
         cfg_countries,
         incorporation_n2o_factor,
+        indirect_ef5,
+        frac_leach,
     )
 
     # Animal production

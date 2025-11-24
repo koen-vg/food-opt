@@ -130,8 +130,15 @@ def add_fertilizer_distribution_links(
     n: pypsa.Network,
     countries: Iterable[str],
     synthetic_n2o_factor: float,
+    indirect_ef4: float,
+    indirect_ef5: float,
+    frac_gasf: float,
+    frac_leach: float,
 ) -> None:
     """Connect the global fertilizer supply bus to country-level fertilizer buses.
+
+    Includes direct and indirect N₂O emissions from synthetic fertilizer following
+    IPCC 2019 Refinement methodology (Chapter 11, Equations 11.1, 11.9, 11.10).
 
     Also adds extendable stores at each country's fertilizer bus to absorb excess
     manure nitrogen when crop demand is insufficient.
@@ -150,7 +157,20 @@ def add_fertilizer_distribution_links(
         "p_nom_extendable": True,
     }
 
-    emission_mt_per_mt = float(synthetic_n2o_factor) * constants.N2O_N_TO_N2O
+    # Calculate total N2O emissions (direct + indirect)
+    # Direct N2O (Equation 11.1)
+    direct_n2o_n = float(synthetic_n2o_factor)
+
+    # Indirect N2O from volatilization (Equation 11.9)
+    indirect_vol_n2o_n = frac_gasf * indirect_ef4
+
+    # Indirect N2O from leaching (Equation 11.10)
+    indirect_leach_n2o_n = frac_leach * indirect_ef5
+
+    # Total N2O-N per kg N applied, converted to N2O
+    total_n2o_n = direct_n2o_n + indirect_vol_n2o_n + indirect_leach_n2o_n
+    emission_mt_per_mt = total_n2o_n * constants.N2O_N_TO_N2O
+
     if emission_mt_per_mt > 0.0:
         emission_t_per_mt = emission_mt_per_mt * constants.MEGATONNE_TO_TONNE
         params["bus2"] = "n2o"

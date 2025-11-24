@@ -168,6 +168,10 @@ def add_feed_to_animal_product_links(
     # Get config parameters
     manure_n_to_fert = fertilizer_config["manure_n_to_fertilizer"]
     manure_n2o_factor = emissions_config["fertilizer"]["manure_n2o_factor"]
+    indirect_ef4 = emissions_config["fertilizer"]["indirect_ef4"]
+    indirect_ef5 = emissions_config["fertilizer"]["indirect_ef5"]
+    frac_gasm = emissions_config["fertilizer"]["frac_gasm"]
+    frac_leach = emissions_config["fertilizer"]["frac_leach"]
 
     # Build all link names and buses (expand each row for all countries)
     all_names = []
@@ -216,6 +220,10 @@ def add_feed_to_animal_product_links(
                 nutrition=nutrition,
                 manure_n_to_fertilizer=manure_n_to_fert,
                 manure_n2o_factor=manure_n2o_factor,
+                indirect_ef4=indirect_ef4,
+                indirect_ef5=indirect_ef5,
+                frac_gasm=frac_gasm,
+                frac_leach=frac_leach,
             )
 
             # Calculate marginal cost (cost per Mt feed input)

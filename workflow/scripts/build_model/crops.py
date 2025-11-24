@@ -948,12 +948,18 @@ def add_residue_soil_incorporation_links(
     monogastric_feed_categories: pd.DataFrame,
     countries: list[str],
     incorporation_n2o_factor: float,
+    indirect_ef5: float,
+    frac_leach: float,
 ) -> None:
     """Add links for crop residue incorporation into soil with N₂O emissions.
 
+    Includes direct and indirect (leaching) N₂O emissions from crop residues
+    following IPCC 2019 Refinement methodology (Chapter 11, Equations 11.1, 11.10).
+    Note: Volatilization pathway (EF4) is not applicable for incorporated residues.
+
     Residues left on the field decompose and release N₂O. This function creates
     links that consume residues and produce N₂O emissions based on their N content
-    and the IPCC emission factor.
+    and the IPCC emission factors.
 
     This processes ALL residues in the model, regardless of whether they're used
     for ruminant or monogastric feed. N content is looked up from whichever feed
@@ -976,7 +982,11 @@ def add_residue_soil_incorporation_links(
     countries : list[str]
         List of country ISO codes.
     incorporation_n2o_factor : float
-        IPCC EF1 emission factor (kg N₂O-N per kg N input).
+        IPCC EF1 emission factor for direct emissions (kg N₂O-N per kg N input).
+    indirect_ef5 : float
+        IPCC EF5 emission factor for leaching/runoff (kg N₂O-N per kg N leached).
+    frac_leach : float
+        Fraction of applied N lost through leaching/runoff (FracLEACH-(H)).
     """
 
     if not residue_feed_items:
@@ -1044,16 +1054,26 @@ def add_residue_soil_incorporation_links(
         else:
             n_content_g_per_kg = n_content_lookup[item]
 
-        # Calculate N₂O emission efficiency
-        # N₂O emissions (Mt N₂O) = residue_DM (Mt DM) x N_content (kg N / kg DM)
-        #                          x EF1 (kg N₂O-N / kg N) x (44/28) (kg N₂O / kg N₂O-N)
-        # Convert g/kg to kg/kg: n_content_g_per_kg / 1000
-        # Convert to tonnes per Mt
+        # Calculate N₂O emission efficiency (direct + indirect leaching)
+        # N content (kg N / kg DM)
+        n_content_kg_per_kg = n_content_g_per_kg / 1000.0
+
+        # Direct N₂O (Equation 11.1): kg N₂O-N per kg N
+        direct_n2o_n = incorporation_n2o_factor
+
+        # Indirect N₂O from leaching (Equation 11.10): kg N₂O-N per kg N
+        indirect_leach_n2o_n = frac_leach * indirect_ef5
+
+        # Total N₂O-N per kg N, converted to N₂O
+        total_n2o_n = direct_n2o_n + indirect_leach_n2o_n
+
+        # Total efficiency: tonnes N₂O per Mt residue DM
+        # = (kg N / kg DM) * (kg N₂O-N / kg N) * (44/28) * (tonnes per Mt)
         n2o_efficiency = (
-            (n_content_g_per_kg / 1000.0)  # g N/kg DM → kg N/kg DM
-            * incorporation_n2o_factor  # kg N₂O-N / kg N
-            * (44.0 / 28.0)  # kg N₂O / kg N₂O-N
-            * constants.MEGATONNE_TO_TONNE  # kg/kg → tonnes per Mt
+            n_content_kg_per_kg
+            * total_n2o_n
+            * (44.0 / 28.0)
+            * constants.MEGATONNE_TO_TONNE
         )
 
         for country in countries:
