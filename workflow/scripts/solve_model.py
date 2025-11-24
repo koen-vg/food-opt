@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from collections import defaultdict
-import logging
 import math
 from pathlib import Path
 import sys
@@ -38,15 +37,15 @@ except Exception:  # pragma: no cover - documentation build without linopy
 # Enable new PyPSA components API
 pypsa.options.api.new_components_api = True
 
+# Helpers and state for health objective construction
+HEALTH_OBJECTIVE_SCALE = 1e3  # scale RR interpolation to shrink cost coefficients
 HEALTH_AUX_MAP: dict[int, set[str]] = {}
+_SOS2_COUNTER = [0]  # Use list for mutable counter
 
 
 def _register_health_variable(m: "linopy.Model", name: str) -> None:
     aux = HEALTH_AUX_MAP.setdefault(id(m), set())
     aux.add(name)
-
-
-_SOS2_COUNTER = [0]  # Use list for mutable counter
 
 
 def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list[str]:
@@ -83,48 +82,21 @@ def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list
 
     # Vectorize SOS2 constraints: variable[i] <= binary[i-1] + binary[i]
     if n_points >= 2:
-        # Build adjacency matrix using numpy indexing
         adjacency_data = np.zeros((n_points, n_points - 1))
-
-        # Fill adjacency matrix using vectorized operations
-        # binary[i] affects variable[i] and variable[i+1]
         indices = np.arange(n_points - 1)
-        adjacency_data[indices, indices] = 1  # binary[i] -> variable[i]
-        adjacency_data[indices + 1, indices] = 1  # binary[i] -> variable[i+1]
+        adjacency_data[indices, indices] = 1
+        adjacency_data[indices + 1, indices] = 1
 
-        # Convert to DataArray with proper coordinates
         adjacency = xr.DataArray(
             adjacency_data,
             coords={sos_dim: coords, interval_dim: range(n_points - 1)},
             dims=[sos_dim, interval_dim],
         )
 
-        # Create constraint: variables <= adjacency @ binaries
         rhs = (adjacency * binaries).sum(interval_dim)
         m.add_constraints(variable <= rhs)
 
     return [binary_name]
-
-
-HEALTH_OBJECTIVE_SCALE = 1e3  # scale RR interpolation to shrink cost coefficients
-GRAMS_PER_MT = constants.GRAMS_PER_MEGATONNE
-
-# Logger will be configured in __main__ block
-logger = logging.getLogger(__name__)
-
-
-def sanitize_identifier(value: str) -> str:
-    return (
-        value.replace(" ", "_")
-        .replace("(", "")
-        .replace(")", "")
-        .replace("/", "_")
-        .replace("-", "_")
-    )
-
-
-def sanitize_food_name(food: str) -> str:
-    return sanitize_identifier(food)
 
 
 def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> None:
@@ -343,14 +315,13 @@ def _get_consumption_link_map(
     df = pd.DataFrame(
         {
             "link_name": consume_links.index,
-            "sanitized_food": consume_links["food"],
+            "food": consume_links["food"],
             "country": consume_links["country"],
         }
     )
 
     # Merge with food_map
-    # food_map index is sanitized_food
-    df = df.merge(food_map, left_on="sanitized_food", right_index=True)
+    df = df.merge(food_map, left_on="food", right_index=True)
 
     # Map to cluster
     df["cluster"] = df["country"].map(cluster_lookup)
@@ -361,9 +332,10 @@ def _get_consumption_link_map(
     df["population"] = df["cluster"].map(cluster_population)
     df = df[df["population"] > 0]
 
-    # Calculate coefficient
-    # share * GRAMS_PER_MT / (365 * pop)
-    df["coeff"] = df["share"] * GRAMS_PER_MT / (365.0 * df["population"])
+    # Calculate coefficient: share * grams per megatonne / (365 * population)
+    df["coeff"] = (
+        df["share"] * constants.GRAMS_PER_MEGATONNE / (365.0 * df["population"])
+    )
 
     return df
 
@@ -400,8 +372,7 @@ def add_health_objective(
     food_map = food_groups_df[food_groups_df["group"].isin(risk_factors)].copy()
     food_map = food_map.rename(columns={"group": "risk_factor"})
     food_map["share"] = 1.0
-    food_map["sanitized"] = food_map["food"].apply(sanitize_food_name)
-    food_map = food_map.set_index("sanitized")[["risk_factor", "share"]]
+    food_map = food_map.set_index("food")[["risk_factor", "share"]]
 
     cluster_lookup = cluster_map.set_index("country_iso3")["health_cluster"].to_dict()
     cluster_population_baseline = cluster_summary.set_index("health_cluster")[
@@ -495,9 +466,7 @@ def add_health_objective(
         coords = pd.Index(coords_key, name="intake")
 
         # Identify group labels
-        cluster_risk_labels = [
-            f"c{cluster}_r{sanitize_identifier(risk)}" for cluster, risk in group_pairs
-        ]
+        cluster_risk_labels = [f"c{cluster}_r{risk}" for cluster, risk in group_pairs]
         cluster_risk_index = pd.Index(cluster_risk_labels, name="cluster_risk")
 
         # Create lambdas (vectorized)
@@ -622,7 +591,6 @@ def add_health_objective(
                     log_rr_totals_dict[key] = log_rr_totals_dict[key] + expr
                 else:
                     log_rr_totals_dict[key] = expr
-
     constant_objective = 0.0
     objective_expr = None
 
@@ -664,8 +632,7 @@ def add_health_objective(
 
         # Create flattened index for this group
         cluster_cause_labels = [
-            f"c{cluster}_cause{sanitize_identifier(cause)}"
-            for cluster, cause in cluster_cause_pairs
+            f"c{cluster}_cause{cause}" for cluster, cause in cluster_cause_pairs
         ]
         cluster_cause_index = pd.Index(cluster_cause_labels, name="cluster_cause")
 
@@ -719,15 +686,14 @@ def add_health_objective(
                 dims=["log_total"],
             )
             rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total")
-            sanitized_cause = sanitize_identifier(cause)
             m.add_constraints(
                 rr_scaled == rr_interp * HEALTH_OBJECTIVE_SCALE,
-                name=f"health_rr_scaled_c{cluster}_cause{sanitized_cause}",
+                name=f"health_rr_scaled_c{cluster}_cause{cause}",
             )
 
             m.add_constraints(
                 log_interp == total_expr,
-                name=f"health_total_balance_c{cluster}_cause{sanitized_cause}",
+                name=f"health_total_balance_c{cluster}_cause{cause}",
             )
 
             coeff = data["value_per_yll"] * data["yll_base"]
