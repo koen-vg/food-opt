@@ -161,6 +161,18 @@ rule plot_crop_use_breakdown:
         "../scripts/plotting/plot_crop_use_breakdown.py"
 
 
+rule plot_feed_breakdown:
+    input:
+        network="results/{name}/solved/model.nc",
+    output:
+        pdf="results/{name}/plots/feed_breakdown.pdf",
+        csv="results/{name}/plots/feed_breakdown.csv",
+    log:
+        "logs/{name}/plot_feed_breakdown.log",
+    script:
+        "../scripts/plotting/plot_feed_breakdown.py"
+
+
 rule plot_food_consumption:
     input:
         network="results/{name}/solved/model.nc",
