@@ -233,12 +233,8 @@ def add_animal_production_constraints(
         logger.info("No animal production links found.")
         return
 
-    # Extract product from link carrier (remove "produce_" prefix)
-    # Example: "produce_dairy" -> "dairy"
-    products = prod_links["carrier"].str[8:]
-
-    # Extract country from link attribute (set during model building)
-    countries = prod_links["country"]
+    products = prod_links["product"].astype(str)
+    countries = prod_links["country"].astype(str)
 
     # Prepare DataArrays aligned with the filtered links
     link_names = prod_links.index
@@ -252,45 +248,38 @@ def add_animal_production_constraints(
     # Group by (product, country) and sum
     production_vars = link_p.sel(name=link_names)
 
-    # Groupby sum using multiple groupers
-    grouper_series = products.str.cat(countries, sep="|")
-    da_grouper = xr.DataArray(
-        grouper_series.values, coords={"name": link_names}, dims="name"
+    grouper = pd.MultiIndex.from_arrays(
+        [products.values, countries.values], names=["product", "country"]
     )
+    da_grouper = xr.DataArray(grouper, coords={"name": link_names}, dims="name")
 
     total_production = (production_vars * efficiencies).groupby(da_grouper).sum()
 
-    # Prepare RHS (targets)
-    # Create keys from FAO data without mutating the input DataFrame
-    fao_keys = fao_production["product"] + "|" + fao_production["country"]
-    target_df = fao_production.set_index(fao_keys)["production_mt"]
+    target_series = fao_production.set_index(["product", "country"])[
+        "production_mt"
+    ].astype(float)
 
-    # Filter to keys present in the model
-    model_keys = pd.Index(total_production.coords["group"].values)
+    model_index = pd.Index(total_production.coords["group"].values, name="group")
+    common_index = model_index.intersection(target_series.index)
 
-    # Align targets
-    common_keys = model_keys.intersection(target_df.index)
-
-    if common_keys.empty:
+    if common_index.empty:
         logger.warning(
             "No matching animal production targets found for model structure."
         )
         return
 
-    # Select relevant model expressions
-    lhs = total_production.sel(group=common_keys)
-
-    # Create RHS DataArray
+    lhs = total_production.sel(group=common_index)
     rhs = xr.DataArray(
-        target_df.loc[common_keys].values, coords={"group": common_keys}, dims="group"
+        target_series.loc[common_index].values,
+        coords={"group": common_index},
+        dims="group",
     )
 
-    # Add constraints
     m.add_constraints(lhs == rhs, name="animal_production_target")
 
     logger.info(
         "Added %d country-level animal production constraints",
-        len(common_keys),
+        len(common_index),
     )
 
 
