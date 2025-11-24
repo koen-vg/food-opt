@@ -673,6 +673,22 @@ rule build_model:
         luc_carbon_coefficients="processing/{name}/luc/luc_carbon_coefficients.csv",
         current_grassland_area="processing/{name}/luc/current_grassland_area_by_class.csv",
         grazing_only_land="processing/{name}/land_grazing_only_by_class.csv",
+        build_scripts=expand(
+            "workflow/scripts/build_model/{script}",
+            script=[
+                "animals.py",
+                "biomass.py",
+                "constants.py",
+                "crops.py",
+                "food.py",
+                "infrastructure.py",
+                "land.py",
+                "nutrition.py",
+                "primary_resources.py",
+                "trade.py",
+                "utils.py",
+            ],
+        ),
     params:
         crops=config["crops"],
         multiple_cropping=config["multiple_cropping"],
