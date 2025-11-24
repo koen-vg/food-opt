@@ -736,6 +736,7 @@ rule solve_model:
             f"options_{config['solving']['solver']}", {}
         ),
         io_api=config["solving"]["io_api"],
+        netcdf_compression=config["solving"].get("netcdf_compression"),
     output:
         network="results/{name}/solved/model.nc",
     log:

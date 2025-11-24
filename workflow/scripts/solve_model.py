@@ -736,6 +736,7 @@ if __name__ == "__main__":
     solver_name = snakemake.params.solver
     solver_options = snakemake.params.solver_options
     io_api = snakemake.params.io_api
+    netcdf_compression = snakemake.params.netcdf_compression
 
     # Configure Gurobi to write detailed logs to the same file
     if solver_name.lower() == "gurobi" and snakemake.log:
@@ -803,7 +804,10 @@ if __name__ == "__main__":
             if removed:
                 variables_container.data.update(removed)
 
-        n.export_to_netcdf(snakemake.output.network)
+        n.export_to_netcdf(
+            snakemake.output.network,
+            compression=netcdf_compression,
+        )
     elif condition in {"infeasible", "infeasible_or_unbounded"}:
         logger.error("Model is infeasible or unbounded!")
         if solver_name.lower() == "gurobi":

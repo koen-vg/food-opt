@@ -799,6 +799,11 @@ solving:
   options_highs:
     solver: "ipm"
     mip_rel_gap: 0.001  # align relative gap with gurobi setting
+  # NetCDF export settings for solved network
+  # Passed to xarray.Dataset.to_netcdf via PyPSA; None disables compression.
+  netcdf_compression:
+    zlib: true
+    complevel: 4
 
 # --- section: plotting ---
 plotting:
