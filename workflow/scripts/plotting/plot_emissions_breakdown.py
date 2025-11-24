@@ -108,16 +108,16 @@ def extract_emissions_by_source(
     """
     # Initialize nested dict for emissions by gas and source
     emissions: dict[str, dict[str, float]] = {
-        "CO₂": defaultdict(float),
-        "CH₄": defaultdict(float),
-        "N₂O": defaultdict(float),
+        "CO2": defaultdict(float),
+        "CH4": defaultdict(float),
+        "N2O": defaultdict(float),
     }
 
     # GWP factors for each gas
     gwp_factors = {
-        "co2": ("CO₂", 1.0),
-        "ch4": ("CH₄", ch4_gwp),
-        "n2o": ("N₂O", n2o_gwp),
+        "co2": ("CO2", 1.0),
+        "ch4": ("CH4", ch4_gwp),
+        "n2o": ("N2O", n2o_gwp),
     }
 
     # Carriers representing conversion links to be excluded (sinks)
@@ -149,7 +149,7 @@ def extract_emissions_by_source(
         gas_name, gwp_factor = gwp_factors[bus_carrier]
 
         # Convert to CO2eq; CH4 and N2O flows are in tonnes
-        value_mt = value * 1e-6 if gas_name in ["CH₄", "N₂O"] else value
+        value_mt = value * 1e-6 if gas_name in ["CH4", "N2O"] else value
 
         emission_co2eq = value_mt * gwp_factor
 
@@ -165,6 +165,42 @@ def extract_emissions_by_source(
             category,
             carrier,
         )
+
+    # --- Split manure N2O into pasture vs collected application ---------------
+    # The energy balance groups all manure-related N2O under the carrier of the
+    # feed→animal links (categorised as "Manure management & application"). To
+    # compare directly with FAOSTAT, we split pasture-deposited manure (animals
+    # fed from ruminant_grassland) from collected manure that is applied as
+    # fertilizer. We compute the pasture share directly from the link flows so
+    # that scaling stays consistent with the GWP applied above.
+    if "Manure management & application" in emissions.get("N2O", {}):
+        try:
+            links_df = n.links.static
+            grass_mask = links_df.index.str.contains("ruminant_grassland") & (
+                links_df.carrier.str.startswith("produce_")
+            )
+
+            if grass_mask.any():
+                p4 = n.links_t.p4.loc[:, grass_mask]
+                weights = n.snapshot_weightings["objective"]
+                grass_t_n2o = -(p4.multiply(weights, axis=0).sum().sum())
+                grass_mtco2eq = grass_t_n2o * n2o_gwp * 1e-6
+
+                total_manure = emissions["N2O"].get(
+                    "Manure management & application", 0.0
+                )
+                collected_mtco2eq = max(total_manure - grass_mtco2eq, 0.0)
+
+                emissions["N2O"].pop("Manure management & application", None)
+                emissions["N2O"]["Manure: pasture deposition"] = grass_mtco2eq
+                emissions["N2O"]["Manure: managed systems"] = collected_mtco2eq
+            else:
+                logger.info(
+                    "No grassland manure links found; keeping aggregate manure category"
+                )
+        except Exception as e:
+            logger.warning("Failed to split grassland manure N2O: %s", e)
+
     return emissions
 
 
@@ -191,9 +227,9 @@ def process_faostat_emissions(
         All values in MtCO2eq
     """
     faostat_emissions: dict[str, dict[str, float]] = {
-        "CO₂": defaultdict(float),
-        "CH₄": defaultdict(float),
-        "N₂O": defaultdict(float),
+        "CO2": defaultdict(float),
+        "CH4": defaultdict(float),
+        "N2O": defaultdict(float),
     }
 
     # Mapping of FAOSTAT items to our categories
@@ -206,9 +242,9 @@ def process_faostat_emissions(
         "Drained organic soils (CO2)": "Drained organic soils",  # Handle variants
         "Drained organic soils (N2O)": "Drained organic soils",
         "Enteric Fermentation": "Enteric fermentation & Manure management",
-        "Manure Management": "Manure management & application",
-        "Manure applied to Soils": "Manure management & application",
-        "Manure left on Pasture": "Grassland",  # Treat as part of grassland emissions
+        "Manure Management": "Manure: managed systems",
+        "Manure applied to Soils": "Manure: managed systems",
+        "Manure left on Pasture": "Manure: pasture deposition",
         "Net Forest conversion": "Land Use Change",  # Positive emission
         # "Forestland": "Carbon sequestration",  # Excluded: represents standing forest sink
         # "Food Processing": "Food processing", # Excluded per user request
@@ -218,9 +254,9 @@ def process_faostat_emissions(
 
     # Mapping of FAOSTAT elements to gas types
     element_to_gas = {
-        "Emissions (CH4)": ("CH₄", ch4_gwp),
-        "Emissions (N2O)": ("N₂O", n2o_gwp),
-        "Emissions (CO2)": ("CO₂", 1.0),
+        "Emissions (CH4)": ("CH4", ch4_gwp),
+        "Emissions (N2O)": ("N2O", n2o_gwp),
+        "Emissions (CO2)": ("CO2", 1.0),
     }
 
     for _, row in faostat_df.iterrows():
@@ -253,12 +289,23 @@ def process_faostat_emissions(
     return faostat_emissions
 
 
+def load_emissions_csv(path: Path) -> dict[str, dict[str, float]]:
+    """Load emissions CSV (gas, source, emissions_mtco2eq) into nested dict."""
+
+    df = pd.read_csv(path, comment="#")
+    result: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    for _, row in df.iterrows():
+        result[row["gas"]][row["source"]] += float(row["emissions_mtco2eq"])
+    return {gas: dict(srcs) for gas, srcs in result.items()}
+
+
 def plot_emissions_breakdown(
     emissions: dict[str, dict[str, float]],
     faostat_emissions: dict[str, dict[str, float]],
+    gleam_emissions: dict[str, dict[str, float]] | None,
     output_path: Path,
 ) -> None:
-    """Create side-by-side stacked bar plots for each gas in CO2eq units, comparing modeled and FAOSTAT actual emissions.
+    """Create side-by-side stacked bar plots for each gas in CO2eq units, comparing modeled, FAOSTAT, and GLEAM.
 
     Parameters
     ----------
@@ -269,7 +316,7 @@ def plot_emissions_breakdown(
     output_path : Path
         Path to save the PDF plot
     """
-    fig, axes = plt.subplots(1, 3, figsize=(12, 7), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(14, 7), sharey=True)
 
     fig.suptitle(
         "Global Emissions Breakdown by Source: Modeled vs. FAOSTAT",
@@ -280,19 +327,22 @@ def plot_emissions_breakdown(
 
     # Define gas-specific base colormaps
     gas_cmaps = {
-        "CO₂": "Greys",
-        "CH₄": "Greens",
-        "N₂O": "Oranges",
+        "CO2": "Greys",
+        "CH4": "Greens",
+        "N2O": "Oranges",
     }
 
     # Iterate through gases
-    for idx, gas in enumerate(["CO₂", "CH₄", "N₂O"]):
+    for idx, gas in enumerate(["CO2", "CH4", "N2O"]):
         ax = axes[idx]
 
         modeled_data = emissions.get(gas, {})
         actual_data = faostat_emissions.get(gas, {})
+        gleam_data = gleam_emissions.get(gas, {}) if gleam_emissions else {}
 
-        all_sources = sorted(set(modeled_data.keys()) | set(actual_data.keys()))
+        all_sources = sorted(
+            set(modeled_data.keys()) | set(actual_data.keys()) | set(gleam_data.keys())
+        )
         n_cats = len(all_sources)
 
         if not modeled_data and not actual_data:
@@ -317,87 +367,81 @@ def plot_emissions_breakdown(
         colors_for_categories.reverse()  # Largest value gets darker shade
         category_colors = dict(zip(all_sources, colors_for_categories))
 
-        bar_width = 0.35
-        x_modeled = -bar_width / 2
-        x_actual = bar_width / 2
+        bar_width = 0.5
+        x_modeled = 0.0
+        x_actual = 1.0
+        x_gleam = 2.0
 
-        # Plot Modeled Emissions
-        bottom_pos_modeled = 0.0
-        bottom_neg_modeled = 0.0
-        for source in all_sources:
-            value = modeled_data.get(source, 0.0)
-            color = category_colors.get(source, "#d9d9d9")  # Fallback color
-            if value > 0:
-                ax.bar(
-                    x_modeled,
-                    value,
-                    bottom=bottom_pos_modeled,
-                    width=bar_width,
-                    color=color,
-                    edgecolor="black",
-                    linewidth=0.5,
-                    label=source
-                    if source not in ax.get_legend_handles_labels()[1]
-                    else "",
-                )
-                bottom_pos_modeled += value
-            elif value < 0:
-                ax.bar(
-                    x_modeled,
-                    value,
-                    bottom=bottom_neg_modeled,
-                    width=bar_width,
-                    color=color,
-                    edgecolor="black",
-                    linewidth=0.5,
-                    label=source
-                    if source not in ax.get_legend_handles_labels()[1]
-                    else "",
-                )
-                bottom_neg_modeled += value
+        def stacked_bar(
+            x_pos: float,
+            data: dict[str, float],
+            sources: list[str],
+            colors: dict[str, str],
+            axis: plt.Axes,
+            width: float,
+        ) -> None:
+            bottom_pos = 0.0
+            bottom_neg = 0.0
+            for source in sources:
+                value = data.get(source, 0.0)
+                color = colors.get(source, "#d9d9d9")
+                if value > 0:
+                    axis.bar(
+                        x_pos,
+                        value,
+                        bottom=bottom_pos,
+                        width=width,
+                        color=color,
+                        edgecolor="black",
+                        linewidth=0.5,
+                        label=source
+                        if source not in axis.get_legend_handles_labels()[1]
+                        else "",
+                    )
+                    bottom_pos += value
+                elif value < 0:
+                    axis.bar(
+                        x_pos,
+                        value,
+                        bottom=bottom_neg,
+                        width=width,
+                        color=color,
+                        edgecolor="black",
+                        linewidth=0.5,
+                        label=source
+                        if source not in axis.get_legend_handles_labels()[1]
+                        else "",
+                    )
+                    bottom_neg += value
 
-        # Plot Actual Emissions
-        bottom_pos_actual = 0.0
-        bottom_neg_actual = 0.0
-        for source in all_sources:
-            value = actual_data.get(source, 0.0)
-            color = category_colors.get(source, "#d9d9d9")  # Fallback color
-            if value > 0:
-                ax.bar(
-                    x_actual,
-                    value,
-                    bottom=bottom_pos_actual,
-                    width=bar_width,
-                    color=color,
-                    edgecolor="black",
-                    linewidth=0.5,
-                    label=source
-                    if source not in ax.get_legend_handles_labels()[1]
-                    else "",
-                )
-                bottom_pos_actual += value
-            elif value < 0:
-                ax.bar(
-                    x_actual,
-                    value,
-                    bottom=bottom_neg_actual,
-                    width=bar_width,
-                    color=color,
-                    edgecolor="black",
-                    linewidth=0.5,
-                    label=source
-                    if source not in ax.get_legend_handles_labels()[1]
-                    else "",
-                )
-                bottom_neg_actual += value
+        stacked_bar(
+            x_modeled, modeled_data, all_sources, category_colors, ax, bar_width
+        )
+        stacked_bar(x_actual, actual_data, all_sources, category_colors, ax, bar_width)
+        if gleam_emissions is not None:
+            stacked_bar(
+                x_gleam, gleam_data, all_sources, category_colors, ax, bar_width
+            )
 
         # Set title and labels
         ax.set_title(gas, fontsize=14, fontweight="bold")
         if idx == 0:
             ax.set_ylabel("Emissions (MtCO₂eq)", fontsize=12)
-        ax.set_xticks([x_modeled, x_actual])
-        ax.set_xticklabels(["Modeled", "FAOSTAT"], fontsize=10)
-        ax.set_xlim(-bar_width * 1.5, bar_width * 1.5)
+        xticks = [x_modeled, x_actual]
+        xticklabels = ["Modeled", "FAOSTAT"]
+        if gleam_emissions is not None:
+            xticks.append(x_gleam)
+            xticklabels.append("GLEAM\n(livestock)")
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xticklabels, fontsize=10)
+        # Add some horizontal padding so bars sit centered under their labels
+        xmin = x_modeled - bar_width * 0.75
+        xmax = (
+            x_gleam + bar_width * 0.75
+            if gleam_emissions is not None
+            else x_actual + bar_width * 0.75
+        )
+        ax.set_xlim(xmin, xmax)
 
         # Add gridlines
         ax.grid(axis="y", alpha=0.3, linestyle="--")
@@ -496,6 +540,8 @@ if __name__ == "__main__":
         faostat_emissions_df, ch4_gwp, n2o_gwp
     )
 
+    gleam_emissions = load_emissions_csv(Path(snakemake.input.gleam_emissions))
+
     # Log summary
     for gas, sources in emissions.items():
         total = sum(sources.values())
@@ -509,4 +555,9 @@ if __name__ == "__main__":
     csv_path = Path(snakemake.output.csv)
 
     save_emissions_table(emissions, csv_path)
-    plot_emissions_breakdown(emissions, faostat_emissions_processed, pdf_path)
+    plot_emissions_breakdown(
+        emissions,
+        faostat_emissions_processed,
+        gleam_emissions,
+        pdf_path,
+    )

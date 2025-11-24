@@ -302,6 +302,7 @@ rule plot_emissions_breakdown:
     input:
         network="results/{name}/solved/model.nc",
         faostat_emissions="processing/{name}/faostat_emissions.csv",
+        gleam_emissions="data/gleam_livestock_emissions.csv",
     output:
         pdf="results/{name}/plots/emissions_breakdown.pdf",
         csv="results/{name}/plots/emissions_breakdown.csv",
