@@ -1,0 +1,226 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""
+Crop-related data preparation rules.
+
+Includes crop yields, harvested areas, multi-cropping, grassland yields,
+and crop residue processing.
+"""
+
+
+rule prepare_fao_edible_portion:
+    input:
+        table="data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx",
+        mapping="data/faostat_item_map.csv",
+    params:
+        crops=config["crops"],
+    output:
+        edible_portion="processing/{name}/fao_edible_portion.csv",
+    log:
+        "logs/{name}/prepare_fao_edible_portion.log",
+    script:
+        "../scripts/prepare_fao_edible_portion.py"
+
+
+def yield_and_suitability_for_crop(w):
+    """Get input files for build_crop_yields rule.
+
+    w.crop is the crop name (e.g., 'wheat')
+    w.water_supply is 'i' or 'r'
+    """
+    crop = w.crop
+    ws = w.water_supply
+    yield_kind = (
+        "actual_yield" if config["validation"]["use_actual_yields"] else "yield"
+    )
+
+    inputs = {
+        "yield_raster": gaez_path(yield_kind, ws, crop),
+        "suitability_raster": gaez_path("suitability", ws, crop),
+        "growing_season_start_raster": gaez_path("growing_season_start", ws, crop),
+        "growing_season_length_raster": gaez_path("growing_season_length", ws, crop),
+    }
+    if ws == "i":
+        inputs["water_requirement_raster"] = gaez_path("water_requirement", ws, crop)
+    return inputs
+
+
+rule build_crop_yields:
+    input:
+        unpack(yield_and_suitability_for_crop),
+        classes="processing/{name}/resource_classes.nc",
+        regions="processing/{name}/regions.geojson",
+        yield_unit_conversions="data/yield_unit_conversions.csv",
+        moisture_content="data/crop_moisture_content.csv",
+    params:
+        use_actual_yields=config["validation"]["use_actual_yields"],
+    output:
+        "processing/{name}/crop_yields/{crop}_{water_supply}.csv",
+    log:
+        "logs/{name}/build_crop_yields_{crop}_{water_supply}.log",
+    script:
+        "../scripts/build_crop_yields.py"
+
+
+rule extract_cropgrids_nc:
+    input:
+        zip_path="data/downloads/cropgrids_v1_08_nc_maps.zip",
+        mapping="data/cropgrids_mapping.csv",
+    output:
+        "processing/shared/cropgrids_nc/CROPGRIDSv1.08_{crop}.nc",
+    log:
+        "logs/shared/extract_cropgrids_{crop}.log",
+    shell:
+        r"""
+        mapped=$(awk -F, -v c="{wildcards.crop}" 'NR>1 && $1==c {{print $2}}' {input.mapping})
+        mkdir -p $(dirname {output})
+        if [ -z "$mapped" ]; then
+          : > {output}
+        else
+          unzip -oj {input.zip_path} "CROPGRIDSv1.08_NC_maps/CROPGRIDSv1.08_${{mapped}}.nc" -d $(dirname {output}) > {log} 2>&1
+          if [ "$mapped" != "{wildcards.crop}" ]; then
+            mv $(dirname {output})/CROPGRIDSv1.08_${{mapped}}.nc {output}
+          fi
+        fi
+        """
+
+
+rule resample_resource_classes_to_cropgrids:
+    input:
+        classes="processing/{name}/resource_classes.nc",
+    output:
+        "processing/{name}/resource_class_fractions_cropgrids.nc",
+    log:
+        "logs/{name}/resample_resource_classes_to_cropgrids.log",
+    script:
+        "../scripts/resample_resource_classes_to_cropgrids.py"
+
+
+rule build_harvested_area_cropgrids:
+    input:
+        cropgrids_nc=lambda w: f"processing/shared/cropgrids_nc/CROPGRIDSv1.08_{w.crop}.nc",
+        mapping="data/cropgrids_mapping.csv",
+        gaez_harvest_r=lambda w: gaez_path("harvested_area", "r", w.crop),
+        gaez_harvest_i=lambda w: gaez_path("harvested_area", "i", w.crop),
+        classes="processing/{name}/resource_classes.nc",
+        regions="processing/{name}/regions.geojson",
+        class_fractions="processing/{name}/resource_class_fractions_cropgrids.nc",
+    output:
+        "processing/{name}/harvested_area/cropgrids/{crop}_{water_supply}.csv",
+    log:
+        "logs/{name}/build_harvested_area_cropgrids_{crop}_{water_supply}.log",
+    script:
+        "../scripts/build_cropgrids_harvested_area.py"
+
+
+rule build_harvested_area_gaez:
+    input:
+        harvested_area_raster=lambda w: gaez_path(
+            "harvested_area", w.water_supply, w.crop
+        ),
+        classes="processing/{name}/resource_classes.nc",
+        regions="processing/{name}/regions.geojson",
+        crop_mapping="data/gaez_crop_code_mapping.csv",
+        faostat_production="processing/{name}/faostat_crop_production.csv",
+    output:
+        "processing/{name}/harvested_area/gaez/{crop}_{water_supply}.csv",
+    log:
+        "logs/{name}/build_harvested_area_gaez_{crop}_{water_supply}.log",
+    script:
+        "../scripts/build_harvested_area.py"
+
+
+def multi_cropping_inputs(_wildcards):
+    combos_cfg = config["multiple_cropping"]
+    crops_by_supply: dict[str, set[str]] = {"r": set(), "i": set()}
+    for combo_name, entry in combos_cfg.items():
+        water_supplies = entry.get("water_supplies", ["r"])
+        if isinstance(water_supplies, str):
+            water_supplies = [water_supplies]
+        for ws in water_supplies:
+            crops_by_supply[ws].update(entry["crops"])
+    inputs = {
+        "classes": "processing/{name}/resource_classes.nc",
+        "regions": "processing/{name}/regions.geojson",
+        "yield_unit_conversions": "data/yield_unit_conversions.csv",
+    }
+    for ws in ("r", "i"):
+        for crop in sorted(crops_by_supply[ws]):
+            prefix = f"{crop}_{ws}"
+            inputs[f"{prefix}_yield_raster"] = gaez_path("yield", ws, crop)
+            inputs[f"{prefix}_suitability_raster"] = gaez_path("suitability", ws, crop)
+            inputs[f"{prefix}_growing_season_start_raster"] = gaez_path(
+                "growing_season_start", ws, crop
+            )
+            inputs[f"{prefix}_growing_season_length_raster"] = gaez_path(
+                "growing_season_length", ws, crop
+            )
+            if ws == "i":
+                inputs[f"{prefix}_water_requirement_raster"] = gaez_path(
+                    "water_requirement", ws, crop
+                )
+        if crops_by_supply[ws]:
+            inputs[f"multiple_cropping_zone_{ws}"] = gaez_path(
+                "multiple_cropping_zone", ws, "all"
+            )
+    return inputs
+
+
+rule build_multi_cropping:
+    input:
+        unpack(multi_cropping_inputs),
+    params:
+        combinations=lambda wildcards: config["multiple_cropping"],
+        use_actual_yields=config["validation"]["use_actual_yields"],
+    output:
+        eligible="processing/{name}/multi_cropping/eligible_area.csv",
+        yields="processing/{name}/multi_cropping/cycle_yields.csv",
+    log:
+        "logs/{name}/build_multi_cropping.log",
+    script:
+        "../scripts/build_multi_cropping.py"
+
+
+rule build_grassland_yields:
+    input:
+        grassland="data/downloads/grassland_yield_historical.nc4",
+        classes="processing/{name}/resource_classes.nc",
+        regions="processing/{name}/regions.geojson",
+    output:
+        "processing/{name}/grassland_yields.csv",
+    log:
+        "logs/{name}/build_grassland_yields.log",
+    script:
+        "../scripts/build_grassland_yields.py"
+
+
+rule build_crop_residue_yields:
+    input:
+        yield_r=lambda wildcards: f"processing/{wildcards.name}/crop_yields/{wildcards.crop}_r.csv",
+        yield_i=lambda wildcards: (
+            f"processing/{wildcards.name}/crop_yields/{wildcards.crop}_i.csv"
+            if config["irrigation"]["irrigated_crops"] == "all"
+            or wildcards.crop in config["irrigation"]["irrigated_crops"]
+            else []
+        ),
+        gleam_supplement="data/downloads/gleam_3.0_supplement_s1.xlsx",
+        ruminant_feed_table="data/gleam_tables/ruminants_feed_yield_fractions.csv",
+        monogastric_feed_table="data/gleam_tables/monogastrics_feed_yeild_fractions.csv",
+        regions="processing/{name}/regions.geojson",
+    output:
+        "processing/{name}/crop_residue_yields/{crop}.csv",
+    log:
+        "logs/{name}/build_crop_residue_yields_{crop}.log",
+    script:
+        "../scripts/build_crop_residue_yields.py"
+
+
+def residue_yield_inputs(_wildcards):
+    return {
+        f"residue_{crop}": f"processing/{{name}}/crop_residue_yields/{crop}.csv"
+        for crop in (
+            set(config["animal_products"]["residue_crops"]) & set(config["crops"])
+        )
+    }

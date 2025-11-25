@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""
+Animal product and feed-related data preparation rules.
+
+Includes feed properties, feed categorization, feed-to-product conversions,
+and manure emissions calculations.
+"""
+
+
+rule prepare_gleam_feed_properties:
+    input:
+        gleam_supplement="data/downloads/gleam_3.0_supplement_s1.xlsx",
+        gleam_mapping="data/gleam_feed_mapping.csv",
+    output:
+        ruminant="processing/{name}/ruminant_feed_properties.csv",
+        monogastric="processing/{name}/monogastric_feed_properties.csv",
+    log:
+        "logs/{name}/prepare_gleam_feed_properties.log",
+    script:
+        "../scripts/prepare_gleam_feed_properties.py"
+
+
+rule categorize_feeds:
+    input:
+        ruminant_feed_properties="processing/{name}/ruminant_feed_properties.csv",
+        monogastric_feed_properties="processing/{name}/monogastric_feed_properties.csv",
+        enteric_methane_yields="data/ipcc_enteric_methane_yields.csv",
+        ash_content="data/feed_ash_content.csv",
+    output:
+        ruminant_categories="processing/{name}/ruminant_feed_categories.csv",
+        monogastric_categories="processing/{name}/monogastric_feed_categories.csv",
+        ruminant_mapping="processing/{name}/ruminant_feed_mapping.csv",
+        monogastric_mapping="processing/{name}/monogastric_feed_mapping.csv",
+    log:
+        "logs/{name}/categorize_feeds.log",
+    script:
+        "../scripts/categorize_feeds.py"
+
+
+rule build_feed_to_animal_products:
+    input:
+        wirsenius="data/wirsenius_feed_energy_requirements.csv",
+        ruminant_categories="processing/{name}/ruminant_feed_categories.csv",
+        monogastric_categories="processing/{name}/monogastric_feed_categories.csv",
+    output:
+        "processing/{name}/feed_to_animal_products.csv",
+    params:
+        wirsenius_regions=config["animal_products"]["wirsenius_regions"],
+        net_to_me_conversion=config["animal_products"][
+            "net_to_metabolizable_energy_conversion"
+        ],
+        carcass_to_retail=config["animal_products"]["carcass_to_retail_meat"],
+    log:
+        "logs/{name}/build_feed_to_animal_products.log",
+    script:
+        "../scripts/build_feed_to_animal_products.py"
+
+
+rule calculate_manure_emissions:
+    input:
+        ruminant_feed_categories="processing/{name}/ruminant_feed_categories.csv",
+        monogastric_feed_categories="processing/{name}/monogastric_feed_categories.csv",
+        b0_data="data/ipcc_manure_methane_producing_capacity.csv",
+        mcf_data="data/ipcc_manure_methane_conversion_factors.csv",
+        mms_fractions="data/gleam_tables/manure_management_systems_fraction.csv",
+    output:
+        "processing/{name}/manure_ch4_emission_factors.csv",
+    log:
+        "logs/{name}/calculate_manure_emissions.log",
+    script:
+        "../scripts/calculate_manure_emissions.py"

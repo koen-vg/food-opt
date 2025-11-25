@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""
+Geographic and spatial data preparation rules.
+
+Includes population, administrative boundaries, regional aggregation,
+and resource class computation.
+"""
+
+
+rule prepare_population:
+    input:
+        population_gz="data/downloads/WPP_population.csv.gz",
+    params:
+        planning_horizon=config["planning_horizon"],
+        countries=config["countries"],
+        health_reference_year=config["health"]["reference_year"],
+    output:
+        population="processing/{name}/population.csv",
+        population_age="processing/{name}/population_age.csv",
+    log:
+        "logs/{name}/prepare_population.log",
+    script:
+        "../scripts/prepare_population.py"
+
+
+rule simplify_gadm:
+    input:
+        "data/downloads/gadm.gpkg",
+    params:
+        simplify_min_area_km=config["aggregation"]["simplify_min_area_km"],
+        simplify_tolerance_km=config["aggregation"]["simplify_tolerance_km"],
+    output:
+        "processing/shared/gadm-simplified.gpkg",
+    log:
+        "logs/shared/simplify_gadm.log",
+    script:
+        "../scripts/simplify_gadm.py"
+
+
+rule build_regions:
+    input:
+        world="processing/shared/gadm-simplified.gpkg",
+    params:
+        n_regions=config["aggregation"]["regions"]["target_count"],
+        allow_cross_border=config["aggregation"]["regions"]["allow_cross_border"],
+        cluster_method=config["aggregation"]["regions"]["method"],
+        countries=config["countries"],
+    output:
+        "processing/{name}/regions.geojson",
+    log:
+        "logs/{name}/build_regions.log",
+    script:
+        "../scripts/build_regions.py"
+
+
+rule compute_resource_classes:
+    input:
+        yields=(
+            [gaez_path("yield", "r", crop) for crop in config["crops"]]
+            + [gaez_path("yield", "i", crop) for crop in config["crops"]]
+        ),
+        regions="processing/{name}/regions.geojson",
+    params:
+        resource_class_quantiles=config["aggregation"]["resource_class_quantiles"],
+    output:
+        classes="processing/{name}/resource_classes.nc",
+    log:
+        "logs/{name}/compute_resource_classes.log",
+    script:
+        "../scripts/compute_resource_classes.py"
+
+
+rule aggregate_class_areas:
+    input:
+        classes="processing/{name}/resource_classes.nc",
+        sr=[gaez_path("suitability", "r", crop) for crop in config["crops"]],
+        si=[gaez_path("suitability", "i", crop) for crop in config["crops"]],
+        irrigated_share="data/downloads/gaez_land_equipped_for_irrigation_share.tif",
+        regions="processing/{name}/regions.geojson",
+    params:
+        land_limit_dataset=config["aggregation"]["land_limit_dataset"],
+    output:
+        "processing/{name}/land_area_by_class.csv",
+    log:
+        "logs/{name}/aggregate_class_areas.log",
+    script:
+        "../scripts/aggregate_class_areas.py"
