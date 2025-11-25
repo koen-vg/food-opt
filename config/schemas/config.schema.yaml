@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: CC-BY-4.0
 
-$schema: "http://json-schema.org/draft-07/schema#"
+$schema: "https://json-schema.org/draft/2020-12/schema"
 title: Food Optimization Configuration Schema
 description: |
   Schema for validating global food systems optimization model configurations.
