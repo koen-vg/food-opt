@@ -17,6 +17,7 @@ validation:
   use_actual_production: false
   enforce_gdd_baseline: false # Set food consumption equal to current day values
   slack_marginal_cost: 1. # bn USD per Mt/Mha for validation slack (food groups, feed, land)
+  harvest_area_source: gaez  # Options: gaez (RES06), cropgrids
   production_year: 2021
 
 # --- section: land ---

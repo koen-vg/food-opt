@@ -57,6 +57,7 @@ if __name__ == "__main__":
     validation_slack_cost = float(
         validation_cfg["slack_marginal_cost"]
     )  # Already in bn USD
+    harvest_area_source = str(validation_cfg["harvest_area_source"])
 
     # ═══════════════════════════════════════════════════════════════
     # DATA LOADING
@@ -157,9 +158,7 @@ if __name__ == "__main__":
 
         for ws in expected_supplies:
             yields_key = f"{crop}_yield_{ws}"
-            yields_df, var_units = utils._load_crop_yield_table(
-                snakemake.input[yields_key]
-            )
+            yields_df, _ = utils._load_crop_yield_table(snakemake.input[yields_key])
             yields_data[yields_key] = yields_df
 
     harvested_area_data: dict[str, pd.DataFrame] = {}
@@ -205,7 +204,6 @@ if __name__ == "__main__":
     multi_cropping_cycle_df = read_csv(snakemake.input.multi_cropping_yields)
 
     luc_lef_lookup: dict[tuple[str, int, str, str], float] = {}
-    carbon_price = float(snakemake.params.emissions["ghg_price"])
     ch4_to_co2_factor = float(snakemake.params.emissions["ch4_to_co2_factor"])
     n2o_to_co2_factor = float(snakemake.params.emissions["n2o_to_co2_factor"])
     try:
@@ -409,7 +407,6 @@ if __name__ == "__main__":
         n,
         snakemake.params.fertilizer,
         region_water_limits,
-        carbon_price,
         ch4_to_co2_factor,
         n2o_to_co2_factor,
         use_actual_production=use_actual_production,
@@ -483,6 +480,7 @@ if __name__ == "__main__":
         fertilizer_n_rates,
         rice_methane_factor=rice_methane_factor,
         rainfed_wetland_rice_ch4_scaling_factor=rainfed_wetland_rice_ch4_scaling_factor,
+        harvest_area_source=harvest_area_source,
         residue_lookup=residue_lookup,
         harvested_area_data=harvested_area_data if use_actual_production else None,
         use_actual_production=use_actual_production,

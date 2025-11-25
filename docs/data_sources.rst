@@ -65,7 +65,7 @@ CROPGRIDS v1.08
 
 **Citation**: Tang, H., Nguyen, C., Conchedda, G., Casse, L., Tubiello, F. N., & Maggi, F. (2023). CROPGRIDS. *Scientific Data*, 10(1), 1-16.
 
-**Usage**: Yield gap analysis (comparing attainable vs. actual yields)
+**Usage**: Alternative harvested-area source for validation runs. ``harvarea`` stores total harvested area (counts multi-crop cycles); ``croparea`` stores physical cropped area. The model can derive cropping intensity as ``harvarea/croparea`` and split irrigated vs. rainfed using GAEZ irrigated shares.
 
 USDA Cost and Returns Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -8,11 +8,13 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Callable
 
+from .config_schema import validate_config_schema
 from .food_groups import validate_food_groups
 
 Validator = Callable[[dict, Path], None]
 
 _CHECKS: dict[str, Validator] = {
+    "config_schema": validate_config_schema,
     "food_groups": validate_food_groups,
 }
 

@@ -90,6 +90,14 @@ def _carrier_unit_for_nutrient(unit: str) -> str:
 def _load_crop_yield_table(path: str) -> tuple[pd.DataFrame, dict[str, str | float]]:
     df = pd.read_csv(path)
 
+    # Handle empty DataFrames (only headers, no data rows)
+    if df.empty:
+        # Create an empty DataFrame with the expected multi-index structure
+        empty_pivot = pd.DataFrame(
+            index=pd.MultiIndex.from_tuples([], names=["region", "resource_class"])
+        )
+        return empty_pivot, {}
+
     grouped_units = (
         df.groupby("variable")["unit"].agg(lambda s: s.dropna().unique()).to_dict()
     )
