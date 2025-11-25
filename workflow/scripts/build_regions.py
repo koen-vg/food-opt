@@ -119,7 +119,7 @@ def _cluster_coords(
         km = KMeans(n_clusters=k, n_init=10, random_state=random_state)
         labels = km.fit_predict(coords)
         return labels
-    elif method in {"ward", "agglomerative"}:
+    elif method == "agglomerative":
         # Ward linkage minimizes within-cluster variance (good heuristic)
         ac = AgglomerativeClustering(n_clusters=k, linkage="ward")
         labels = ac.fit_predict(coords)

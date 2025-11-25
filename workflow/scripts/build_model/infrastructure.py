@@ -153,7 +153,7 @@ def add_carriers_and_buses(
     scale_meta["ch4_t_to_Mt"] = constants.TONNE_TO_MEGATONNE
     scale_meta["ghg_t_to_Mt"] = constants.TONNE_TO_MEGATONNE
     scale_meta["n2o_t_to_Mt"] = constants.TONNE_TO_MEGATONNE
-    scale_meta["fertilizer_kg_to_Mt"] = constants.KG_TO_MEGATONNE
+    scale_meta["fertilizer_t_to_Mt"] = constants.TONNE_TO_MEGATONNE
     scale_meta["water_mm3_per_m3"] = constants.MM3_PER_M3
 
     for region in water_regions:

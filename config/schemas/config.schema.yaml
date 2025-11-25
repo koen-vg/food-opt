@@ -1,0 +1,1053 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+$schema: "http://json-schema.org/draft-07/schema#"
+title: Food Optimization Configuration Schema
+description: |
+  Schema for validating global food systems optimization model configurations.
+  Based on config/default.yaml structure.
+type: object
+required:
+  - planning_horizon
+  - currency_base_year
+  - downloads
+  - validation
+  - land
+  - fertilizer
+  - residues
+  - emissions
+  - luc
+  - crops
+  - multiple_cropping
+  - macronutrients
+  - byproducts
+  - animal_products
+  - grazing
+  - food_groups
+  - diet
+  - biomass
+  - trade
+  - health
+  - aggregation
+  - countries
+  - data
+  - irrigation
+  - animal_costs
+  - crop_costs
+  - solving
+  - plotting
+additionalProperties: false
+
+properties:
+  name:
+    type: string
+    pattern: "^[a-z0-9_-]+$"
+    description: "Optional config name identifier (overrides default)"
+
+  planning_horizon:
+    type: integer
+    minimum: 2020
+    maximum: 2100
+    description: "Target year for optimization (e.g., 2030)"
+
+  currency_base_year:
+    type: integer
+    minimum: 2020
+    maximum: 2024
+    description: "Base year for inflation-adjusted USD values"
+
+  downloads:
+    type: object
+    required: [show_progress]
+    additionalProperties: false
+    properties:
+      show_progress:
+        type: boolean
+        description: "Whether to show download progress bars"
+
+  validation:
+    type: object
+    required:
+      - use_actual_yields
+      - use_actual_production
+      - enforce_gdd_baseline
+      - slack_marginal_cost
+      - harvest_area_source
+      - production_year
+    additionalProperties: false
+    properties:
+      use_actual_yields:
+        type: boolean
+        description: "Use current-day (actual) yields as opposed to potential yields"
+      use_actual_production:
+        type: boolean
+        descroption: "Use current-day crop harvested areas as well as animal production"
+      enforce_gdd_baseline:
+        type: boolean
+        description: "Set food consumption equal to current day values"
+      slack_marginal_cost:
+        type: number
+        minimum: 0
+        description: "bn USD per Mt/Mha for validation slack (food groups, feed, land)"
+      harvest_area_source:
+        type: string
+        enum: [gaez, cropgrids]
+        description: "Source for harvest area data"
+      production_year:
+        type: integer
+        minimum: 1990
+        maximum: 2024
+        description: "Reference year for production data"
+
+  land:
+    type: object
+    required: [regional_limit]
+    additionalProperties: false
+    properties:
+      regional_limit:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: "Fraction of each region's potential cropland that is made available"
+
+  fertilizer:
+    type: object
+    required:
+      - limit
+      - marginal_cost_usd_per_tonne
+      - n_percentile
+      - manure_n_to_fertilizer
+    additionalProperties: false
+    properties:
+      limit:
+        type: number
+        minimum: 0
+        description: "Maximum global use of synthetic fertilizer in t-N"
+      marginal_cost_usd_per_tonne:
+        type: number
+        minimum: 0
+        description: "USD per t-N of synthetic fertilizer"
+      n_percentile:
+        type: integer
+        minimum: 0
+        maximum: 100
+        description: "Percentile of global FUBC data for high-input systems"
+      manure_n_to_fertilizer:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: "Fraction of N excreted in confined quarters available as fertilizer"
+
+  residues:
+    type: object
+    required: [max_feed_fraction]
+    additionalProperties: false
+    properties:
+      max_feed_fraction:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: "Maximum fraction of residues that can be removed for animal feed"
+
+  emissions:
+    type: object
+    required:
+      - ghg_pricing_enabled
+      - ghg_price
+      - ch4_to_co2_factor
+      - n2o_to_co2_factor
+      - rice
+      - fertilizer
+      - residues
+    additionalProperties: false
+    properties:
+      ghg_pricing_enabled:
+        type: boolean
+        description: "Whether to include GHG pricing in the objective function"
+      ghg_price:
+        type: number
+        minimum: 0
+        description: "USD/tCO2-eq (emissions stored in MtCO2-eq internally)"
+      ch4_to_co2_factor:
+        type: number
+        minimum: 0
+        description: "IPCC AR6 GWP100 for CH4"
+      n2o_to_co2_factor:
+        type: number
+        minimum: 0
+        description: "IPCC AR6 GWP100 for N2O"
+      rice:
+        type: object
+        required:
+          - methane_emission_factor_kg_per_ha
+          - rainfed_wetland_rice_ch4_scaling_factor
+        additionalProperties: false
+        properties:
+          methane_emission_factor_kg_per_ha:
+            type: number
+            minimum: 0
+            description: "kg CH4 per ha per crop (IPCC 2019)"
+          rainfed_wetland_rice_ch4_scaling_factor:
+            type: number
+            minimum: 0
+            description: "Scaling factor for rainfed rice (IPCC 2019)"
+      fertilizer:
+        type: object
+        required:
+          - synthetic_n2o_factor
+          - manure_n2o_factor
+          - indirect_ef4
+          - indirect_ef5
+          - frac_gasf
+          - frac_gasm
+          - frac_leach
+        additionalProperties: false
+        properties:
+          synthetic_n2o_factor:
+            type: number
+            minimum: 0
+            description: "kg N2O-N per kg N input (IPCC 2019)"
+          manure_n2o_factor:
+            type: number
+            minimum: 0
+            description: "kg N2O-N per kg manure N applied (IPCC 2019)"
+          indirect_ef4:
+            type: number
+            minimum: 0
+            description: "kg N2O-N per kg (NH3-N + NOx-N) volatilized (IPCC 2019)"
+          indirect_ef5:
+            type: number
+            minimum: 0
+            description: "kg N2O-N per kg N leached/runoff (IPCC 2019)"
+          frac_gasf:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "Fraction of synthetic fertilizer N volatilized as NH3 and NOx"
+          frac_gasm:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "Fraction of organic N and grazing N volatilized"
+          frac_leach:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "Fraction of applied/deposited N lost through leaching"
+      residues:
+        type: object
+        required: [incorporation_n2o_factor]
+        additionalProperties: false
+        properties:
+          incorporation_n2o_factor:
+            type: number
+            minimum: 0
+            description: "kg N2O-N per kg residue N incorporated into soil"
+
+  luc:
+    type: object
+    required:
+      - horizon_years
+      - managed_flux_mode
+      - forest_fraction_threshold
+      - spared_land_agb_threshold_tc_per_ha
+    additionalProperties: false
+    properties:
+      horizon_years:
+        type: integer
+        minimum: 1
+        description: "Time horizon for land use change accounting (years)"
+      managed_flux_mode:
+        type: string
+        enum: [zero]
+        description: "How to treat ongoing emissions from managed agricultural land (currently only 'zero' is implemented, which assumes no net flux from existing agricultural land)"
+      forest_fraction_threshold:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: "Minimum forest fraction to apply regrowth sequestration"
+      spared_land_agb_threshold_tc_per_ha:
+        type: number
+        minimum: 0
+        description: "Max AGB (tC/ha) for spared land eligibility"
+
+  crops:
+    type: array
+    minItems: 1
+    uniqueItems: true
+    items:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+    description: "List of crop names to include in the model"
+
+  multiple_cropping:
+    type: object
+    patternProperties:
+      "^[a-z0-9_]+$":
+        type: object
+        required: [crops, water_supplies]
+        additionalProperties: false
+        properties:
+          crops:
+            type: array
+            minItems: 2
+            maxItems: 3
+            items:
+              type: string
+          water_supplies:
+            type: array
+            minItems: 2
+            maxItems: 3
+            items:
+              type: string
+              enum: [r, i]
+    description: "Multiple cropping systems (double cropping)"
+
+  macronutrients:
+    type: object
+    additionalProperties: false
+    patternProperties:
+      "^(carb|protein|fat|kcal)$":
+        type: object
+        additionalProperties: false
+        patternProperties:
+          "^(min|max|equal)$":
+            type: number
+            minimum: 0
+            description: "g/person/day or kcal/person/day"
+    description: "Optional macronutrient constraints (min/max/equal in g or kcal per person per day)"
+
+  byproducts:
+    type: array
+    uniqueItems: true
+    items:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+    description: "Foods not for direct human consumption (excluded from food group tracking)"
+
+  animal_products:
+    type: object
+    required:
+      - include
+      - wirsenius_regions
+      - net_to_metabolizable_energy_conversion
+      - carcass_to_retail_meat
+      - residue_crops
+    additionalProperties: false
+    properties:
+      include:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+        description: "Animal products to include in the model"
+      wirsenius_regions:
+        type: array
+        items:
+          type: string
+        description: "Regions for averaging feed conversion efficiencies (Wirsenius 2000)"
+      net_to_metabolizable_energy_conversion:
+        type: object
+        required: [k_m, k_g, k_l]
+        additionalProperties: false
+        properties:
+          k_m:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "Maintenance efficiency"
+          k_g:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "Growth efficiency"
+          k_l:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "Lactation efficiency (dairy)"
+      carcass_to_retail_meat:
+        type: object
+        required:
+          - meat-cattle
+          - meat-pig
+          - meat-chicken
+          - eggs
+          - dairy
+        additionalProperties: false
+        patternProperties:
+          "^[a-z0-9-]+$":
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "kg retail product per kg carcass/raw product"
+      residue_crops:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+        description: "Crops that produce residues usable as animal feed"
+
+  grazing:
+    type: object
+    required: [enabled]
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+        description: "Whether to enable grazing in the model"
+
+  food_groups:
+    type: object
+    required: [included, constraints]
+    additionalProperties: false
+    properties:
+      included:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[a-z0-9_]+$"
+        description: "Food groups to track in the model"
+      constraints:
+        type: object
+        patternProperties:
+          "^[a-z0-9_]+$":
+            type: object
+            additionalProperties: false
+            patternProperties:
+              "^(min|max|equal)$":
+                type: number
+                minimum: 0
+                description: "g/person/day"
+        description: "Optional per-group constraints with min/max/equal in g/person/day"
+
+  diet:
+    type: object
+    required: [baseline_age, baseline_reference_year]
+    additionalProperties: false
+    properties:
+      baseline_age:
+        type: string
+        description: "Age group for baseline diet (e.g., 'All ages')"
+      baseline_reference_year:
+        type: integer
+        minimum: 1990
+        maximum: 2019
+        description: "Reference year for baseline diet"
+
+  biomass:
+    type: object
+    required: [enabled, crops, marginal_cost]
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+        description: "Whether to enable biomass export to energy sector"
+      crops:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+        description: "Crops available for biomass export"
+      marginal_cost:
+        type: number
+        minimum: 0
+        description: "USD per tonne dry matter exported to the energy sector"
+
+  trade:
+    type: object
+    required:
+      - crop_hubs
+      - crop_default_trade_cost_per_km
+      - crop_trade_cost_categories
+      - non_tradable_crops
+      - food_hubs
+      - food_default_trade_cost_per_km
+      - food_trade_cost_categories
+      - non_tradable_foods
+    additionalProperties: false
+    properties:
+      crop_hubs:
+        type: integer
+        minimum: 1
+        description: "Number of crop trade hubs"
+      crop_default_trade_cost_per_km:
+        type: number
+        minimum: 0
+        description: "USD per tonne per km (default for unlisted crops)"
+      crop_trade_cost_categories:
+        type: object
+        patternProperties:
+          "^[a-z0-9_]+$":
+            type: object
+            required: [cost_per_km, crops]
+            additionalProperties: false
+            properties:
+              cost_per_km:
+                type: number
+                minimum: 0
+                description: "USD per tonne per km"
+              crops:
+                type: array
+                items:
+                  type: string
+                  pattern: "^[a-z0-9-]+$"
+      non_tradable_crops:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+        description: "Crops that cannot be traded"
+      food_hubs:
+        type: integer
+        minimum: 1
+        description: "Number of food trade hubs"
+      food_default_trade_cost_per_km:
+        type: number
+        minimum: 0
+        description: "USD per tonne per km (default for unlisted foods)"
+      food_trade_cost_categories:
+        type: object
+        patternProperties:
+          "^[a-z0-9_]+$":
+            type: object
+            required: [cost_per_km, foods]
+            additionalProperties: false
+            properties:
+              cost_per_km:
+                type: number
+                minimum: 0
+                description: "USD per tonne per km"
+              foods:
+                type: array
+                items:
+                  type: string
+                  pattern: "^[a-z0-9-]+$"
+      non_tradable_foods:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+        description: "Foods that cannot be traded"
+
+  health:
+    type: object
+    required:
+      - enabled
+      - region_clusters
+      - reference_year
+      - intake_grid_step
+      - log_rr_points
+      - omega3_per_100g_fish
+      - ssb_sugar_g_per_100g
+      - value_per_yll
+      - tmrel_flat_upper_limit_g_per_day
+      - risk_factors
+      - causes
+      - tmrel_g_per_day
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+        description: "Whether to include health costs in the objective function"
+      region_clusters:
+        type: integer
+        minimum: 1
+        description: "Number of health clusters"
+      reference_year:
+        type: integer
+        minimum: 1990
+        maximum: 2018
+        description: "Reference year for health data"
+      intake_grid_step:
+        type: integer
+        minimum: 1
+        description: "Intake resolution in g/person/day"
+      log_rr_points:
+        type: integer
+        minimum: 1
+        description: "Number of points for log relative risk interpolation"
+      omega3_per_100g_fish:
+        type: number
+        minimum: 0
+        description: "g omega-3 per 100g fish"
+      ssb_sugar_g_per_100g:
+        type: number
+        minimum: 0
+        description: "g sugar per 100g sugar-sweetened beverage"
+      value_per_yll:
+        type: number
+        minimum: 0
+        description: "USD per year of life lost"
+      tmrel_flat_upper_limit_g_per_day:
+        type: number
+        minimum: 0
+        description: "Protective foods stay at TMREL risk beyond this intake"
+      risk_factors:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[a-z0-9_]+$"
+        description: "Dietary risk factors to consider (must match GDD data items)"
+      causes:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[A-Za-z0-9]+$"
+        description: "Health outcomes/causes to consider (IHME GBD codes)"
+      tmrel_g_per_day:
+        type: object
+        required:
+          - fruits
+          - vegetables
+          - whole_grains
+          - nuts_seeds
+          - legumes
+          - fish
+          - red_meat
+          - prc_meat
+          - sugar
+        additionalProperties: false
+        patternProperties:
+          "^[a-z0-9_]+$":
+            type: number
+            minimum: 0
+            description: "Theoretical minimum risk exposure level (g/day)"
+
+  aggregation:
+    type: object
+    required:
+      - regions
+      - simplify_tolerance_km
+      - simplify_min_area_km
+      - resource_class_quantiles
+      - land_limit_dataset
+    additionalProperties: false
+    properties:
+      regions:
+        type: object
+        required: [target_count, allow_cross_border, method]
+        additionalProperties: false
+        properties:
+          target_count:
+            type: integer
+            minimum: 1
+            description: "Target number of regions to create through clustering"
+          allow_cross_border:
+            type: boolean
+            description: "Whether to allow regions to cross country borders (false = cluster within each country separately)"
+          method:
+            type: string
+            enum: [kmeans, agglomerative]
+            description: "Clustering method: 'kmeans' (faster, default) or 'agglomerative' (hierarchical clustering with ward linkage)"
+      simplify_tolerance_km:
+        type: number
+        minimum: 0
+        description: "Tolerance for geometry simplification (km)"
+      simplify_min_area_km:
+        type: number
+        minimum: 0
+        description: "Minimum area for simplified geometries (km²)"
+      resource_class_quantiles:
+        type: array
+        minItems: 1
+        items:
+          type: number
+          minimum: 0
+          maximum: 1
+        description: "Quantiles for resource class binning"
+      land_limit_dataset:
+        type: string
+        enum: [suitability, irrigated]
+        description: "Crop land-use limitation source for yield aggregation"
+
+  countries:
+    type: array
+    minItems: 1
+    uniqueItems: true
+    items:
+      type: string
+      pattern: "^[A-Z]{3}$"
+    description: "ISO 3166-1 alpha-3 country codes to include in the model"
+
+  data:
+    type: object
+    required: [gaez, usda, land_cover, soilgrids]
+    additionalProperties: false
+    properties:
+      gaez:
+        type: object
+        required:
+          - climate_model
+          - climate_model_ensemble
+          - period
+          - scenario
+          - input_level
+          - water_supply
+          - yield_var
+          - water_requirement_var
+          - suitability_var
+        additionalProperties: false
+        properties:
+          climate_model:
+            type: string
+            description: "GAEZ v5 climate model (specific GCM)"
+          climate_model_ensemble:
+            type: string
+            description: "GAEZ v5 ensemble model"
+          period:
+            type: string
+            pattern: "^(FP|HP)[0-9]{4}$"
+            description: "GAEZ v5 time period (e.g., FP2140, HP0120)"
+          scenario:
+            type: string
+            enum: [SSP126, SSP370, SSP585, HIST]
+            description: "GAEZ v5 climate scenario"
+          input_level:
+            type: string
+            enum: [H, L]
+            description: "GAEZ v5 input level (H=High, L=Low)"
+          water_supply:
+            type: string
+            enum: [I, R]
+            description: "GAEZ v5 water supply (I=irrigated, R=rainfed)"
+          yield_var:
+            type: string
+            description: "GAEZ v5 yield variable code"
+          water_requirement_var:
+            type: string
+            description: "GAEZ v5 water requirement variable code"
+          suitability_var:
+            type: string
+            description: "GAEZ v5 suitability variable code"
+      usda:
+        type: object
+        required: [api_key, retrieve_nutrition, nutrients]
+        additionalProperties: false
+        properties:
+          api_key:
+            type: string
+            minLength: 1
+            description: "USDA FoodData Central API key"
+          retrieve_nutrition:
+            type: boolean
+            description: "Whether to fetch nutrition data from USDA API"
+          nutrients:
+            type: object
+            required: [protein, carb, fat, kcal]
+            additionalProperties: false
+            properties:
+              protein:
+                type: string
+              carb:
+                type: string
+              fat:
+                type: string
+              kcal:
+                type: string
+      land_cover:
+        type: object
+        required: [year, version]
+        additionalProperties: false
+        properties:
+          year:
+            type: string
+            pattern: "^[0-9]{4}$"
+            description: "Year for land cover data"
+          version:
+            type: string
+            description: "Version of land cover dataset"
+      soilgrids:
+        type: object
+        required: [target_resolution_m]
+        additionalProperties: false
+        properties:
+          target_resolution_m:
+            type: integer
+            minimum: 1000
+            description: "Target resolution in meters"
+
+  irrigation:
+    type: object
+    required: [irrigated_crops]
+    additionalProperties: false
+    properties:
+      irrigated_crops:
+        oneOf:
+          - type: string
+            const: all
+          - type: array
+            uniqueItems: true
+            items:
+              type: string
+              pattern: "^[a-z0-9-]+$"
+        description: "Which crops are allowed irrigated production ('all' or list)"
+
+  animal_costs:
+    type: object
+    required: [averaging_period, fadn, usda, faostat]
+    additionalProperties: false
+    properties:
+      averaging_period:
+        type: object
+        required: [start_year, end_year]
+        additionalProperties: false
+        properties:
+          start_year:
+            type: integer
+            minimum: 1900
+          end_year:
+            type: integer
+            minimum: 1900
+      fadn:
+        type: object
+        required:
+          - high_cost_threshold_usd_per_mt
+          - livestock_specific_costs
+          - shared_farm_costs
+          - exclude_costs
+        additionalProperties: false
+        properties:
+          high_cost_threshold_usd_per_mt:
+            type: number
+            minimum: 0
+          livestock_specific_costs:
+            type: object
+            patternProperties:
+              "^SE[0-9]+$":
+                type: string
+          shared_farm_costs:
+            type: object
+            patternProperties:
+              "^SE[0-9]+$":
+                type: string
+          exclude_costs:
+            type: object
+            patternProperties:
+              "^SE[0-9]+$":
+                type: string
+      usda:
+        type: object
+        required:
+          - request_timeout_seconds
+          - dressed_weight_kg_per_head
+          - include_items
+          - exclude_items
+        additionalProperties: false
+        properties:
+          request_timeout_seconds:
+            type: integer
+            minimum: 1
+          dressed_weight_kg_per_head:
+            type: object
+            patternProperties:
+              "^[a-z0-9-]+$":
+                type: number
+                minimum: 0
+          include_items:
+            type: array
+            items:
+              type: string
+          exclude_items:
+            type: array
+            items:
+              type: string
+      faostat:
+        type: object
+        required: [aggregate_area_code_limit, element_codes]
+        additionalProperties: false
+        properties:
+          aggregate_area_code_limit:
+            type: integer
+            minimum: 1
+          element_codes:
+            type: object
+            required: [production, stocks, producing_animals]
+            additionalProperties: false
+            properties:
+              production:
+                type: array
+                items:
+                  type: string
+              stocks:
+                type: array
+                items:
+                  type: string
+              producing_animals:
+                type: array
+                items:
+                  type: string
+
+  crop_costs:
+    type: object
+    required: [averaging_period, fadn, usda]
+    additionalProperties: false
+    properties:
+      averaging_period:
+        type: object
+        required: [start_year, end_year]
+        additionalProperties: false
+        properties:
+          start_year:
+            type: integer
+            minimum: 1900
+          end_year:
+            type: integer
+            minimum: 1900
+      fadn:
+        type: object
+        required:
+          - per_year_costs
+          - per_planting_costs
+          - exclude_costs
+          - crop_groups
+        additionalProperties: false
+        properties:
+          per_year_costs:
+            type: object
+            patternProperties:
+              "^SE[0-9]+$":
+                type: string
+          per_planting_costs:
+            type: object
+            patternProperties:
+              "^SE[0-9]+$":
+                type: string
+          exclude_costs:
+            type: object
+            patternProperties:
+              "^SE[0-9]+$":
+                type: string
+          crop_groups:
+            type: object
+            patternProperties:
+              "^[A-Za-z0-9 &]+$":
+                type: object
+                required: [outputs, area, crops]
+                additionalProperties: false
+                properties:
+                  outputs:
+                    type: array
+                    items:
+                      type: string
+                      pattern: "^SE[0-9]+$"
+                  area:
+                    type: string
+                    pattern: "^SE[0-9]+$"
+                  crops:
+                    type: array
+                    items:
+                      type: string
+                      pattern: "^SE[0-9]+$"
+      usda:
+        type: object
+        required:
+          - request_timeout_seconds
+          - per_year_costs
+          - per_planting_costs
+          - exclude_items
+        additionalProperties: false
+        properties:
+          request_timeout_seconds:
+            type: integer
+            minimum: 1
+          per_year_costs:
+            type: array
+            items:
+              type: string
+          per_planting_costs:
+            type: array
+            items:
+              type: string
+          exclude_items:
+            type: array
+            items:
+              type: string
+
+  solving:
+    type: object
+    required: [solver, io_api, options_gurobi, options_highs, netcdf_compression]
+    additionalProperties: false
+    properties:
+      solver:
+        type: string
+        enum: [highs, gurobi, cplex]
+        description: "Linear programming solver"
+      io_api:
+        type: ["string", "null"]
+        enum: [lp, mps, direct, null]
+        description: "How the model is communicated to the solver"
+      options_gurobi:
+        type: object
+        patternProperties:
+          "^[A-Za-z0-9_]+$":
+            oneOf:
+              - type: number
+              - type: string
+        description: "Gurobi solver options"
+      options_highs:
+        type: object
+        patternProperties:
+          "^[a-z_]+$":
+            oneOf:
+              - type: number
+              - type: string
+        description: "HiGHS solver options"
+      netcdf_compression:
+        oneOf:
+          - type: "null"
+          - type: object
+            properties:
+              zlib:
+                type: boolean
+              complevel:
+                type: integer
+                minimum: 0
+                maximum: 9
+        description: "NetCDF export compression settings"
+
+  plotting:
+    type: object
+    required: [colors, fallback_cmaps]
+    additionalProperties: false
+    properties:
+      colors:
+        type: object
+        required: [crops, food_groups]
+        additionalProperties: false
+        properties:
+          crops:
+            type: object
+            patternProperties:
+              "^[a-z0-9-]+$":
+                type: string
+                pattern: "^#[0-9A-Fa-f]{6}$"
+            description: "Hex color codes for each crop"
+          food_groups:
+            type: object
+            patternProperties:
+              "^[a-z0-9_]+$":
+                type: string
+                pattern: "^#[0-9A-Fa-f]{6}$"
+            description: "Hex color codes for each food group"
+      fallback_cmaps:
+        type: object
+        required: [crops]
+        additionalProperties: false
+        properties:
+          crops:
+            type: string
+            description: "Matplotlib colormap name for crops without specified colors"

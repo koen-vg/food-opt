@@ -32,6 +32,7 @@ Provide clear expectations and a safe, efficient workflow so agents can make sma
 
 ## Core Principles
 
+- This project is currently unstable and under rapid development; never implement any kind of backward compatibility.
 - Keep code concise: Prefer simple control flow; fail early on invalid external inputs.
 - Do your best to avoid over-engineering. If you see possibilities for simplifying, suggest improvements (but let the user approve of such drive-by refactors first).
 - Consistent style: Follow existing patterns in nearby files; don’t introduce new paradigms ad hoc.
@@ -107,6 +108,19 @@ Notes:
 ### Git guidelines
 
 - AI Agents (Claude, Codex, etc) should not add themselves as co-authors to commits unless explicitly asked for.
+
+## Configuration Validation
+
+The project uses automatic configuration validation via JSON Schema to ensure all config files are complete and well-formed.
+
+### How It Works
+
+- **Schema location**: `config/schemas/config.schema.yaml` (JSON Schema in YAML format)
+- **Automatic validation**: Runs at the start of every Snakemake workflow execution via `workflow/validation/config_schema.py`
+- **Based on**: `config/default.yaml` structure; all fields in default are generally required
+- **User configs**: Only need to specify overrides; they're merged with default before validation
+- **Scientific notation**: PyYAML 6.0+ parses scientific notation like `1e-2` as strings. Use decimal notation (`0.01`) instead.
+
 
 ## PyPSA Modeling Notes
 

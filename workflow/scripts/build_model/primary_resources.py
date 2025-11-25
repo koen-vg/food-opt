@@ -72,7 +72,7 @@ def add_primary_resources(
     scale_meta["water_mm3_per_m3"] = constants.MM3_PER_M3
 
     # Fertilizer remains global (no regionalization yet)
-    limit_mt = float(fertilizer_config["limit"]) * constants.KG_TO_MEGATONNE
+    limit_mt = float(fertilizer_config["limit"]) * constants.TONNE_TO_MEGATONNE
     marginal_cost_bnusd_per_mt = (
         float(fertilizer_config["marginal_cost_usd_per_tonne"])
         * constants.MEGATONNE_TO_TONNE

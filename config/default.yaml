@@ -26,12 +26,12 @@ land:
 
 # --- section: fertilizer ---
 fertilizer:
-  limit: 2e11 # kg (200 Mt-N total limit in synthetic fertilizer application)
+  limit: 200_000_000  # t-N (200 Mt-N total limit in synthetic fertilizer application)
   marginal_cost_usd_per_tonne: 500 # USD per t-N of synthetic fertilizer
   # High-input agriculture N application rates (percentile of global FUBC data)
   n_percentile: 80  # Use 80th percentile for high-input systems (range: 0-100)
   # Manure nitrogen management
-  manure_n_to_fertilizer: 0.75 # Fraction of excreted N available as fertilizer (accounting for losses during storage/handling)
+  manure_n_to_fertilizer: 0.75 # Fraction of N excreted in confined quarters available as fertilizer (accounting for losses during storage/handling)
 
 # --- section: residues ---
 residues:
@@ -259,10 +259,10 @@ biomass:
 # --- section: trade ---
 trade:
   crop_hubs: 20
-  crop_default_trade_cost_per_km: 1e-2  # USD_2024 per tonne per km
+  crop_default_trade_cost_per_km: 0.01  # USD_2024 per tonne per km (1e-2)
   crop_trade_cost_categories:
     bulk_dry_goods:
-      cost_per_km: 6e-3  # USD_2024 per tonne per km
+      cost_per_km: 0.006  # USD_2024 per tonne per km (6e-3)
       crops:
       - wheat
       - dryland-rice
@@ -275,7 +275,7 @@ trade:
       - dry-pea
       - chickpea
     bulky_fresh:
-      cost_per_km: 1.4e-2  # USD_2024 per tonne per km
+      cost_per_km: 0.014  # USD_2024 per tonne per km (1.4e-2)
       crops:
       - white-potato
       - sweet-potato
@@ -284,7 +284,7 @@ trade:
       - sugarbeet
       - biomass-sorghum
     perishable_high_value:
-      cost_per_km: 2.2e-2  # USD_2024 per tonne per km
+      cost_per_km: 0.022  # USD_2024 per tonne per km (2.2e-2)
       crops:
       - tomato
       - carrot
@@ -300,16 +300,16 @@ trade:
     - biomass-sorghum
     - silage-maize
   food_hubs: 20
-  food_default_trade_cost_per_km: 2.1e-2  # USD_2024 per tonne per km
+  food_default_trade_cost_per_km: 0.021  # USD_2024 per tonne per km (2.1e-2)
   food_trade_cost_categories:
     chilled_meat:
-      cost_per_km: 2.8e-2  # USD_2024 per tonne per km
+      cost_per_km: 0.028  # USD_2024 per tonne per km (2.8e-2)
       foods:
       - meat-cattle
       - meat-pig
       - meat-chicken
     dairy_and_eggs:
-      cost_per_km: 2.4e-2
+      cost_per_km: 0.024  # USD_2024 per tonne per km (2.4e-2)
       foods:
       - dairy
       - eggs
@@ -361,7 +361,6 @@ health:
 # --- section: aggregation ---
 aggregation:
   regions:
-    type: "cluster"
     target_count: 400
     allow_cross_border: false
     method: "kmeans"

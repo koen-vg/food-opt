@@ -8,6 +8,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Callable
 
+from snakemake.logging import logger
+
 from .config_schema import validate_config_schema
 from .food_groups import validate_food_groups
 
@@ -37,6 +39,7 @@ def validate(
         Optional iterable of check names to run. When omitted, all registered checks
         are executed.
     """
+    logger.info("Validating configuration and input datasets")
 
     root = Path(project_root) if project_root else Path.cwd()
     check_names = tuple(enabled_checks) if enabled_checks else tuple(_CHECKS)

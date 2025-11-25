@@ -88,6 +88,69 @@ SPDX headers (required in all source files):
    #
    # SPDX-License-Identifier: GPL-3.0-or-later
 
+Configuration Validation
+-------------------------
+
+The project uses automatic configuration validation to ensure that all configuration files conform to the expected schema. This validation runs at the start of every Snakemake workflow execution.
+
+Schema Definition
+~~~~~~~~~~~~~~~~~
+
+The configuration schema is defined in ``config/schemas/config.schema.yaml`` as a JSON Schema (in YAML format). This schema:
+
+* Enforces required fields and their types
+* Validates numerical ranges (e.g., percentages must be between 0 and 1)
+* Ensures enumerated values are valid (e.g., solver must be "highs", "gurobi", or "cplex")
+* Validates patterns (e.g., country codes must be 3-letter ISO codes)
+* Prevents typos through strict property name checking
+
+How It Works
+~~~~~~~~~~~~
+
+1. **Automatic validation**: When you run any Snakemake target, the workflow automatically validates the merged configuration (default + user config) against the schema
+2. **Clear error messages**: If validation fails, you'll see a detailed error message indicating which field is invalid and why
+3. **Snakemake-native**: Uses Snakemake's built-in ``validate()`` function, which internally uses the ``jsonschema`` library
+
+Example validation error::
+
+    ValidationError: 'xyz' is not one of ['highs', 'gurobi', 'cplex']
+
+    Failed validating 'enum' in schema['properties']['solving']['properties']['solver']:
+        {'type': 'string', 'enum': ['highs', 'gurobi', 'cplex']}
+
+    On instance['solving']['solver']:
+        'xyz'
+
+Common Validation Issues
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scientific notation**: YAML parsers may treat scientific notation like ``1e-2`` as strings. Use decimal notation (``0.01``) or explicit floats (``1.0e-2`` with a decimal point) to ensure proper parsing.
+
+**Additional properties**: The schema uses ``additionalProperties: false`` to catch typos. If you add a new configuration field, you must also update the schema.
+
+**Required fields**: All fields present in ``config/default.yaml`` are generally required. User configs only need to specify overrides.
+
+Updating the Schema
+~~~~~~~~~~~~~~~~~~~
+
+When adding new configuration options:
+
+1. **Add to** ``config/default.yaml``
+2. **Update** ``config/schemas/config.schema.yaml`` with:
+
+   * Property definition under the appropriate section
+   * Type constraints (``type: string``, ``type: number``, etc.)
+   * Validation rules (``minimum``, ``maximum``, ``pattern``, ``enum``, etc.)
+   * Description for documentation
+
+3. **Test** by running the workflow::
+
+       tools/smk --configfile config/toy.yaml -n
+
+4. **Verify** that both valid and invalid configurations are handled correctly
+
+For more information on JSON Schema syntax, see https://json-schema.org/understanding-json-schema/.
+
 Repository Structure
 --------------------
 
