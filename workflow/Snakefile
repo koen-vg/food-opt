@@ -50,38 +50,39 @@ wildcard_constraints:
     water_supply=r"[ri]",
     crop=r"[a-zA-Z0-9\-]+",
     item=r"[a-zA-Z0-9_-]+",
+    objective=r"[A-Z]*",  # Objective wildcard flags: H=health, G=GHG (e.g., HG, H, G, or empty for baseline)
 
 
 ALL_RULE_TARGETS = [
-    "results/{name}/solved/model.nc",
+    "results/{name}/solved/model_obj-HG.nc",
     # results plots
-    "results/{name}/plots/crop_production.pdf",
-    "results/{name}/plots/resource_usage.pdf",
-    "results/{name}/plots/crop_production.csv",
-    "results/{name}/plots/food_production.csv",
-    "results/{name}/plots/consumption_balance.pdf",
-    "results/{name}/plots/objective_breakdown.pdf",
-    "results/{name}/plots/objective_breakdown.csv",
-    "results/{name}/plots/emissions_breakdown.pdf",
-    "results/{name}/plots/health_risk_map.pdf",
-    "results/{name}/plots/health_risk_by_region.csv",
-    "results/{name}/plots/health_baseline_map.pdf",
-    "results/{name}/plots/health_baseline_by_region.csv",
+    "results/{name}/plots/obj-HG/crop_production.pdf",
+    "results/{name}/plots/obj-HG/resource_usage.pdf",
+    "results/{name}/plots/obj-HG/crop_production.csv",
+    "results/{name}/plots/obj-HG/food_production.csv",
+    "results/{name}/plots/obj-HG/consumption_balance.pdf",
+    "results/{name}/plots/obj-HG/objective_breakdown.pdf",
+    "results/{name}/plots/obj-HG/objective_breakdown.csv",
+    "results/{name}/plots/obj-HG/emissions_breakdown.pdf",
+    "results/{name}/plots/obj-HG/health_risk_map.pdf",
+    "results/{name}/plots/obj-HG/health_risk_by_region.csv",
+    "results/{name}/plots/obj-HG/health_baseline_map.pdf",
+    "results/{name}/plots/obj-HG/health_baseline_by_region.csv",
     # maps
-    "results/{name}/plots/regions_map.pdf",
-    "results/{name}/plots/resource_classes_map.pdf",
-    "results/{name}/plots/crop_production_map.pdf",
-    "results/{name}/plots/crop_land_use_map.pdf",
-    "results/{name}/plots/cropland_fraction_map.pdf",
-    "results/{name}/plots/irrigated_cropland_fraction_map.pdf",
-    "results/{name}/plots/crop_use_breakdown.pdf",
-    "results/{name}/plots/crop_use_breakdown.csv",
-    "results/{name}/plots/feed_breakdown.pdf",
-    "results/{name}/plots/feed_breakdown.csv",
-    # "results/{name}/plots/water_value_map.pdf",   # Current not working (see issue #1)
-    "results/{name}/plots/food_consumption.pdf",
-    "results/{name}/plots/food_consumption_map.pdf",
-    "results/{name}/plots/food_consumption_baseline_map.pdf",
+    "results/{name}/plots/obj-HG/regions_map.pdf",
+    "results/{name}/plots/obj-HG/resource_classes_map.pdf",
+    "results/{name}/plots/obj-HG/crop_production_map.pdf",
+    "results/{name}/plots/obj-HG/crop_land_use_map.pdf",
+    "results/{name}/plots/obj-HG/cropland_fraction_map.pdf",
+    "results/{name}/plots/obj-HG/irrigated_cropland_fraction_map.pdf",
+    "results/{name}/plots/obj-HG/crop_use_breakdown.pdf",
+    "results/{name}/plots/obj-HG/crop_use_breakdown.csv",
+    "results/{name}/plots/obj-HG/feed_breakdown.pdf",
+    "results/{name}/plots/obj-HG/feed_breakdown.csv",
+    # "results/{name}/plots/obj-HG/water_value_map.pdf",   # Current not working (see issue #1)
+    "results/{name}/plots/obj-HG/food_consumption.pdf",
+    "results/{name}/plots/obj-HG/food_consumption_map.pdf",
+    "results/{name}/plots/obj-HG/food_consumption_baseline_map.pdf",
 ]
 
 
@@ -806,6 +807,7 @@ rule solve_model:
     params:
         health_risk_factors=config["health"]["risk_factors"],
         health_value_per_yll=config["health"]["value_per_yll"],
+        ghg_price=config["emissions"]["ghg_price"],
         solver=config["solving"]["solver"],
         solver_options=config["solving"].get(
             f"options_{config['solving']['solver']}", {}
@@ -813,8 +815,8 @@ rule solve_model:
         io_api=config["solving"]["io_api"],
         netcdf_compression=config["solving"].get("netcdf_compression"),
     output:
-        network="results/{name}/solved/model.nc",
+        network="results/{name}/solved/model_obj-{objective}.nc",
     log:
-        "logs/{name}/solve_model.log",
+        "logs/{name}/solve_model_obj-{objective}.log",
     script:
         "scripts/solve_model.py"

@@ -24,6 +24,7 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from workflow.scripts.build_model import constants  # noqa: E402
+from workflow.scripts.snakemake_utils import apply_objective_config  # noqa: E402
 
 try:  # Used for type annotations / documentation; fallback when unavailable
     import linopy  # type: ignore
@@ -97,6 +98,28 @@ def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list
         m.add_constraints(variable <= rhs)
 
     return [binary_name]
+
+
+def add_ghg_pricing_to_objective(n: pypsa.Network, ghg_price_usd_per_t: float) -> None:
+    """Add GHG emissions pricing to the objective function.
+
+    Adds the cost of GHG emissions (stored in the 'ghg' store) to the
+    objective function at solve time.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network containing the model.
+    ghg_price_usd_per_t : float
+        Price per tonne of CO2-equivalent in USD (config currency_year).
+    """
+    # Convert USD/tCO2 to bnUSD/MtCO2 (matching model units)
+    ghg_price_bnusd_per_mt = (
+        ghg_price_usd_per_t / constants.TONNE_TO_MEGATONNE * constants.USD_TO_BNUSD
+    )
+
+    # Add marginal storage cost to store
+    n.stores.static.at["ghg", "marginal_storage_cost"] = ghg_price_bnusd_per_mt
 
 
 def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> None:
@@ -715,7 +738,15 @@ if __name__ == "__main__":
     # Configure logging to write to Snakemake log file
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
 
+    # Apply objective config overrides based on wildcard
+    apply_objective_config(snakemake.config, snakemake.wildcards.objective)
+
     n = pypsa.Network(snakemake.input.network)
+
+    # Add GHG pricing to the objective if enabled
+    if snakemake.config["emissions"]["ghg_pricing_enabled"]:
+        ghg_price = float(snakemake.params.ghg_price)
+        add_ghg_pricing_to_objective(n, ghg_price)
 
     # Create the linopy model
     logger.info("Creating linopy model...")

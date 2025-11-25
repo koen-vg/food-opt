@@ -37,12 +37,14 @@ def add_primary_resources(
     n: pypsa.Network,
     fertilizer_config: dict,
     region_water_limits: pd.Series,
-    co2_price: float,
     ch4_to_co2_factor: float,
     n2o_to_co2_factor: float,
     use_actual_production: bool,
 ) -> None:
-    """Add primary resource components and emissions bookkeeping."""
+    """Add primary resource components and emissions bookkeeping.
+
+    Note: GHG pricing is applied at solve time, not build time.
+    """
     # Water stores use Mm^3, so convert m^3 limits accordingly.
     water_limits = region_water_limits * constants.MM3_PER_M3
     n.stores.add(
@@ -69,10 +71,6 @@ def add_primary_resources(
     scale_meta = n.meta.setdefault("carrier_unit_scale", {})
     scale_meta["water_mm3_per_m3"] = constants.MM3_PER_M3
 
-    co2_price_per_mt = (
-        co2_price / constants.TONNE_TO_MEGATONNE * constants.USD_TO_BNUSD
-    )  # convert USD/tCO2 to bnUSD/MtCO2
-
     # Fertilizer remains global (no regionalization yet)
     limit_mt = float(fertilizer_config["limit"]) * constants.KG_TO_MEGATONNE
     marginal_cost_bnusd_per_mt = (
@@ -90,6 +88,7 @@ def add_primary_resources(
     )
 
     # Add GHG aggregation store and links from individual gases
+    # Note: GHG pricing is applied at solve time, not build time
     n.stores.add(
         "ghg",
         bus="ghg",
@@ -97,7 +96,6 @@ def add_primary_resources(
         e_nom_extendable=True,
         e_nom_min=-np.inf,
         e_min_pu=-1.0,
-        marginal_cost_storage=co2_price_per_mt,
     )
     n.links.add(
         "convert_co2_to_ghg",
