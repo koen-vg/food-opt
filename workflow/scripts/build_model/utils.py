@@ -88,7 +88,14 @@ def _carrier_unit_for_nutrient(unit: str) -> str:
 
 
 def _load_crop_yield_table(path: str) -> tuple[pd.DataFrame, dict[str, str | float]]:
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        # Handle completely empty files (no columns to parse)
+        empty_pivot = pd.DataFrame(
+            index=pd.MultiIndex.from_tuples([], names=["region", "resource_class"])
+        )
+        return empty_pivot, {}
 
     # Handle empty DataFrames (only headers, no data rows)
     if df.empty:
