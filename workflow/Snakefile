@@ -79,6 +79,8 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/obj-HG/crop_use_breakdown.csv",
     "results/{name}/plots/obj-HG/feed_breakdown.pdf",
     "results/{name}/plots/obj-HG/feed_breakdown.csv",
+    "results/{name}/plots/obj-HG/food_group_slack.pdf",
+    "results/{name}/plots/obj-HG/food_group_slack.csv",
     # "results/{name}/plots/obj-HG/water_value_map.pdf",   # Current not working (see issue #1)
     "results/{name}/plots/obj-HG/food_consumption.pdf",
     "results/{name}/plots/obj-HG/food_consumption_map.pdf",

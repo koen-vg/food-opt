@@ -173,6 +173,20 @@ rule plot_feed_breakdown:
         "../scripts/plotting/plot_feed_breakdown.py"
 
 
+rule plot_food_group_slack:
+    input:
+        network="results/{name}/solved/model_obj-{objective}.nc",
+    output:
+        pdf="results/{name}/plots/obj-{objective}/food_group_slack.pdf",
+        csv="results/{name}/plots/obj-{objective}/food_group_slack.csv",
+    params:
+        group_colors=food_group_colors,
+    log:
+        "logs/{name}/plot_food_group_slack_obj-{objective}.log",
+    script:
+        "../scripts/plotting/plot_food_group_slack.py"
+
+
 rule plot_food_consumption:
     input:
         network="results/{name}/solved/model_obj-{objective}.nc",
