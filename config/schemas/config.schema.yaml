@@ -576,6 +576,10 @@ properties:
         type: integer
         minimum: 1
         description: "Number of points for log relative risk interpolation"
+      intake_age_min:
+        type: integer
+        minimum: 0
+        description: "Lower bound (inclusive) of age buckets used for intake weighting"
       omega3_per_100g_fish:
         type: number
         minimum: 0

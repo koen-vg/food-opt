@@ -326,6 +326,7 @@ health:
   ssb_sugar_g_per_100g: 5.7  # ≈50 kcal per 226.8 g sugar-sweetened beverage (SSB) implies ~5.7 g sugar per 100 g
   value_per_yll: 150000  # USD_2024 per year of life lost
   intake_cap_g_per_day: 1000  # Uniform generous cap on intake grids and clipping
+  intake_age_min: 25  # Minimum age (inclusive) for dietary intake weighting (GBD adult definition)
   # Dietary risk factors to consider (must match GDD data items)
   risk_factors:
   - fruits

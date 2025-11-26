@@ -107,7 +107,7 @@ The following table reproduces the GBD 2021 dietary risk factor definitions from
 **Notes:**
 
 * All intake quantities are in **fresh (as consumed) weight**, matching the GDD dietary intake data convention (see :doc:`current_diets`)
-* **GBD risk factors are evaluated for adult populations (≥25 years)** - the current implementation uses population-weighted "All ages" dietary intake averages, which may underestimate risk for adult-only populations
+* **GBD risk factors are evaluated for adult populations (≥25 years)** - the implementation weights dietary intake over ages ≥ ``health.intake_age_min`` (25 by default) using age-specific populations
 * The model currently implements a subset of these risk factors based on data availability and model scope
 * SSB risk-factor exposures are converted to refined sugar equivalents using :code:`health.ssb_sugar_g_per_100g`; added-sugar intake from GDD (variable ``v35``) is aggregated into the same refined-sugar risk factor.
 * All risk factors use a generous flat tail at :code:`health.intake_cap_g_per_day` (1 000 g/person/day by default) so equality constraints can exceed observed data without driving the SOS2 outside its domain.
@@ -127,7 +127,9 @@ The preprocessing script performs these steps:
    ``processing/{name}/health/country_clusters.csv``.
 2. **Baseline burden** – combines mortality, population and life expectancy to
    compute years of life lost (YLL) per country and aggregates them to the
-   health clusters. The results go into
+   health clusters. For each cause, it also computes a **diet-attributable YLL**
+   using the population-attributable fraction :math:`\\text{PAF} = 1 - 1/\\mathrm{RR}`
+   derived from baseline intakes and the RR curves. The results go into
    ``processing/{name}/health/cluster_cause_baseline.csv`` and
    ``processing/{name}/health/cluster_summary.csv``.
 3. **Record cluster totals** – store each cluster’s population for scaling; the

@@ -41,6 +41,19 @@ AGE_BUCKETS = [
 ]
 
 
+# Age utilities
+def _age_bucket_min(age: str) -> int:
+    """Return the lower bound of an age bucket label like '25-29' or '95+'."""
+    age = str(age)
+    if age.startswith("<"):
+        return 0
+    if "-" in age:
+        return int(age.split("-")[0])
+    if age.endswith("+"):
+        return int(age.rstrip("+"))
+    return 0
+
+
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
@@ -115,8 +128,9 @@ def _build_rr_tables(
         max_exposure_g_per_day: Dict mapping risk factor to maximum exposure level in data
     """
     table: RelativeRiskTable = RelativeRiskTable()
-    max_exposure_g_per_day: dict[str, float] = {}
+    max_exposure_g_per_day: dict[str, float] = dict.fromkeys(risk_factors, 0.0)
     allowed = set(risk_factors)
+    seen_risks: set[str] = set()
 
     for (risk, cause), grp in rr_df.groupby(["risk_factor", "cause"], sort=True):
         if risk not in allowed:
@@ -133,7 +147,14 @@ def _build_rr_tables(
             "log_rr_mean": log_rr_mean,
         }
         max_exposure_g_per_day[risk] = max(
-            max_exposure_g_per_day.get(risk, 0.0), float(exposures.max())
+            max_exposure_g_per_day[risk], float(exposures.max())
+        )
+        seen_risks.add(risk)
+
+    missing = sorted(set(risk_factors) - seen_risks)
+    if missing:
+        raise ValueError(
+            "Relative risk table is missing risk factors: " + ", ".join(missing)
         )
 
     return table, max_exposure_g_per_day
@@ -204,17 +225,15 @@ def _filter_and_prepare_data(
     reference_year: int,
     life_exp: pd.Series,
     risk_factors: list[str],
+    intake_age_min: int,
 ) -> tuple:
     """Filter datasets to reference year and compute derived quantities."""
-    # Filter dietary intake data
-    # Use "All ages" aggregate for now (age-specific matching is future work)
-    # TODO: GBD risk factors are evaluated for adult populations (≥25 years).
-    #       Currently using "All ages" aggregate which includes children, potentially
-    #       underestimating adult dietary risk exposure. Should filter to adult age groups
-    #       (e.g., "11-74 years" and "75+ years") and compute adult population-weighted
-    #       averages to properly match GBD risk factor definitions.
+    # Filter dietary intake data to adult buckets and compute population-weighted means
+    adult_ages = {
+        age for age in diet["age"].unique() if _age_bucket_min(age) >= intake_age_min
+    }
     diet = diet[
-        (diet["age"] == "All ages")
+        (diet["age"].isin(adult_ages))
         & (diet["year"] == reference_year)
         & (diet["country"].isin(cfg_countries))
     ].copy()
@@ -277,9 +296,29 @@ def _filter_and_prepare_data(
     }
     diet["risk_factor"] = diet["item"].map(item_to_risk)
     diet = diet.dropna(subset=["risk_factor"])
-    intake_by_country = (
-        diet.groupby(["country", "risk_factor"])["value"].sum().unstack(fill_value=0.0)
+    # Population-weighted adult intakes per country and risk factor
+    pop_weights = (
+        pop_age[pop_age["age"].isin(adult_ages)]
+        .rename(columns={"value": "population"})
+        .set_index(["country", "age"])["population"]
     )
+    diet = diet.merge(
+        pop_weights.rename("population"),
+        left_on=["country", "age"],
+        right_index=True,
+        how="left",
+    )
+    diet["population"] = diet["population"].fillna(0.0)
+    diet["weighted"] = diet["value"].astype(float) * diet["population"].astype(float)
+    weighted = (
+        diet.groupby(["country", "risk_factor"])[["weighted", "population"]]
+        .sum()
+        .reset_index()
+    )
+    weighted["value"] = weighted["weighted"] / weighted["population"].replace(0, np.nan)
+    intake_by_country = weighted.pivot_table(
+        index="country", columns="risk_factor", values="value", fill_value=0.0
+    ).reindex(cfg_countries, fill_value=0.0)
 
     return (
         dr,
@@ -363,6 +402,7 @@ def _process_health_clusters(
         )
 
         log_rr_ref_totals: dict[str, float] = dict.fromkeys(relevant_causes, 0.0)
+        log_rr_baseline_totals: dict[str, float] = dict.fromkeys(relevant_causes, 0.0)
 
         for risk in risk_factors:
             if risk not in intake_by_country.columns:
@@ -374,7 +414,7 @@ def _process_health_clusters(
             baseline_intake = float(baseline_intake)
             if not math.isfinite(baseline_intake):
                 baseline_intake = 0.0
-            max_exposure = float(intake_caps_g_per_day.get(risk, baseline_intake))
+            max_exposure = float(intake_caps_g_per_day[risk])
             baseline_intake = max(0.0, min(baseline_intake, max_exposure))
             baseline_intake_registry.setdefault(risk, set()).add(baseline_intake)
 
@@ -389,26 +429,39 @@ def _process_health_clusters(
             # Use TMREL intake as reference point for health cost calculations.
             # This ensures Cost = 0 when intake == TMREL and Cost > 0 when
             # deviating from TMREL.
-            tmrel_intake = float(tmrel_g_per_day.get(risk, 0.0))
+            tmrel_intake = float(tmrel_g_per_day[risk])
             if not math.isfinite(tmrel_intake):
                 tmrel_intake = 0.0
             tmrel_intake = max(0.0, min(tmrel_intake, max_exposure))
 
-            causes = risk_to_causes.get(risk, [])
+            causes = risk_to_causes[risk]
             for cause in causes:
                 if (risk, cause) not in rr_lookup:
                     continue
-                rr_val = _evaluate_rr(rr_lookup, risk, cause, tmrel_intake)
-                log_rr = math.log(rr_val)
-                log_rr_ref_totals[cause] = log_rr_ref_totals.get(cause, 0.0) + log_rr
+                rr_ref = _evaluate_rr(rr_lookup, risk, cause, tmrel_intake)
+                log_rr_ref_totals[cause] = log_rr_ref_totals[cause] + math.log(rr_ref)
+
+                rr_base = _evaluate_rr(rr_lookup, risk, cause, baseline_intake)
+                log_rr_baseline_totals[cause] = log_rr_baseline_totals[
+                    cause
+                ] + math.log(rr_base)
 
         for cause in relevant_causes:
+            log_rr_baseline = log_rr_baseline_totals[cause]
+            paf = 1.0 - math.exp(-log_rr_baseline)  # (RR-1)/RR
+            paf = max(0.0, min(1.0, paf))
+            yll_total = yll_by_cause_cluster.get(cause, 0.0)
+            yll_diet_attrib = yll_total * paf
+
             cluster_cause_rows.append(
                 {
                     "health_cluster": int(cluster_id),
                     "cause": cause,
-                    "log_rr_total_ref": log_rr_ref_totals.get(cause, 0.0),
-                    "yll_base": yll_by_cause_cluster.get(cause, 0.0),
+                    "log_rr_total_ref": log_rr_ref_totals[cause],
+                    "log_rr_total_baseline": log_rr_baseline,
+                    "paf_baseline": paf,
+                    "yll_total": yll_total,
+                    "yll_base": yll_diet_attrib,
                 }
             )
 
@@ -418,7 +471,15 @@ def _process_health_clusters(
     )
     cluster_cause_baseline = pd.DataFrame(
         cluster_cause_rows,
-        columns=["health_cluster", "cause", "log_rr_total_ref", "yll_base"],
+        columns=[
+            "health_cluster",
+            "cause",
+            "log_rr_total_ref",
+            "log_rr_total_baseline",
+            "paf_baseline",
+            "yll_total",
+            "yll_base",
+        ],
     )
     cluster_risk_baseline = pd.DataFrame(
         cluster_risk_baseline_rows,
@@ -462,14 +523,14 @@ def _generate_breakpoint_tables(
     cause_log_max: dict[str, float] = dict.fromkeys(relevant_causes, 0.0)
 
     for risk in risk_factors:
-        cap = float(intake_caps_g_per_day.get(risk, 0.0))
+        cap = float(intake_caps_g_per_day[risk])
         if cap <= 0:
             continue
-        causes = risk_to_causes.get(risk, [])
+        causes = risk_to_causes[risk]
         # Empirical exposure domain from RR table (may vary by cause; take union)
         exposures = []
         for cause in causes:
-            exposures = rr_lookup.get((risk, cause), {}).get("exposures")
+            exposures = rr_lookup[(risk, cause)]["exposures"]
             if exposures is not None:
                 exposures = list(exposures)
                 break
@@ -483,7 +544,7 @@ def _generate_breakpoint_tables(
         grid_points.update(float(x) for x in exposures)
         grid_points.add(0.0)
         grid_points.add(hi_empirical)
-        for val in baseline_intake_registry.get(risk, set()):
+        for val in baseline_intake_registry[risk]:
             grid_points.add(float(val))
         # Include TMREL as a breakpoint for accurate interpolation at optimal intake
         if risk in tmrel_g_per_day:
@@ -517,10 +578,8 @@ def _generate_breakpoint_tables(
 
     cause_breakpoint_rows = []
     for cause in relevant_causes:
-        min_total = cause_log_min.get(cause)
-        max_total = cause_log_max.get(cause)
-        if min_total is None or max_total is None:
-            continue
+        min_total = cause_log_min[cause]
+        max_total = cause_log_max[cause]
         if not math.isfinite(min_total):
             min_total = 0.0
         if not math.isfinite(max_total):
@@ -553,8 +612,9 @@ def main() -> None:
     reference_year = int(health_cfg["reference_year"])
     intake_grid_points = int(health_cfg["intake_grid_points"])
     log_rr_points = int(health_cfg["log_rr_points"])
-    tmrel_g_per_day: dict[str, float] = dict(health_cfg.get("tmrel_g_per_day", {}))
-    intake_cap_limit = float(health_cfg.get("intake_cap_g_per_day", 1000.0))
+    tmrel_g_per_day: dict[str, float] = dict(health_cfg["tmrel_g_per_day"])
+    intake_cap_limit = float(health_cfg["intake_cap_g_per_day"])
+    intake_age_min = int(health_cfg["intake_age_min"])
 
     # Load input data
     (
@@ -579,7 +639,15 @@ def main() -> None:
         risk_to_causes,
         intake_by_country,
     ) = _filter_and_prepare_data(
-        diet, dr, pop, rr_df, cfg_countries, reference_year, life_exp, risk_factors
+        diet,
+        dr,
+        pop,
+        rr_df,
+        cfg_countries,
+        reference_year,
+        life_exp,
+        risk_factors,
+        intake_age_min,
     )
 
     intake_caps_g_per_day = _build_intake_caps(max_exposure_g_per_day, intake_cap_limit)
