@@ -20,15 +20,15 @@ dev-gurobi = { features = ["dev", "gurobi"], solve-group = "default" }
 python = ">=3.13.9,<3.14"
 
 # Scientific computing
-numpy = ">=2.3.4,<3"                 # Numerical arrays and computations
+numpy = ">=2.3.5,<3"                 # Numerical arrays and computations
 pandas = ">=2.3.3,<3"                # Data frames and tabular data
 scikit-learn = ">=1.7.2,<2"          # Clustering for region aggregation
 
 # Visualization
-matplotlib = ">=3.10.7,<4"           # Plotting library
+matplotlib = ">=3.10.8,<4"           # Plotting library
 cartopy = ">=0.25.0,<0.26"           # Map projections and geospatial plotting
-graphviz = ">=13.1.2,<14"            # Graph rendering (provides dot command for workflow diagrams)
-python-graphviz = ">=0.20.3,<1"      # Python interface to Graphviz
+graphviz = ">=14.0.4,<15"            # Graph rendering (provides dot command for workflow diagrams)
+python-graphviz = ">=0.21,<0.22"      # Python interface to Graphviz
 
 # Geospatial data processing
 geopandas = ">=1.1.1,<2"             # Spatial data frames
@@ -46,14 +46,14 @@ requests = ">=2.32.5,<3"             # HTTP requests for downloading data
 pycountry = ">=24.6.1,<25"           # ISO country codes and mappings
 
 # System tools
-curl = ">=8.16.0,<9"                 # HTTP downloads in workflow rules
+curl = ">=8.17.0,<9"                 # HTTP downloads in workflow rules
 
 [pypi-dependencies]
 # Workflow engine
-snakemake = ">=9.13.4, <10"          # Workflow management system
+snakemake = ">=9.13.7, <10"          # Workflow management system
 
 # Optimization and modeling; own branches of pypsa and linopy with custom features needed by food-opt
-pypsa = { git = "https://github.com/koen-vg/PyPSA.git", branch = "food-opt" }
+pypsa = { git = "https://github.com/koen-vg/PyPSA.git", tag = "v1.0.4+food.opt" }
 linopy = { git = "https://github.com/coroa/linopy.git", branch = "feat/add-sos-constraints" }
 
 # Geospatial processing
@@ -61,24 +61,24 @@ exactextract = ">=0.2.2, <0.3"       # Fast zonal statistics from rasters
 
 # Data retrieval
 faostat = ">=1.1.2, <2"              # FAO statistics API client
-ecmwf-datastores-client = ">=0.4.0, <0.5" # ECMWF climate data access
+ecmwf-datastores-client = ">=0.4.1, <0.5" # ECMWF climate data access
 gsutil = ">=5.35, <6"                # Google Cloud Storage CLI
 
 # Validation
-pandera = ">=0.20.3, <0.21"
-pydantic = ">=2.10.5, <3"
+pandera = ">=0.27.0, <0.28"
+pydantic = ">=2.12.4, <3"
 
 [feature.gurobi.pypi-dependencies]
-gurobipy = ">=12.0.3, <13"           # Gurobi commercial MILP solver (requires license)
+gurobipy = ">=13.0.0, <14"           # Gurobi commercial MILP solver (requires license)
 
 [feature.dev.dependencies]
 # Interactive development
 jupyter = ">=1.1.1,<2"               # Jupyter notebook interface
-ipython = ">=9.6.0,<10"              # Enhanced Python REPL
+ipython = ">=9.7.0,<10"              # Enhanced Python REPL
 
 # Code quality
-pre-commit = ">=4.3.0,<5"            # Git pre-commit hooks framework
-ruff = ">=0.14.2,<0.15"              # Fast Python linter and formatter
+pre-commit = ">=4.5.0,<5"            # Git pre-commit hooks framework
+ruff = ">=0.14.6,<0.15"              # Fast Python linter and formatter
 
 # Documentation
 sphinx = ">=8.2.3,<9"                # Documentation generator

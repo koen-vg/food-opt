@@ -7,7 +7,7 @@
 from pathlib import Path
 
 import pandas as pd
-from pandera import Column, DataFrameSchema
+from pandera.pandas import Column, DataFrameSchema
 from snakemake.logging import logger
 
 GAEZ_MAPPING_SCHEMA = DataFrameSchema(

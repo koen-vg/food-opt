@@ -7,7 +7,7 @@
 from pathlib import Path
 
 import pandas as pd
-from pandera import Column, DataFrameSchema
+from pandera.pandas import Column, DataFrameSchema
 
 FOOD_GROUP_SCHEMA = DataFrameSchema(
     {
