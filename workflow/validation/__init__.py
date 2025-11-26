@@ -14,6 +14,7 @@ from .config_schema import validate_config_schema
 from .crop_food_pathways import validate_crop_food_pathways
 from .food_groups import validate_food_groups
 from .gaez_crop_mapping import validate_gaez_crop_mapping
+from .health_map import validate_health_map
 
 Validator = Callable[[dict, Path], None]
 
@@ -22,6 +23,7 @@ _CHECKS: dict[str, Validator] = {
     "food_groups": validate_food_groups,
     "crop_food_pathways": validate_crop_food_pathways,
     "gaez_crop_mapping": validate_gaez_crop_mapping,
+    "health_map": validate_health_map,
 }
 
 

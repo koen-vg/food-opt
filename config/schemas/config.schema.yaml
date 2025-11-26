@@ -554,6 +554,7 @@ properties:
       - risk_factors
       - causes
       - tmrel_g_per_day
+      - risk_cause_map
     additionalProperties: false
     properties:
       enabled:
@@ -612,6 +613,16 @@ properties:
           type: string
           pattern: "^[A-Za-z0-9]+$"
         description: "Health outcomes/causes to consider (IHME GBD codes)"
+      risk_cause_map:
+        type: object
+        description: "Explicit mapping from risk_factor to list of causes it affects"
+        additionalProperties:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            pattern: "^[A-Za-z0-9]+$"
       tmrel_g_per_day:
         type: object
         required:

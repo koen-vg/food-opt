@@ -161,6 +161,7 @@ rule solve_model:
         unpack(solve_model_inputs),
     params:
         health_risk_factors=config["health"]["risk_factors"],
+        health_risk_cause_map=config["health"]["risk_cause_map"],
         health_value_per_yll=config["health"]["value_per_yll"],
         ghg_price=config["emissions"]["ghg_price"],
         solver=config["solving"]["solver"],

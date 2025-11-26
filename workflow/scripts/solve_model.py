@@ -549,6 +549,7 @@ def add_health_objective(
     clusters_path: str,
     population_totals_path: str,
     risk_factors: list[str],
+    risk_cause_map: dict[str, list[str]],
     solver_name: str,
     value_per_yll: float,
 ) -> None:
@@ -604,6 +605,14 @@ def add_health_objective(
         ["risk_factor", "intake_g_per_day", "cause"]
     )
     cause_log_breakpoints = cause_log_breakpoints.sort_values(["cause", "log_rr_total"])
+
+    # Restrict to configured risk-cause pairs to avoid silent zeros
+    allowed_pairs = {(r, c) for r, causes in risk_cause_map.items() for c in causes}
+    rb_pairs = set(zip(risk_breakpoints["risk_factor"], risk_breakpoints["cause"]))
+    missing_pairs = sorted(allowed_pairs - rb_pairs)
+    if missing_pairs:
+        text = ", ".join([f"{r}:{c}" for r, c in missing_pairs])
+        raise ValueError(f"Risk breakpoints missing required pairs: {text}")
 
     p = m.variables["Link-p"].sel(snapshot="now")
 
@@ -1005,6 +1014,7 @@ if __name__ == "__main__":
             snakemake.input.health_clusters,
             snakemake.input.population,
             snakemake.params.health_risk_factors,
+            snakemake.params.health_risk_cause_map,
             solver_name,
             float(snakemake.params.health_value_per_yll)
             * constants.USD_TO_BNUSD,  # convert USD/YLL to bnUSD/YLL

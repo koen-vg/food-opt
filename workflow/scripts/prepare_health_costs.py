@@ -119,7 +119,9 @@ class RelativeRiskTable(dict[tuple[str, str], dict[str, np.ndarray]]):
 
 
 def _build_rr_tables(
-    rr_df: pd.DataFrame, risk_factors: Iterable[str]
+    rr_df: pd.DataFrame,
+    risk_factors: Iterable[str],
+    risk_cause_map: dict[str, list[str]],
 ) -> tuple[RelativeRiskTable, dict[str, float]]:
     """Build lookup tables for relative risk curves by (risk, cause) pairs.
 
@@ -129,11 +131,12 @@ def _build_rr_tables(
     """
     table: RelativeRiskTable = RelativeRiskTable()
     max_exposure_g_per_day: dict[str, float] = dict.fromkeys(risk_factors, 0.0)
-    allowed = set(risk_factors)
+    allowed = {(risk, cause) for risk in risk_factors for cause in risk_cause_map[risk]}
+    seen_pairs: set[tuple[str, str]] = set()
     seen_risks: set[str] = set()
 
     for (risk, cause), grp in rr_df.groupby(["risk_factor", "cause"], sort=True):
-        if risk not in allowed:
+        if (risk, cause) not in allowed:
             continue
 
         grp = grp.sort_values("exposure_g_per_day")
@@ -150,12 +153,12 @@ def _build_rr_tables(
             max_exposure_g_per_day[risk], float(exposures.max())
         )
         seen_risks.add(risk)
+        seen_pairs.add((risk, cause))
 
-    missing = sorted(set(risk_factors) - seen_risks)
-    if missing:
-        raise ValueError(
-            "Relative risk table is missing risk factors: " + ", ".join(missing)
-        )
+    missing_pairs = sorted(allowed - seen_pairs)
+    if missing_pairs:
+        text = ", ".join([f"{r}:{c}" for r, c in missing_pairs])
+        raise ValueError(f"Relative risk table is missing risk-cause pairs: {text}")
 
     return table, max_exposure_g_per_day
 
@@ -225,6 +228,7 @@ def _filter_and_prepare_data(
     reference_year: int,
     life_exp: pd.Series,
     risk_factors: list[str],
+    risk_cause_map: dict[str, list[str]],
     intake_age_min: int,
 ) -> tuple:
     """Filter datasets to reference year and compute derived quantities."""
@@ -239,7 +243,9 @@ def _filter_and_prepare_data(
     ].copy()
 
     # Build relative risk lookup tables
-    rr_lookup, max_exposure_g_per_day = _build_rr_tables(rr_df, risk_factors)
+    rr_lookup, max_exposure_g_per_day = _build_rr_tables(
+        rr_df, risk_factors, risk_cause_map
+    )
 
     # Filter mortality and population data
     dr = dr[(dr["year"] == reference_year) & (dr["country"].isin(cfg_countries))].copy()
@@ -260,14 +266,10 @@ def _filter_and_prepare_data(
     )
 
     # Determine relevant risk-cause pairs
-    relevant_pairs = {
-        (risk, cause) for (risk, cause) in rr_lookup if risk in risk_factors
-    }
-    relevant_causes = sorted({cause for _, cause in relevant_pairs})
-    risk_to_causes: dict[str, list[str]] = {}
-    for risk, cause in relevant_pairs:
-        risk_to_causes.setdefault(risk, set()).add(cause)
-    risk_to_causes = {risk: sorted(causes) for risk, causes in risk_to_causes.items()}
+    risk_to_causes = {risk: list(risk_cause_map[risk]) for risk in risk_factors}
+    relevant_causes = sorted(
+        {cause for causes in risk_to_causes.values() for cause in causes}
+    )
 
     dr = dr[dr["cause"].isin(relevant_causes)].copy()
 
@@ -297,28 +299,30 @@ def _filter_and_prepare_data(
     diet["risk_factor"] = diet["item"].map(item_to_risk)
     diet = diet.dropna(subset=["risk_factor"])
     # Population-weighted adult intakes per country and risk factor
-    pop_weights = (
+    # The dietary intake file is already aggregated to adult bands ("11-74 years", "75+ years").
+    # Population file is per narrow age band, so collapse to total adult population per country.
+    pop_adult = (
         pop_age[pop_age["age"].isin(adult_ages)]
-        .rename(columns={"value": "population"})
-        .set_index(["country", "age"])["population"]
-    )
-    diet = diet.merge(
-        pop_weights.rename("population"),
-        left_on=["country", "age"],
-        right_index=True,
-        how="left",
-    )
-    diet["population"] = diet["population"].fillna(0.0)
-    diet["weighted"] = diet["value"].astype(float) * diet["population"].astype(float)
-    weighted = (
-        diet.groupby(["country", "risk_factor"])[["weighted", "population"]]
+        .groupby("country")["value"]
         .sum()
-        .reset_index()
+        .astype(float)
+        .rename("population_adult")
     )
-    weighted["value"] = weighted["weighted"] / weighted["population"].replace(0, np.nan)
-    intake_by_country = weighted.pivot_table(
-        index="country", columns="risk_factor", values="value", fill_value=0.0
-    ).reindex(cfg_countries, fill_value=0.0)
+    if pop_adult.isna().any() or (pop_adult <= 0).any():
+        raise ValueError("Adult population totals are missing or non-positive")
+
+    diet = diet.rename(columns={"value": "intake"})
+    diet["intake"] = pd.to_numeric(diet["intake"], errors="coerce")
+    if diet["intake"].isna().any():
+        raise ValueError("Dietary intake contains non-numeric values")
+
+    # For each country/risk, take the adult-age mean intake and weight by total adult population
+    diet_grouped = (
+        diet.groupby(["country", "risk_factor"])["intake"].mean().rename("intake_mean")
+    )
+    intake_by_country = diet_grouped.unstack(fill_value=0.0).reindex(
+        cfg_countries, fill_value=0.0
+    )
 
     return (
         dr,
@@ -448,7 +452,11 @@ def _process_health_clusters(
 
         for cause in relevant_causes:
             log_rr_baseline = log_rr_baseline_totals[cause]
-            paf = 1.0 - math.exp(-log_rr_baseline)  # (RR-1)/RR
+            rr_baseline = math.exp(log_rr_baseline)
+            rr_ref = math.exp(log_rr_ref_totals[cause])
+            paf = (
+                0.0 if rr_baseline <= 0 else 1.0 - rr_ref / rr_baseline
+            )  # burden relative to TMREL
             paf = max(0.0, min(1.0, paf))
             yll_total = yll_by_cause_cluster.get(cause, 0.0)
             yll_diet_attrib = yll_total * paf
@@ -609,6 +617,9 @@ def main() -> None:
     cfg_countries: list[str] = list(snakemake.params["countries"])
     health_cfg = snakemake.params["health"]
     risk_factors: list[str] = list(health_cfg["risk_factors"])
+    risk_cause_map: dict[str, list[str]] = {
+        str(risk): list(health_cfg["risk_cause_map"][risk]) for risk in risk_factors
+    }
     reference_year = int(health_cfg["reference_year"])
     intake_grid_points = int(health_cfg["intake_grid_points"])
     log_rr_points = int(health_cfg["log_rr_points"])
@@ -647,6 +658,7 @@ def main() -> None:
         reference_year,
         life_exp,
         risk_factors,
+        risk_cause_map,
         intake_age_min,
     )
 
