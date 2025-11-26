@@ -320,12 +320,12 @@ health:
   enabled: true  # Whether to include health costs in the objective function
   region_clusters: 30
   reference_year: 2018
-  intake_grid_step: 20  # Intake resolution in g/person/day
+  intake_grid_points: 10  # Number of grid knots over empirical RR range
   log_rr_points: 10
   omega3_per_100g_fish: 1.5
   ssb_sugar_g_per_100g: 5.7  # ≈50 kcal per 226.8 g sugar-sweetened beverage (SSB) implies ~5.7 g sugar per 100 g
   value_per_yll: 150000  # USD_2024 per year of life lost
-  tmrel_flat_upper_limit_g_per_day: 1000  # Protective foods stay at TMREL risk beyond this intake
+  intake_cap_g_per_day: 1000  # Uniform generous cap on intake grids and clipping
   # Dietary risk factors to consider (must match GDD data items)
   risk_factors:
   - fruits

@@ -22,7 +22,7 @@ trade:
 # Fewer health clusters
 health:
   region_clusters: 15  # Reduced from 30
-  intake_grid_step: 20
+  intake_grid_points: 10
   log_rr_points: 10
   ssb_sugar_g_per_100g: 5.7
   risk_factors:

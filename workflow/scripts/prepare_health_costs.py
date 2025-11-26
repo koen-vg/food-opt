@@ -314,16 +314,16 @@ def _compute_baseline_health_metrics(
 
 def _build_intake_caps(
     max_exposure_g_per_day: dict[str, float],
-    tmrel_g_per_day: dict[str, float],
-    flat_tail_limit: float,
+    intake_cap_limit: float,
 ) -> dict[str, float]:
-    """Extend intake caps for protective foods so they can exceed TMREL."""
+    """Apply a uniform generous intake cap across all risk factors."""
+
+    if intake_cap_limit <= 0:
+        return dict(max_exposure_g_per_day)
 
     caps = dict(max_exposure_g_per_day)
-    if flat_tail_limit > 0:
-        for risk, tmrel in tmrel_g_per_day.items():
-            if float(tmrel) > 0:
-                caps[risk] = max(caps.get(risk, 0.0), float(flat_tail_limit))
+    for risk in list(caps.keys()):
+        caps[risk] = max(caps[risk], float(intake_cap_limit))
     return caps
 
 
@@ -386,9 +386,14 @@ def _process_health_clusters(
                 }
             )
 
-            # Use TMREL as reference point for health cost calculations
-            # This ensures costs are zero when optimized intake reaches TMREL
+            # Use TMREL intake as reference point for health cost calculations.
+            # This ensures Cost = 0 when intake == TMREL and Cost > 0 when
+            # deviating from TMREL.
             tmrel_intake = float(tmrel_g_per_day.get(risk, 0.0))
+            if not math.isfinite(tmrel_intake):
+                tmrel_intake = 0.0
+            tmrel_intake = max(0.0, min(tmrel_intake, max_exposure))
+
             causes = risk_to_causes.get(risk, [])
             for cause in causes:
                 if (risk, cause) not in rr_lookup:
@@ -430,41 +435,61 @@ def _process_health_clusters(
 
 def _generate_breakpoint_tables(
     risk_factors: list[str],
-    max_exposure_g_per_day: dict[str, float],
+    intake_caps_g_per_day: dict[str, float],
     baseline_intake_registry: dict[str, set],
-    intake_step: float,
+    intake_grid_points: int,
     rr_lookup: RelativeRiskTable,
     risk_to_causes: dict[str, list[str]],
     relevant_causes: list[str],
     log_rr_points: int,
     tmrel_g_per_day: dict[str, float],
-    flat_tail_limit: float,
 ) -> tuple:
-    """Generate SOS2 linearization breakpoint tables for risks and causes."""
+    """Generate SOS2 linearization breakpoint tables for risks and causes.
+
+    Intake grids:
+        - Evenly spaced `intake_grid_points` over the empirical RR data range
+          (min→max exposure in RR table, expanded to include 0).
+        - Always include all empirical exposure points, TMREL, baseline intakes,
+          and the global intake cap for feasibility beyond the data range.
+        - The generous cap is *added* as a knot but does not stretch the
+          linspace; this keeps knot density high where RR actually changes.
+    Cause grids:
+        - `log_rr_points` evenly spaced between aggregated min/max log(RR)
+          implied by the risk grids above.
+    """
     risk_breakpoint_rows = []
     cause_log_min: dict[str, float] = dict.fromkeys(relevant_causes, 0.0)
     cause_log_max: dict[str, float] = dict.fromkeys(relevant_causes, 0.0)
 
     for risk in risk_factors:
-        max_exposure = float(max_exposure_g_per_day.get(risk, 0.0))
-        if max_exposure <= 0:
+        cap = float(intake_caps_g_per_day.get(risk, 0.0))
+        if cap <= 0:
             continue
-        grid_points = set(np.arange(0.0, max_exposure + intake_step, intake_step))
         causes = risk_to_causes.get(risk, [])
+        # Empirical exposure domain from RR table (may vary by cause; take union)
+        exposures = []
         for cause in causes:
             exposures = rr_lookup.get((risk, cause), {}).get("exposures")
             if exposures is not None:
-                grid_points.update(float(x) for x in exposures)
+                exposures = list(exposures)
+                break
+        if not exposures:
+            continue
+        lo = min(0.0, float(min(exposures)))
+        hi_empirical = float(max(exposures))
+        # Even spacing only over the empirical RR range
+        lin = np.linspace(lo, hi_empirical, max(intake_grid_points, 2))
+        grid_points = {float(x) for x in lin}
+        grid_points.update(float(x) for x in exposures)
         grid_points.add(0.0)
-        grid_points.add(max_exposure)
+        grid_points.add(hi_empirical)
         for val in baseline_intake_registry.get(risk, set()):
             grid_points.add(float(val))
         # Include TMREL as a breakpoint for accurate interpolation at optimal intake
         if risk in tmrel_g_per_day:
             grid_points.add(float(tmrel_g_per_day[risk]))
-        tmrel_value = float(tmrel_g_per_day.get(risk, 0.0))
-        if tmrel_value > 0 and flat_tail_limit > max_exposure:
-            grid_points.add(float(flat_tail_limit))
+        # Add the generous cap without stretching the linspace range
+        grid_points.add(cap)
         grid = sorted(grid_points)
 
         for cause in causes:
@@ -526,10 +551,10 @@ def main() -> None:
     health_cfg = snakemake.params["health"]
     risk_factors: list[str] = list(health_cfg["risk_factors"])
     reference_year = int(health_cfg["reference_year"])
-    intake_step = float(health_cfg["intake_grid_step"])
+    intake_grid_points = int(health_cfg["intake_grid_points"])
     log_rr_points = int(health_cfg["log_rr_points"])
     tmrel_g_per_day: dict[str, float] = dict(health_cfg.get("tmrel_g_per_day", {}))
-    flat_tail_limit = float(health_cfg.get("tmrel_flat_upper_limit_g_per_day", 1000.0))
+    intake_cap_limit = float(health_cfg.get("intake_cap_g_per_day", 1000.0))
 
     # Load input data
     (
@@ -557,9 +582,7 @@ def main() -> None:
         diet, dr, pop, rr_df, cfg_countries, reference_year, life_exp, risk_factors
     )
 
-    intake_caps_g_per_day = _build_intake_caps(
-        max_exposure_g_per_day, tmrel_g_per_day, flat_tail_limit
-    )
+    intake_caps_g_per_day = _build_intake_caps(max_exposure_g_per_day, intake_cap_limit)
 
     # Compute baseline health metrics
     combo = _compute_baseline_health_metrics(
@@ -590,15 +613,14 @@ def main() -> None:
     # Generate breakpoint tables for SOS2 linearization
     risk_breakpoints, cause_log_breakpoints = _generate_breakpoint_tables(
         risk_factors,
-        max_exposure_g_per_day,
+        intake_caps_g_per_day,
         baseline_intake_registry,
-        intake_step,
+        intake_grid_points,
         rr_lookup,
         risk_to_causes,
         relevant_causes,
         log_rr_points,
         tmrel_g_per_day,
-        flat_tail_limit,
     )
 
     # Write outputs
