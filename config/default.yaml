@@ -151,8 +151,8 @@ macronutrients:
   #   min: 50      # g/person/day
   # fat:
   #   min: 50      # g/person/day
-  kcal:
-    min: 2000
+  # cal:
+  #   min: 2000    # kcal/person/day
 
 # --- section: byproducts ---
 # Foods that are not for direct human consumption (excluded from food group tracking)
@@ -648,7 +648,7 @@ data:
       protein: "Protein"
       carb: "Carbohydrate, by difference"
       fat: "Total lipid (fat)"
-      kcal: "Energy"
+      cal: "Energy"
   land_cover:
     year: "2022"
     version: "v2_1_1"

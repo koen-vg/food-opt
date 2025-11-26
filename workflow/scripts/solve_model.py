@@ -24,6 +24,12 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from workflow.scripts.build_model import constants  # noqa: E402
+from workflow.scripts.build_model.nutrition import (  # noqa: E402
+    _build_food_group_equals_from_baseline,
+)
+from workflow.scripts.build_model.utils import (  # noqa: E402
+    _per_capita_mass_to_mt_per_year,
+)
 from workflow.scripts.snakemake_utils import apply_objective_config  # noqa: E402
 
 try:  # Used for type annotations / documentation; fallback when unavailable
@@ -47,6 +53,188 @@ _SOS2_COUNTER = [0]  # Use list for mutable counter
 def _register_health_variable(m: "linopy.Model", name: str) -> None:
     aux = HEALTH_AUX_MAP.setdefault(id(m), set())
     aux.add(name)
+
+
+def add_macronutrient_constraints(
+    n: pypsa.Network, macronutrient_cfg: dict | None, population: dict[str, float]
+) -> None:
+    """Add per-country macronutrient bounds directly to the linopy model.
+
+    The bounds are expressed on the storage level of each macronutrient store.
+    RHS values are converted from per-person-per-day units using stored
+    population and nutrient unit metadata.
+    """
+
+    if not macronutrient_cfg:
+        return
+
+    m = n.model
+    store_e = m.variables["Store-e"].sel(snapshot="now")
+    stores_df = n.stores.static
+
+    for nutrient, bounds in macronutrient_cfg.items():
+        if not bounds:
+            continue
+
+        carrier_unit = n.carriers.static.at[nutrient, "unit"]
+        nutrient_stores = stores_df[stores_df["carrier"] == nutrient]
+        countries = nutrient_stores["country"].astype(str)
+
+        lhs = store_e.sel(name=nutrient_stores.index)
+
+        def rhs_from(
+            value: float,
+            carrier_unit=carrier_unit,
+            countries=countries,
+            nutrient_stores=nutrient_stores,
+        ) -> xr.DataArray:
+            # Carrier unit encodes the nutrient type: "Mt" for mass, "PJ" for energy (kcal)
+            if carrier_unit == "Mt":
+                rhs_vals = [
+                    _per_capita_mass_to_mt_per_year(
+                        float(value), float(population[country])
+                    )
+                    for country in countries
+                ]
+            else:
+                rhs_vals = [
+                    float(value)
+                    * float(population[country])
+                    * constants.DAYS_PER_YEAR
+                    * constants.KCAL_TO_PJ
+                    for country in countries
+                ]
+            return xr.DataArray(
+                rhs_vals, coords={"name": nutrient_stores.index}, dims="name"
+            )
+
+        for key, operator, label in (
+            ("equal", "==", "equal"),
+            ("min", ">=", "min"),
+            ("max", "<=", "max"),
+        ):
+            if bounds.get(key) is None:
+                continue
+            rhs = rhs_from(bounds[key])
+            constr_name = f"macronutrient_{label}_{nutrient}"
+
+            if operator == "==":
+                m.add_constraints(lhs == rhs, name=constr_name)
+                n.global_constraints.add(
+                    f"{constr_name}_" + nutrient_stores.index,
+                    sense="==",
+                    constant=rhs.values,
+                    type="nutrition",
+                )
+                break
+
+            if operator == ">=":
+                m.add_constraints(lhs >= rhs, name=constr_name)
+            else:
+                m.add_constraints(lhs <= rhs, name=constr_name)
+
+            n.global_constraints.add(
+                f"{constr_name}_" + nutrient_stores.index,
+                sense=operator,
+                constant=rhs.values,
+                type="nutrition",
+            )
+
+
+def add_food_group_constraints(
+    n: pypsa.Network,
+    food_group_cfg: dict | None,
+    population: dict[str, float],
+    per_country_equal: dict[str, dict[str, float]] | None = None,
+) -> None:
+    """Add per-country food group bounds on store levels."""
+
+    if not food_group_cfg:
+        return
+
+    per_country_equal = per_country_equal or {}
+
+    m = n.model
+    store_e = m.variables["Store-e"].sel(snapshot="now")
+    stores_df = n.stores.static
+
+    for group, bounds in food_group_cfg.items():
+        if not bounds:
+            continue
+
+        group_stores = stores_df[stores_df["carrier"] == f"group_{group}"]
+        countries = group_stores["country"].astype(str)
+        lhs = store_e.sel(name=group_stores.index)
+
+        def rhs_from(
+            value: float, countries=countries, group_stores=group_stores
+        ) -> xr.DataArray:
+            rhs_vals = [
+                _per_capita_mass_to_mt_per_year(
+                    float(value), float(population[country])
+                )
+                for country in countries
+            ]
+            return xr.DataArray(
+                rhs_vals, coords={"name": group_stores.index}, dims="name"
+            )
+
+        def rhs_from_equal(
+            group=group, countries=countries, group_stores=group_stores, bounds=bounds
+        ) -> xr.DataArray | None:
+            overrides = per_country_equal.get(group)
+            if overrides:
+                rhs_vals = [
+                    _per_capita_mass_to_mt_per_year(
+                        float(overrides[country]), float(population[country])
+                    )
+                    for country in countries
+                ]
+                return xr.DataArray(
+                    rhs_vals, coords={"name": group_stores.index}, dims="name"
+                )
+            if bounds.get("equal") is None:
+                return None
+            return rhs_from(bounds["equal"])
+
+        # Apply at most one equality; otherwise allow independent min/max bounds
+        for key, operator, label in (
+            ("equal", "==", "equal"),
+            ("min", ">=", "min"),
+            ("max", "<=", "max"),
+        ):
+            if key == "equal":
+                rhs = rhs_from_equal()
+                if rhs is None:
+                    continue
+            else:
+                if bounds.get(key) is None:
+                    continue
+                rhs = rhs_from(bounds[key])
+
+            constr_name = f"food_group_{label}_{group}"
+
+            if operator == "==":
+                m.add_constraints(lhs == rhs, name=constr_name)
+                n.global_constraints.add(
+                    f"{constr_name}_" + group_stores.index,
+                    sense="==",
+                    constant=rhs.values,
+                    type="nutrition",
+                )
+                break
+
+            if operator == ">=":
+                m.add_constraints(lhs >= rhs, name=constr_name)
+            else:
+                m.add_constraints(lhs <= rhs, name=constr_name)
+
+            n.global_constraints.add(
+                f"{constr_name}_" + group_stores.index,
+                sense=operator,
+                constant=rhs.values,
+                type="nutrition",
+            )
 
 
 def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list[str]:
@@ -765,6 +953,33 @@ if __name__ == "__main__":
             solver_options["LogFile"] = snakemake.log[0]
         if "LogToConsole" not in solver_options:
             solver_options["LogToConsole"] = 1  # Also print to console
+
+    # Add macronutrient intake bounds
+    population_df = pd.read_csv(snakemake.input.population)
+    population_df["iso3"] = population_df["iso3"].astype(str).str.upper()
+    population_map = (
+        population_df.set_index("iso3")["population"].astype(float).to_dict()
+    )
+
+    # Food group baseline equals (optional)
+    per_country_equal: dict[str, dict[str, float]] | None = None
+    if bool(snakemake.params.enforce_baseline):
+        baseline_df = pd.read_csv(snakemake.input.baseline_diet)
+        per_country_equal = _build_food_group_equals_from_baseline(
+            baseline_df,
+            list(population_map.keys()),
+            pd.read_csv(snakemake.input.food_groups)["group"].unique(),
+            baseline_age=str(snakemake.params.diet["baseline_age"]),
+            reference_year=int(snakemake.params.diet["baseline_reference_year"]),
+        )
+
+    add_macronutrient_constraints(n, snakemake.params.macronutrients, population_map)
+    add_food_group_constraints(
+        n,
+        snakemake.params.food_group_constraints,
+        population_map,
+        per_country_equal,
+    )
 
     # Add residue feed limit constraints
     max_feed_fraction = float(snakemake.config["residues"]["max_feed_fraction"])

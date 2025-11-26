@@ -308,7 +308,7 @@ properties:
     type: object
     additionalProperties: false
     patternProperties:
-      "^(carb|protein|fat|kcal)$":
+      "^(carb|protein|fat|cal)$":
         type: object
         additionalProperties: false
         patternProperties:
@@ -747,7 +747,7 @@ properties:
             description: "Whether to fetch nutrition data from USDA API"
           nutrients:
             type: object
-            required: [protein, carb, fat, kcal]
+            required: [protein, carb, fat, cal]
             additionalProperties: false
             properties:
               protein:
@@ -756,7 +756,7 @@ properties:
                 type: string
               fat:
                 type: string
-              kcal:
+              cal:
                 type: string
       land_cover:
         type: object

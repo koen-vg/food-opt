@@ -273,15 +273,6 @@ if __name__ == "__main__":
 
     diet_cfg = snakemake.params.diet
     health_reference_year = int(snakemake.params.health_reference_year)
-    baseline_equals: dict[str, dict[str, float]] = {}
-    if enforce_baseline:
-        baseline_equals = nutrition._build_food_group_equals_from_baseline(
-            read_csv(snakemake.input.baseline_diet),
-            cfg_countries,
-            food_groups["group"].unique(),
-            baseline_age=str(diet_cfg["baseline_age"]),
-            reference_year=int(diet_cfg["baseline_reference_year"]),
-        )
 
     region_to_country = regions_df.set_index("region")["country"]
     # Warn if any configured countries are missing from regions
@@ -588,11 +579,7 @@ if __name__ == "__main__":
     nutrition.add_food_group_buses_and_loads(
         n,
         food_group_list,
-        food_groups,
-        snakemake.params.food_group_constraints,
         cfg_countries,
-        population,
-        per_country_equal=baseline_equals,
         add_slack_for_fixed_consumption=enforce_baseline,
         slack_marginal_cost=validation_slack_cost,
     )

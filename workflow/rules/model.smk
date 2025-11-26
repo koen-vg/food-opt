@@ -144,6 +144,7 @@ def solve_model_inputs(w):
         "health_clusters": f"processing/{w.name}/health/country_clusters.csv",
         "population": f"processing/{w.name}/population.csv",
         "food_groups": "data/food_groups.csv",
+        "baseline_diet": f"processing/{w.name}/dietary_intake.csv",
     }
 
     # Add validation-specific inputs
@@ -168,6 +169,10 @@ rule solve_model:
         ),
         io_api=config["solving"]["io_api"],
         netcdf_compression=config["solving"].get("netcdf_compression"),
+        macronutrients=config["macronutrients"],
+        food_group_constraints=config["food_groups"].get("constraints", {}),
+        diet=config["diet"],
+        enforce_baseline=config["validation"]["enforce_gdd_baseline"],
     output:
         network="results/{name}/solved/model_obj-{objective}.nc",
     log:
