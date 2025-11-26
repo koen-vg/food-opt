@@ -133,6 +133,17 @@ rule plot_health_impacts:
         "../scripts/plotting/plot_health_impacts.py"
 
 
+rule plot_relative_risk_curves:
+    input:
+        relative_risks="processing/{name}/health/relative_risks.csv",
+    output:
+        pdf="results/{name}/plots/relative_risk_curves.pdf",
+    log:
+        "logs/{name}/plot_relative_risk_curves.log",
+    script:
+        "../scripts/plotting/plot_relative_risk_curves.py"
+
+
 rule plot_crop_production_map:
     input:
         network="results/{name}/solved/model_obj-{objective}.nc",
