@@ -994,7 +994,7 @@ properties:
 
   solving:
     type: object
-    required: [solver, io_api, options_gurobi, options_highs, netcdf_compression]
+    required: [solver, io_api, calculate_fixed_duals, options_gurobi, options_highs, netcdf_compression]
     additionalProperties: false
     properties:
       solver:
@@ -1005,6 +1005,9 @@ properties:
         type: ["string", "null"]
         enum: [lp, mps, direct, null]
         description: "How the model is communicated to the solver"
+      calculate_fixed_duals:
+        type: boolean
+        description: "Solve MILP, fix integer variables, then resolve as LP to obtain dual variables"
       options_gurobi:
         type: object
         patternProperties:
