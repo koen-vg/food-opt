@@ -11,6 +11,7 @@ variables `harvested_area`, `crop_area`, and `cropping_intensity` per
 region/resource_class/water_supply.
 """
 
+import gc
 from pathlib import Path
 import sys
 
@@ -40,11 +41,11 @@ def _load_cropgrids_arrays(
         raise FileNotFoundError(f"No CROPGRIDS NetCDF found at {nc_file}")
 
     with rasterio.open(f"NETCDF:{nc_file}:harvarea") as src_h:
-        harv = src_h.read(1, masked=True).filled(0.0)
+        harv = src_h.read(1, masked=True).filled(0.0).astype(np.float32)
     with rasterio.open(f"NETCDF:{nc_file}:croparea") as src_c:
-        crop = src_c.read(1, masked=True).filled(0.0)
+        crop = src_c.read(1, masked=True).filled(0.0).astype(np.float32)
     transform = from_origin(-180.0, 90.0, 0.05, 0.05)
-    return harv.astype(float), crop.astype(float), transform
+    return harv, crop, transform
 
 
 def _aggregate_by_region(
@@ -97,23 +98,22 @@ if __name__ == "__main__":
     cg_crs = CRS.from_epsg(4326)
 
     # Load class fractions on the CROPGRIDS grid
-    class_frac_ds = xr.load_dataset(class_frac_path)
-    class_bands = {
-        int(k.split("_")[-1]): class_frac_ds[k].values for k in class_frac_ds.data_vars
-    }
+    # Use open_dataset instead of load_dataset to avoid loading all data into memory
+    class_frac_ds = xr.open_dataset(class_frac_path, chunks="auto")
 
     # Load GAEZ irrigated/rainfed harvested area and scale to ha, reproject to CROPGRIDS grid
     gaez_r, gaez_src_r = read_raster_float(gaez_r_path)
     gaez_i, gaez_src_i = read_raster_float(gaez_i_path)
-    gaez_r = gaez_r * RES06_HAR_SCALE_TO_HA
-    gaez_i = gaez_i * RES06_HAR_SCALE_TO_HA
+    # Ensure float32
+    gaez_r = (gaez_r * RES06_HAR_SCALE_TO_HA).astype(np.float32)
+    gaez_i = (gaez_i * RES06_HAR_SCALE_TO_HA).astype(np.float32)
     gaez_transform = gaez_src_r.transform
     gaez_crs = gaez_src_r.crs
     gaez_src_r.close()
     gaez_src_i.close()
 
-    gaez_r_cg = np.zeros(cg_shape, dtype=float)
-    gaez_i_cg = np.zeros(cg_shape, dtype=float)
+    gaez_r_cg = np.zeros(cg_shape, dtype=np.float32)
+    gaez_i_cg = np.zeros(cg_shape, dtype=np.float32)
     reproject(
         gaez_r,
         gaez_r_cg,
@@ -132,16 +132,31 @@ if __name__ == "__main__":
         dst_crs=cg_crs,
         resampling=Resampling.average,
     )
+    # Free original GAEZ arrays
+    del gaez_r, gaez_i
+    gc.collect()
+
     gaez_sum = gaez_r_cg + gaez_i_cg
-    irrig_share = np.where(gaez_sum > 0, gaez_i_cg / gaez_sum, 0.0)
+    irrig_share = np.divide(
+        gaez_i_cg, gaez_sum, out=np.zeros_like(gaez_i_cg), where=gaez_sum > 0
+    )
     irrig_share = np.clip(irrig_share, 0.0, 1.0)
+
+    # Free reprojected GAEZ arrays
+    del gaez_r_cg, gaez_i_cg, gaez_sum
+    gc.collect()
 
     regions = gpd.read_file(regions_path)[["region", "geometry"]]
 
     harv_records: list[pd.DataFrame] = []
     crop_records: list[pd.DataFrame] = []
 
-    for cls, frac_arr in class_bands.items():
+    # Iterate over variables directly instead of pre-loading
+    for var_name in class_frac_ds.data_vars:
+        cls = int(var_name.split("_")[-1])
+        # Load only the current fraction array
+        frac_arr = class_frac_ds[var_name].values.astype(np.float32)
+
         harv_cls = harv_cg * frac_arr
         crop_cls = crop_cg * frac_arr
 
@@ -155,12 +170,29 @@ if __name__ == "__main__":
 
         harv_df = _aggregate_by_region(harv_arr, regions, cg_transform)
         crop_df = _aggregate_by_region(crop_arr, regions, cg_transform)
+
         if not harv_df.empty:
             harv_df["resource_class"] = cls
             harv_records.append(harv_df)
         if not crop_df.empty:
             crop_df["resource_class"] = cls
             crop_records.append(crop_df)
+
+        # Clean up intermediate arrays for this iteration
+        del (
+            frac_arr,
+            harv_cls,
+            crop_cls,
+            harv_i,
+            harv_r,
+            crop_i,
+            crop_r,
+            harv_arr,
+            crop_arr,
+        )
+        gc.collect()
+
+    class_frac_ds.close()
 
     harvested_df = (
         pd.concat(harv_records, ignore_index=True)

@@ -13,9 +13,8 @@ area and avoids nearest-neighbour artefacts when aggregating CROPGRIDS data.
 from pathlib import Path
 
 import numpy as np
-import rasterio
 from rasterio.crs import CRS
-from rasterio.transform import from_origin
+from rasterio.transform import Affine, from_origin
 from rasterio.warp import Resampling, reproject
 import xarray as xr
 
@@ -32,15 +31,14 @@ if __name__ == "__main__":
     classes_path = Path(snakemake.input.classes)  # type: ignore[name-defined]
     output_path = Path(snakemake.output[0])  # type: ignore[name-defined]
 
-    with rasterio.open(f"NETCDF:{classes_path}:resource_class") as src:
-        class_arr = src.read(1)
-        src_transform = src.transform
-        src_crs = src.crs
-        tags = src.tags()
-        if src_crs is None:
-            wkt = tags.get("NC_GLOBAL#crs_wkt")
-            src_crs = CRS.from_wkt(wkt) if wkt else CRS.from_epsg(4326)
-    class_arr = class_arr.astype(np.int16)
+    # Open resource_classes.nc as an xarray dataset to properly read global attributes
+    ds_src = xr.open_dataset(classes_path)
+    class_arr = ds_src["resource_class"].values.astype(np.int16)
+
+    # Extract georeferencing from global attributes, parsing the transform string
+    src_transform = Affine.from_gdal(*ds_src.attrs["transform"])
+    src_crs = CRS.from_wkt(ds_src.attrs["crs_wkt"])
+    ds_src.close()  # Close dataset after reading necessary data
 
     transform_tgt, width_tgt, height_tgt = _target_grid()
     bands: dict[str, np.ndarray] = {}
