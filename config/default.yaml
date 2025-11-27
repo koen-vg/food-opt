@@ -826,6 +826,11 @@ solving:
 
 # --- section: plotting ---
 plotting:
+  comparison_objective_wildcards:
+  - "obj-"
+  - "obj-H"
+  - "obj-G"
+  - "obj-HG"
   colors:
     crops:
       wheat: "#C58E2D"

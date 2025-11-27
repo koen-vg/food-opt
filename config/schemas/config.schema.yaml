@@ -1036,9 +1036,16 @@ properties:
 
   plotting:
     type: object
-    required: [colors, fallback_cmaps]
+    required: [colors, fallback_cmaps, comparison_objective_wildcards]
     additionalProperties: false
     properties:
+      comparison_objective_wildcards:
+        type: array
+        minItems: 1
+        items:
+          type: string
+          pattern: "^obj-.*"
+        description: "Objective wildcards (suffixes after 'model_') available for comparison plots"
       colors:
         type: object
         required: [crops, food_groups]

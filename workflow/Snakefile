@@ -52,6 +52,8 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/regions_map.pdf",
     "results/{name}/plots/resource_classes_map.pdf",
     "results/{name}/plots/food_consumption_baseline_map.pdf",
+    "results/{name}/plots/food_consumption_comparison.pdf",
+    "results/{name}/plots/food_consumption_comparison.csv",
     "results/{name}/plots/relative_risk_curves.pdf",
     # results plots
     "results/{name}/plots/obj-HG/crop_production.pdf",

@@ -8,6 +8,7 @@ plotting_cfg = config.get("plotting", {})
 crop_color_overrides = plotting_cfg.get("colors", {}).get("crops", {})
 crop_fallback_cmap = plotting_cfg.get("fallback_cmaps", {}).get("crops", "Set3")
 food_group_colors = plotting_cfg.get("colors", {}).get("food_groups", {})
+comparison_objective_wildcards = plotting_cfg["comparison_objective_wildcards"]
 
 
 def _gaez_actual_yield_raster_path(crop_name: str, water_supply: str) -> str:
@@ -211,6 +212,30 @@ rule plot_food_consumption:
         "logs/{name}/plot_food_consumption_obj-{objective}.log",
     script:
         "../scripts/plotting/plot_food_consumption.py"
+
+
+def food_consumption_comparison_inputs(wildcards):
+    return [
+        f"results/{wildcards.name}/solved/model_{suffix}.nc"
+        for suffix in comparison_objective_wildcards
+    ]
+
+
+rule plot_food_consumption_comparison:
+    input:
+        networks=food_consumption_comparison_inputs,
+        population="processing/{name}/population.csv",
+        food_groups="data/food_groups.csv",
+    output:
+        pdf="results/{name}/plots/food_consumption_comparison.pdf",
+        csv="results/{name}/plots/food_consumption_comparison.csv",
+    params:
+        wildcards=comparison_objective_wildcards,
+        group_colors=food_group_colors,
+    log:
+        "logs/{name}/plot_food_consumption_comparison.log",
+    script:
+        "../scripts/plotting/plot_food_consumption_comparison.py"
 
 
 rule plot_food_consumption_map:
