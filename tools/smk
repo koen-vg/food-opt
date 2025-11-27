@@ -47,7 +47,7 @@ if [ "$has_jobs_arg" = false ]; then
   set -- -j1 "$@"
 fi
 
-if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
+if command -v systemd-run >/dev/null 2>&1 && systemd-run --user --scope --quiet true >/dev/null 2>&1; then
   if [ -n "$PIXI_ENV" ]; then
     exec systemd-run --user --scope -p MemoryMax="${MEM_MAX}" -p MemorySwapMax=0 \
       pixi run -e "$PIXI_ENV" snakemake "$@"
