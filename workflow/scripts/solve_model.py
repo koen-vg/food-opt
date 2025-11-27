@@ -306,7 +306,7 @@ def add_ghg_pricing_to_objective(n: pypsa.Network, ghg_price_usd_per_t: float) -
     )
 
     # Add marginal storage cost to store
-    n.stores.static.at["ghg", "marginal_storage_cost"] = ghg_price_bnusd_per_mt
+    n.stores.static.at["ghg", "marginal_cost_storage"] = ghg_price_bnusd_per_mt
 
 
 def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> None:
