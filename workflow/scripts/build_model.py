@@ -33,6 +33,7 @@ from workflow.scripts.build_model import (  # noqa: E402
     biomass,
     crops,
     food,
+    health,
     infrastructure,
     land,
     nutrition,
@@ -612,6 +613,13 @@ if __name__ == "__main__":
         regions_df,
         cfg_countries,
         food_list,
+    )
+
+    health.add_health_stores(
+        n,
+        snakemake.input.health_cluster_summary,
+        snakemake.input.health_cluster_cause,
+        snakemake.config["health"],
     )
 
     # ═══════════════════════════════════════════════════════════════

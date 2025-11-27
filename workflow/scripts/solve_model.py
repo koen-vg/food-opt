@@ -45,7 +45,6 @@ except Exception:  # pragma: no cover - documentation build without linopy
 pypsa.options.api.new_components_api = True
 
 # Helpers and state for health objective construction
-HEALTH_OBJECTIVE_SCALE = 1e3  # scale RR interpolation to shrink cost coefficients
 HEALTH_AUX_MAP: dict[int, set[str]] = {}
 _SOS2_COUNTER = [0]  # Use list for mutable counter
 
@@ -551,9 +550,15 @@ def add_health_objective(
     risk_factors: list[str],
     risk_cause_map: dict[str, list[str]],
     solver_name: str,
-    value_per_yll: float,
 ) -> None:
-    """Add SOS2-based health costs with log-linear aggregation."""
+    """Link SOS2-based health costs to explicit PyPSA stores.
+
+    The function builds the same intake→relative-risk logic as before, but
+    instead of writing directly to the linopy objective it constrains the
+    level of per-cluster, per-cause YLL stores. The monetary contribution is
+    then handled by the store ``capital_cost`` configured during network
+    construction.
+    """
 
     m = n.model
 
@@ -800,9 +805,6 @@ def add_health_objective(
                     log_rr_totals_dict[key] = log_rr_totals_dict[key] + expr
                 else:
                     log_rr_totals_dict[key] = expr
-    constant_objective = 0.0
-    objective_expr = None
-
     # Group (cluster, cause) pairs by their log_total coordinate patterns
     log_total_groups: dict[tuple[float, ...], list[tuple[int, str]]] = defaultdict(list)
     cluster_cause_data: dict[tuple[int, str], dict] = {}
@@ -811,8 +813,6 @@ def add_health_objective(
         cluster = int(cluster)
         cause = str(cause)
         yll_base = float(row.get("yll_base", 0.0))
-        if not math.isfinite(value_per_yll) or value_per_yll <= 0:
-            continue
         if yll_base == 0 or not math.isfinite(yll_base):
             continue
 
@@ -828,12 +828,21 @@ def add_health_objective(
         # Store data for later use
         log_rr_total_ref = float(row.get("log_rr_total_ref", 0.0))
         cluster_cause_data[(cluster, cause)] = {
-            "value_per_yll": value_per_yll,
             "yll_base": yll_base,
             "log_rr_total_ref": log_rr_total_ref,
             "rr_ref": math.exp(log_rr_total_ref),
             "cause_bp": cause_bp,
         }
+
+    store_e = m.variables["Store-e"].sel(snapshot="now")
+    health_stores = (
+        n.stores.static[
+            n.stores.static["carrier"].notna()
+            & n.stores.static["carrier"].str.startswith("yll_")
+        ]
+        .reset_index()
+        .set_index(["health_cluster", "cause"])
+    )
 
     # Process each group with vectorized operations
     for coords_key, cluster_cause_pairs in log_total_groups.items():
@@ -852,11 +861,6 @@ def add_health_objective(
             coords=[cluster_cause_index, coords],
             name=f"health_lambda_total_group_{hash(coords_key)}",
         )
-        rr_scaled_group = m.add_variables(
-            lower=0,
-            coords=[cluster_cause_index],
-            name=f"health_rr_scaled_group_{hash((coords_key, 'rr'))}",
-        )
 
         # Register all variables
         _register_health_variable(m, lambda_total_group.name)
@@ -867,8 +871,6 @@ def add_health_objective(
         )
         for aux_name in aux_names:
             _register_health_variable(m, aux_name)
-        _register_health_variable(m, rr_scaled_group.name)
-
         # Vectorized convexity constraints
         m.add_constraints(lambda_total_group.sum("log_total") == 1)
 
@@ -882,10 +884,8 @@ def add_health_objective(
         for (cluster, cause), label in zip(cluster_cause_pairs, cluster_cause_labels):
             data = cluster_cause_data[(cluster, cause)]
             lambda_total = lambda_total_group.sel(cluster_cause=label)
-            rr_scaled = rr_scaled_group.sel(cluster_cause=label)
 
-            # Use dictionary lookup
-            total_expr = log_rr_totals_dict.get((cluster, cause), m.linexpr(0.0))
+            total_expr = log_rr_totals_dict[(cluster, cause)]
             cause_bp = data["cause_bp"]
 
             log_interp = m.linexpr((coeff_log_total, lambda_total)).sum("log_total")
@@ -896,39 +896,24 @@ def add_health_objective(
             )
             rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total")
             m.add_constraints(
-                rr_scaled == rr_interp * HEALTH_OBJECTIVE_SCALE,
-                name=f"health_rr_scaled_c{cluster}_cause{cause}",
-            )
-
-            m.add_constraints(
                 log_interp == total_expr,
                 name=f"health_total_balance_c{cluster}_cause{cause}",
             )
 
-            coeff = data["value_per_yll"] * data["yll_base"]
-            coeff_scaled = coeff / HEALTH_OBJECTIVE_SCALE
-            scaled_expr = rr_scaled * (coeff_scaled / data["rr_ref"])
-            objective_expr = (
-                scaled_expr if objective_expr is None else objective_expr + scaled_expr
+            store_name = health_stores.loc[(cluster, cause), "name"]
+
+            yll_expr_myll = (
+                rr_interp
+                * (data["yll_base"] / data["rr_ref"])
+                * constants.YLL_TO_MILLION_YLL
             )
-            constant_objective -= coeff
 
-    if objective_expr is not None:
-        m.objective = m.objective + objective_expr
-        health_meta = n.meta.setdefault("health_objective", {})
-        health_meta["relative_risk_scale"] = HEALTH_OBJECTIVE_SCALE
-        logger.info("Added health cost objective")
+            m.add_constraints(
+                store_e.sel(name=store_name) == yll_expr_myll,
+                name=f"health_store_level_c{cluster}_cause{cause}",
+            )
 
-    if constant_objective != 0.0:
-        adjustments = n.meta.setdefault("objective_constant_terms", {})
-        adjustments["health"] = adjustments.get("health", 0.0) + constant_objective
-        logger.debug(
-            "Recorded health objective constant %.3g in network metadata",
-            constant_objective,
-        )
-
-    if objective_expr is None and constant_objective == 0.0:
-        logger.info("No health objective terms added (missing overlaps)")
+    logger.info("Linked health stores to risk model (no direct objective edits)")
 
 
 if __name__ == "__main__":
@@ -1016,8 +1001,6 @@ if __name__ == "__main__":
             snakemake.params.health_risk_factors,
             snakemake.params.health_risk_cause_map,
             solver_name,
-            float(snakemake.params.health_value_per_yll)
-            * constants.USD_TO_BNUSD,  # convert USD/YLL to bnUSD/YLL
         )
 
     # Temporary debug export of the raw linopy model for coefficient inspection.

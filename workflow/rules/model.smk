@@ -87,11 +87,14 @@ rule build_model:
         luc_carbon_coefficients="processing/{name}/luc/luc_carbon_coefficients.csv",
         current_grassland_area="processing/{name}/luc/current_grassland_area_by_class.csv",
         grazing_only_land="processing/{name}/land_grazing_only_by_class.csv",
+        health_cluster_summary="processing/{name}/health/cluster_summary.csv",
+        health_cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
         build_scripts=expand(
             "workflow/scripts/build_model/{script}",
             script=[
                 "animals.py",
                 "biomass.py",
+                "health.py",
                 "constants.py",
                 "crops.py",
                 "food.py",
@@ -162,7 +165,6 @@ rule solve_model:
     params:
         health_risk_factors=config["health"]["risk_factors"],
         health_risk_cause_map=config["health"]["risk_cause_map"],
-        health_value_per_yll=config["health"]["value_per_yll"],
         ghg_price=config["emissions"]["ghg_price"],
         solver=config["solving"]["solver"],
         solver_options=config["solving"].get(

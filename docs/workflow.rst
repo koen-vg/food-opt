@@ -118,7 +118,12 @@ Model Building and Solving
   * **Input**: Built model, health data, food-to-risk mapping
   * **Output**: ``results/{name}/solved/model.nc``
   * **Script**: ``workflow/scripts/solve_model.py``
-  * **Purpose**: Add health costs, solve LP, save results
+  * **Purpose**: Add health costs, solve LP, save results. Health impacts are
+    encoded as per-cluster, per-cause ``Store`` assets (carrier ``yll_<cause>``)
+    whose level equals million YLL derived from dietary risk. The store cost
+    encodes the value of a life year so the health burden shows up in standard
+    PyPSA statistics and in the objective breakdown plot without custom
+    objective edits.
 
 Visualization Rules
 ~~~~~~~~~~~~~~~~~~~

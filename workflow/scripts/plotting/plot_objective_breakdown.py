@@ -20,11 +20,6 @@ import pypsa
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from plot_health_impacts import (
-    HealthInputs,
-    compute_health_results,
-)
-
 logger = logging.getLogger(__name__)
 
 # Global mass unit conversion: tonne to megatonne
@@ -39,6 +34,18 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
         return pd.Series(dtype="object")
 
     index = static.index
+    if component == "Generator":
+        # Separate biomass exports so they don't get netted out inside the
+        # generic "Generator" bucket. All biomass export generators are named
+        # ``biomass_for_energy_<country>``.
+        categories = [
+            "Biomass exports"
+            if str(name).startswith("biomass_for_energy_")
+            else "Generator"
+            for name in index
+        ]
+        return pd.Series(categories, index=index, name="category")
+
     if component == "Link":
         mapping = {
             "produce": "Crop production",
@@ -46,9 +53,31 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
             "convert": "Processing",
             "consume": "Consumption",
         }
-        categories = [
-            mapping.get(str(name).split("_", 1)[0], "Other") for name in index
-        ]
+        categories = []
+        for name in index:
+            name_str = str(name)
+            if name_str.startswith(("crop_to_biomass_", "byproduct_to_biomass_")):
+                categories.append("Biomass routing")
+                continue
+
+            categories.append(mapping.get(name_str.split("_", 1)[0], "Other"))
+        return pd.Series(categories, index=index, name="category")
+
+    if component == "Store":
+        carriers = static["carrier"].astype(str)
+        categories = []
+        for name, carrier in zip(index, carriers):
+            name_str = str(name)
+            if carrier == "ghg" or name_str == "ghg":
+                categories.append("GHG storage")
+            elif carrier.startswith("yll_"):
+                categories.append(f"Health ({carrier.removeprefix('yll_')})")
+            elif name_str.startswith("slack_negative_") or carrier.startswith(
+                "slack_negative_"
+            ):
+                categories.append("Slack penalties")
+            else:
+                categories.append("Store")
         return pd.Series(categories, index=index, name="category")
 
     return pd.Series(component, index=index, name="category")
@@ -56,17 +85,33 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
 
 def compute_system_costs(n: pypsa.Network) -> pd.Series:
     """Aggregate system costs by the objective categories defined above."""
+    capex = n.statistics.capex(groupby=objective_category)
+    opex = n.statistics.opex(groupby=objective_category)
 
-    costs = n.statistics.system_cost(groupby=objective_category)
-    if isinstance(costs, pd.DataFrame):
-        costs = costs.iloc[:, 0]
-    if costs.empty:
-        return pd.Series(dtype=float)
-    idx = costs.index
-    if "category" not in idx.names:
-        idx = idx.set_names([*list(idx.names[:-1]), "category"])
-        costs.index = idx
-    return costs.groupby("category").sum().sort_values(ascending=False)
+    def _to_series(df_or_series: pd.Series | pd.DataFrame) -> pd.Series:
+        if isinstance(df_or_series, pd.DataFrame):
+            df_or_series = df_or_series.iloc[:, 0]
+        if df_or_series.empty:
+            return pd.Series(dtype=float)
+        idx = df_or_series.index
+        if "category" not in idx.names:
+            idx = idx.set_names([*list(idx.names[:-1]), "category"])
+            df_or_series.index = idx
+        return df_or_series.groupby("category").sum()
+
+    capex_series = _to_series(capex)
+    opex_series = _to_series(opex)
+
+    total = capex_series.add(opex_series, fill_value=0.0)
+    combined = pd.DataFrame(
+        {
+            "capex": capex_series,
+            "opex": opex_series,
+            "total": total,
+        }
+    ).fillna(0.0)
+
+    return combined.sort_values("total", key=np.abs, ascending=False)
 
 
 def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, float]:
@@ -152,92 +197,42 @@ def plot_cost_breakdown(series: pd.Series, output_path: Path) -> None:
     plt.close(fig)
 
 
-def load_health_inputs() -> HealthInputs:
-    """Load the health-related input tables referenced by Snakemake."""
-
-    return HealthInputs(
-        risk_breakpoints=pd.read_csv(snakemake.input.risk_breakpoints),  # type: ignore[name-defined]
-        cluster_cause=pd.read_csv(snakemake.input.health_cluster_cause),
-        cause_log_breakpoints=pd.read_csv(snakemake.input.health_cause_log),
-        cluster_summary=pd.read_csv(snakemake.input.health_cluster_summary),
-        clusters=pd.read_csv(snakemake.input.health_clusters),
-        population=pd.read_csv(snakemake.input.population),
-        cluster_risk_baseline=pd.read_csv(snakemake.input.health_cluster_risk_baseline),
-    )
-
-
-def compute_health_total(
-    n: pypsa.Network,
-    health_inputs: HealthInputs,
-    risk_factors: list[str],
-    value_per_yll: float,
-    tmrel_g_per_day: dict[str, float],
-    food_groups_df: pd.DataFrame,
-) -> float:
-    """Return aggregate health burden contribution to the objective (in bnUSD)."""
-
-    health_results = compute_health_results(
-        n,
-        health_inputs,
-        risk_factors,
-        value_per_yll,
-        tmrel_g_per_day,
-        food_groups_df,
-    )
-    if health_results.cause_costs.empty:
-        logger.warning("Health results are empty; skipping health objective term")
-        return 0.0
-
-    total = float(health_results.cause_costs["cost"].sum())
-    logger.info("Computed total health contribution %.3e bnUSD", total)
-    return total
-
-
 def main() -> None:
     n = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
     logger.info("Loaded network with objective %.3e", n.objective)
 
     system_costs = compute_system_costs(n)
-    store_cost = 0.0
-    if "Store" in system_costs.index:
-        store_cost = float(system_costs.loc["Store"])
-        system_costs = system_costs.drop(index="Store")
-        if store_cost != 0.0:
+    ghg_store_cost = 0.0
+    if "GHG storage" in system_costs.index:
+        ghg_store_cost = float(system_costs.loc["GHG storage", "total"])
+        system_costs = system_costs.drop(index="GHG storage")
+        if ghg_store_cost != 0.0:
             logger.info(
-                "Removed raw 'Store' category contribution %.3e USD to avoid double counting GHG costs",
-                store_cost,
+                "Removed 'GHG storage' category contribution %.3e USD to avoid double counting priced emissions",
+                ghg_store_cost,
             )
 
-    total_series = system_costs.copy()
-
-    # Add health-related objective contribution
-    food_groups_df = pd.read_csv(snakemake.input.food_groups)
-    health_total = compute_health_total(
-        n,
-        load_health_inputs(),
-        snakemake.params.health_risk_factors,  # type: ignore[attr-defined]
-        float(snakemake.params.health_value_per_yll),
-        dict(snakemake.params.health_tmrel_g_per_day),
-        food_groups_df,
-    )
-    if health_total != 0.0:
-        total_series.loc["Health burden"] = health_total
+    total_series = system_costs["total"].copy()
 
     # Add priced greenhouse gas emissions
     ghg_price = float(snakemake.params.ghg_price)
     ghg_terms = compute_ghg_cost_breakdown(n, ghg_price)
     if ghg_terms:
-        total_series = total_series.combine_first(pd.Series(dtype=float))
         for label, value in ghg_terms.items():
             total_series.loc[label] = value
+            system_costs.loc[label, ["capex", "opex", "total"]] = [0.0, value, value]
 
     total_series = total_series.sort_values(key=np.abs, ascending=False)
+    system_costs = system_costs.loc[total_series.index]
 
     breakdown_csv = Path(snakemake.output.breakdown_csv)  # type: ignore[attr-defined]
     breakdown_pdf = Path(snakemake.output.breakdown_pdf)
     breakdown_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    total_series.rename("cost_bnusd").to_csv(breakdown_csv, header=True)
+    out_df = system_costs.rename(
+        columns={"capex": "capex_bnusd", "opex": "opex_bnusd", "total": "total_bnusd"}
+    )
+    out_df.to_csv(breakdown_csv)
     logger.info("Wrote objective breakdown table to %s", breakdown_csv)
     plot_cost_breakdown(total_series, breakdown_pdf)
     logger.info("Wrote objective breakdown plot to %s", breakdown_pdf)
