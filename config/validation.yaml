@@ -5,19 +5,25 @@
 # Toy scenario configuration - inherits from default.yaml
 name: "validation"
 
+planning_horizon: 2020
+
 validation:
   use_actual_yields: true
   use_actual_production: true
   enforce_gdd_baseline: true
-  food_group_slack_marginal_cost: 1e9
+  slack_marginal_cost: 10
+  harvest_area_source: "gaez" # "cropgrids"
 
-primary:
-  land:
-    regional_limit: 1.
+land:
+  regional_limit: 1.
 
 macronutrients:
-  kcal:
-    min: 0
+  cal:
+    min: 2000
+
+health:
+  enabled: false
 
 solving:
+  io_api: "direct"
   solver: gurobi

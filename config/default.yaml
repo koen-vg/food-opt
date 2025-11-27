@@ -816,7 +816,7 @@ solving:
     Method: 2
     MIPGap: 0.001  # target 0.1% relative optimality gap
   options_highs:
-    solver: "ipm"
+    solver: "choose"
     mip_rel_gap: 0.001  # align relative gap with gurobi setting
   # NetCDF export settings for solved network
   # Passed to xarray.Dataset.to_netcdf via PyPSA; None disables compression.

@@ -48,6 +48,11 @@ wildcard_constraints:
 
 ALL_RULE_TARGETS = [
     "results/{name}/solved/model_obj-HG.nc",
+    # maps (not objective-specific, in base plots directory)
+    "results/{name}/plots/regions_map.pdf",
+    "results/{name}/plots/resource_classes_map.pdf",
+    "results/{name}/plots/food_consumption_baseline_map.pdf",
+    "results/{name}/plots/relative_risk_curves.pdf",
     # results plots
     "results/{name}/plots/obj-HG/crop_production.pdf",
     "results/{name}/plots/obj-HG/resource_usage.pdf",
@@ -61,9 +66,7 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/obj-HG/health_risk_by_region.csv",
     "results/{name}/plots/obj-HG/health_baseline_map.pdf",
     "results/{name}/plots/obj-HG/health_baseline_by_region.csv",
-    # maps
-    "results/{name}/plots/obj-HG/regions_map.pdf",
-    "results/{name}/plots/obj-HG/resource_classes_map.pdf",
+    # objective-specific maps
     "results/{name}/plots/obj-HG/crop_production_map.pdf",
     "results/{name}/plots/obj-HG/crop_land_use_map.pdf",
     "results/{name}/plots/obj-HG/cropland_fraction_map.pdf",
@@ -74,10 +77,9 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/obj-HG/feed_breakdown.csv",
     "results/{name}/plots/obj-HG/food_group_slack.pdf",
     "results/{name}/plots/obj-HG/food_group_slack.csv",
-    # "results/{name}/plots/obj-HG/water_value_map.pdf",   # Current not working (see issue #1)
+    # "results/{name}/plots/obj-HG/water_value_map.pdf",   # Current not working
     "results/{name}/plots/obj-HG/food_consumption.pdf",
     "results/{name}/plots/obj-HG/food_consumption_map.pdf",
-    "results/{name}/plots/obj-HG/food_consumption_baseline_map.pdf",
 ]
 
 
