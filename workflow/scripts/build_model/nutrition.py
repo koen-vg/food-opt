@@ -118,12 +118,14 @@ def add_food_group_buses_and_loads(
                 p_nom_extendable=True,
                 marginal_cost=slack_marginal_cost,
             )
-            n.stores.add(
+            n.generators.add(
                 f"slack_negative_{group}_" + countries_index,
                 bus=buses,
                 carrier=f"slack_negative_group_{group}",
-                e_nom_extendable=True,
-                capital_cost=slack_marginal_cost,
+                p_nom_extendable=True,
+                p_min_pu=-1.0,
+                p_max_pu=0.0,
+                marginal_cost=-slack_marginal_cost,
             )
 
 

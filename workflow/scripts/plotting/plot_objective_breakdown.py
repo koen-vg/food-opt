@@ -38,12 +38,17 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
         # Separate biomass exports so they don't get netted out inside the
         # generic "Generator" bucket. All biomass export generators are named
         # ``biomass_for_energy_<country>``.
-        categories = [
-            "Biomass exports"
-            if str(name).startswith("biomass_for_energy_")
-            else "Generator"
-            for name in index
-        ]
+        carriers = static.get("carrier", pd.Series(dtype=str))
+        categories = []
+        for name in index:
+            name_str = str(name)
+            carrier = str(carriers.get(name, "")) if not carriers.empty else ""
+            if name_str.startswith("biomass_for_energy_"):
+                categories.append("Biomass exports")
+            elif name_str.startswith("slack_") or carrier.startswith("slack_"):
+                categories.append("Slack penalties")
+            else:
+                categories.append("Generator")
         return pd.Series(categories, index=index, name="category")
 
     if component == "Link":
@@ -72,10 +77,6 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
                 categories.append("GHG storage")
             elif carrier.startswith("yll_"):
                 categories.append(f"Health ({carrier.removeprefix('yll_')})")
-            elif name_str.startswith("slack_negative_") or carrier.startswith(
-                "slack_negative_"
-            ):
-                categories.append("Slack penalties")
             else:
                 categories.append("Store")
         return pd.Series(categories, index=index, name="category")

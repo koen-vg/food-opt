@@ -556,7 +556,7 @@ def add_health_objective(
     The function builds the same intake→relative-risk logic as before, but
     instead of writing directly to the linopy objective it constrains the
     level of per-cluster, per-cause YLL stores. The monetary contribution is
-    then handled by the store ``capital_cost`` configured during network
+    then handled by the store ``marginal_cost_storage`` configured during network
     construction.
     """
 

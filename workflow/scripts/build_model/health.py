@@ -123,7 +123,7 @@ def add_health_stores(
         bus=store_buses,
         carrier=carriers,
         e_nom_extendable=True,
-        capital_cost=cost_per_myll,
+        marginal_cost_storage=cost_per_myll,
         health_cluster=clusters.tolist(),
         cause=cause_names.tolist(),
         yll_base=filtered["yll_base"].astype(float).tolist(),

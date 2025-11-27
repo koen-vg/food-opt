@@ -61,22 +61,22 @@ def _aggregate_positive_slack(network: pypsa.Network) -> pd.Series:
 def _aggregate_negative_slack(network: pypsa.Network) -> pd.Series:
     """Aggregate negative (excess) slack by food group in Mt."""
 
-    stores = network.stores
-    if stores.empty or "carrier" not in stores:
+    generators = network.generators
+    if generators.empty or "carrier" not in generators:
         return pd.Series(dtype=float)
 
-    mask = stores["carrier"].astype(str).str.startswith(NEGATIVE_PREFIX)
+    mask = generators["carrier"].astype(str).str.startswith(NEGATIVE_PREFIX)
     if not mask.any():
         return pd.Series(dtype=float)
 
-    dispatch = network.stores_t.p.loc[:, mask]
+    dispatch = network.generators_t.p.loc[:, mask]
     weights = _snapshot_weights(network)
     weighted = dispatch.multiply(weights, axis=0)
 
-    # Negative p values correspond to charging (absorbing surplus food)
-    charging = -weighted.clip(upper=0.0).sum(axis=0)
-    carriers = stores.loc[mask, "carrier"]
-    by_group = charging.groupby(carriers).sum()
+    # Negative p values (consumption) correspond to absorbing surplus food
+    absorption = -weighted.clip(upper=0.0).sum(axis=0)
+    carriers = generators.loc[mask, "carrier"]
+    by_group = absorption.groupby(carriers).sum()
 
     return by_group.rename(lambda c: c.replace(NEGATIVE_PREFIX, "")).sort_index()
 

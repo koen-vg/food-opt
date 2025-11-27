@@ -53,9 +53,9 @@ def add_feed_slack_generators(
     )
 
     # Add positive slack generators (provide feed when insufficient)
-    gen_names = [f"slack_positive_{bus}" for bus in feed_buses]
+    gen_pos_names = [f"slack_positive_feed_{bus}" for bus in feed_buses]
     n.generators.add(
-        gen_names,
+        gen_pos_names,
         bus=feed_buses,
         carrier="slack_positive_feed",
         p_nom_extendable=True,
@@ -63,19 +63,20 @@ def add_feed_slack_generators(
     )
 
     # Add negative slack stores (absorb excess feed)
-    store_names = [f"slack_negative_{bus}" for bus in feed_buses]
-    n.stores.add(
-        store_names,
+    gen_neg_names = [f"slack_negative_feed_{bus}" for bus in feed_buses]
+    n.generators.add(
+        gen_neg_names,
         bus=feed_buses,
         carrier="slack_negative_feed",
-        e_nom_extendable=True,
-        capital_cost=marginal_cost,
+        p_nom_extendable=True,
+        p_min_pu=-1.0,
+        p_max_pu=0.0,
+        marginal_cost=-marginal_cost,
     )
 
     logger.info(
-        "Added %d feed slack generators and %d slack stores for validation feasibility",
-        len(gen_names),
-        len(store_names),
+        "Added %d feed slack generators for validation feasibility",
+        2 * len(gen_pos_names),
     )
 
 
