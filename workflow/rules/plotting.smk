@@ -205,6 +205,18 @@ rule plot_food_group_slack:
         "../scripts/plotting/plot_food_group_slack.py"
 
 
+rule plot_slack_overview:
+    input:
+        network="results/{name}/solved/model_scen-{scenario}.nc",
+    output:
+        pdf="results/{name}/plots/scen-{scenario}/slack_overview.pdf",
+        csv="results/{name}/plots/scen-{scenario}/slack_overview.csv",
+    log:
+        "logs/{name}/plot_slack_overview_scen-{scenario}.log",
+    script:
+        "../scripts/plotting/plot_slack_overview.py"
+
+
 rule plot_food_consumption:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",

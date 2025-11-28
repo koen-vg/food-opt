@@ -1,0 +1,173 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Plot total slack use by category as cost (bnUSD) with quantities."""
+
+import logging
+from pathlib import Path
+
+import matplotlib
+import pandas as pd
+import pypsa
+
+matplotlib.use("pdf")
+import matplotlib.pyplot as plt
+
+logger = logging.getLogger(__name__)
+
+
+def _snapshot_weights(network: pypsa.Network) -> pd.Series:
+    """Return per-snapshot objective weights (defaults to ones)."""
+
+    weights = network.snapshot_weightings.get("objective")
+    if weights is None:
+        return pd.Series(1.0, index=network.snapshots)
+    return weights
+
+
+def _mask_carrier_equals(carrier: str):
+    def _mask(columns: pd.Index, generators: pd.DataFrame) -> pd.Series:
+        carriers = generators.loc[columns, "carrier"].astype(str)
+        return carriers == carrier
+
+    return _mask
+
+
+def _mask_carrier_startswith(prefix: str):
+    def _mask(columns: pd.Index, generators: pd.DataFrame) -> pd.Series:
+        carriers = generators.loc[columns, "carrier"].astype(str)
+        return carriers.str.startswith(prefix)
+
+    return _mask
+
+
+def _mask_name_startswith(prefix: str):
+    def _mask(columns: pd.Index, _generators: pd.DataFrame) -> pd.Series:
+        names = pd.Index(columns).astype(str)
+        return names.str.startswith(prefix)
+
+    return _mask
+
+
+CATEGORIES = [
+    ("Land", _mask_carrier_equals("land_slack"), "Mha"),
+    ("Feed (positive)", _mask_carrier_equals("slack_positive_feed"), "Mt"),
+    ("Feed (negative)", _mask_carrier_equals("slack_negative_feed"), "Mt"),
+    ("Food (positive)", _mask_carrier_startswith("slack_positive_group_"), "Mt"),
+    ("Food (negative)", _mask_carrier_startswith("slack_negative_group_"), "Mt"),
+    ("Water", _mask_name_startswith("water_slack_"), "Mm3"),
+]
+
+
+def _collect_slack(network: pypsa.Network) -> pd.DataFrame:
+    """Aggregate slack quantities and costs by category."""
+
+    generators = network.generators
+    dispatch = network.generators_t.p
+
+    if generators.empty or dispatch.empty:
+        return pd.DataFrame(columns=["quantity", "unit", "cost_bnusd"])
+
+    weights = _snapshot_weights(network)
+    records: list[dict[str, object]] = []
+
+    for label, mask_fn, unit in CATEGORIES:
+        mask = mask_fn(dispatch.columns, generators)
+        if not mask.any():
+            continue
+
+        cols = dispatch.loc[:, mask]
+        weighted = cols.multiply(weights, axis=0)
+
+        quantity = weighted.abs().sum().sum()
+        marginal_cost = generators.loc[mask, "marginal_cost"]
+        cost_bnusd = (weighted * marginal_cost).sum().sum()
+
+        records.append(
+            {
+                "category": label,
+                "quantity": quantity,
+                "unit": unit,
+                "cost_bnusd": cost_bnusd,
+            }
+        )
+
+    if not records:
+        return pd.DataFrame(columns=["quantity", "unit", "cost_bnusd"])
+
+    return pd.DataFrame.from_records(records).set_index("category")
+
+
+def _plot(df: pd.DataFrame, output_pdf: Path) -> None:
+    """Render horizontal bar chart of slack cost by category."""
+
+    plt.figure(figsize=(8, 4.5))
+    ax = plt.gca()
+
+    if df.empty:
+        ax.text(0.5, 0.5, "No slack recorded", ha="center", va="center")
+        ax.axis("off")
+        plt.savefig(output_pdf, bbox_inches="tight", dpi=300)
+        plt.close()
+        logger.info("No slack to plot; wrote placeholder to %s", output_pdf)
+        return
+
+    df_sorted = df.sort_values("cost_bnusd", ascending=False)
+    max_abs = max(df_sorted["cost_bnusd"].abs().max(), 1e-9)
+
+    bars = ax.barh(df_sorted.index, df_sorted["cost_bnusd"], color="#4c72b0")
+    ax.axvline(0, color="black", linewidth=0.8)
+    ax.set_xlabel("Cost (bn USD)")
+    ax.set_title("Slack penalty by category")
+    ax.grid(axis="x", alpha=0.3)
+
+    for bar, (_, row) in zip(bars, df_sorted.iterrows(), strict=False):
+        text = f"{row['quantity']:.3g} {row['unit']}"
+        offset = 0.01 * max_abs
+        if bar.get_width() >= 0:
+            ax.text(
+                bar.get_width() + offset,
+                bar.get_y() + bar.get_height() / 2,
+                text,
+                va="center",
+                ha="left",
+            )
+        else:
+            ax.text(
+                bar.get_width() - offset,
+                bar.get_y() + bar.get_height() / 2,
+                text,
+                va="center",
+                ha="right",
+            )
+
+    x_lim = max_abs * 1.1
+    ax.set_xlim(-x_lim, x_lim)
+
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(output_pdf, bbox_inches="tight", dpi=300)
+    plt.close()
+    logger.info("Wrote slack overview plot to %s", output_pdf)
+
+
+def _write_csv(df: pd.DataFrame, output_csv: Path) -> None:
+    if df.empty:
+        df = pd.DataFrame(columns=["quantity", "unit", "cost_bnusd"])
+
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_csv, float_format="%.6g")
+    logger.info("Wrote slack overview table to %s", output_csv)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+
+    logger.info("Loading solved network from %s", snakemake.input.network)
+    network = pypsa.Network(snakemake.input.network)
+
+    slack_df = _collect_slack(network)
+
+    _plot(slack_df, Path(snakemake.output.pdf))
+    _write_csv(slack_df, Path(snakemake.output.csv))
