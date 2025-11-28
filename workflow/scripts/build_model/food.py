@@ -192,13 +192,6 @@ def add_feed_supply_links(
         )
     ].copy()
 
-    # Merge with category digestibility
-    ruminant_feeds = ruminant_feeds.merge(
-        ruminant_categories[["category", "digestibility"]],
-        on="category",
-        how="left",
-    )
-
     # Process monogastric feeds
     monogastric_feeds = monogastric_mapping[
         (
@@ -215,24 +208,19 @@ def add_feed_supply_links(
         )
     ].copy()
 
-    # Merge with category digestibility
-    monogastric_feeds = monogastric_feeds.merge(
-        monogastric_categories[["category", "digestibility"]],
-        on="category",
-        how="left",
-    )
+    # Feed buses are expressed in tonnes of dry matter intake (tDM).
+    # Conversion links therefore use efficiency=1.0; digestibility is accounted
+    # for downstream in feed-to-animal efficiencies and emissions.
 
     # Build ruminant links
     all_names = []
     all_bus0 = []
     all_bus1 = []
-    all_efficiency = []
 
     for _, row in ruminant_feeds.iterrows():
         item = row["feed_item"]
         category = row["category"]
         source_type = row["source_type"]
-        digestibility = row["digestibility"]
 
         if source_type == "crop":
             bus_prefix = "crop"
@@ -248,14 +236,12 @@ def add_feed_supply_links(
             all_names.append(f"{link_prefix}_{item}_to_ruminant_{category}_{country}")
             all_bus0.append(f"{bus_prefix}_{item}_{country}")
             all_bus1.append(f"feed_ruminant_{category}_{country}")
-            all_efficiency.append(digestibility)
 
     # Build monogastric links
     for _, row in monogastric_feeds.iterrows():
         item = row["feed_item"]
         category = row["category"]
         source_type = row["source_type"]
-        digestibility = row["digestibility"]
 
         if source_type == "crop":
             bus_prefix = "crop"
@@ -273,7 +259,6 @@ def add_feed_supply_links(
             )
             all_bus0.append(f"{bus_prefix}_{item}_{country}")
             all_bus1.append(f"feed_monogastric_{category}_{country}")
-            all_efficiency.append(digestibility)
 
     if not all_names:
         logger.info("No feed supply links to create; check crop/food lists")
@@ -284,7 +269,6 @@ def add_feed_supply_links(
         bus0=all_bus0,
         bus1=all_bus1,
         carrier="convert_to_feed",
-        efficiency=all_efficiency,  # digestibility as Mt feed output per Mt input
         marginal_cost=_LOW_PROCESSING_COST,
         p_nom_extendable=True,
     )
