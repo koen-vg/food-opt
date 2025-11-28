@@ -148,17 +148,20 @@ def add_food_group_constraints(
 ) -> None:
     """Add per-country food group bounds on store levels."""
 
-    if not food_group_cfg:
+    if not food_group_cfg and not per_country_equal:
         return
 
+    food_group_cfg = food_group_cfg or {}
     per_country_equal = per_country_equal or {}
 
     m = n.model
     store_e = m.variables["Store-e"].sel(snapshot="now")
     stores_df = n.stores.static
 
-    for group, bounds in food_group_cfg.items():
-        if not bounds:
+    groups = set(food_group_cfg) | set(per_country_equal)
+    for group in groups:
+        bounds = food_group_cfg.get(group, {})
+        if not bounds and group not in per_country_equal:
             continue
 
         group_stores = stores_df[stores_df["carrier"] == f"group_{group}"]
