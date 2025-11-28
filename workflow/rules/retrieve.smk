@@ -256,101 +256,101 @@ rule retrieve_faostat_emissions:
 
 rule download_gaez_yield_data:
     output:
-        "data/downloads/gaez_yield_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
+        "data/downloads/gaez_yield_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
         # GAEZ v5 filename: GAEZ-V5.{VARIABLE}.{PERIOD}.{CLIMATE}.{SCENARIO}.{CROP}.{INPUT}.tif
         # INPUT = {input_level}{water_supply}LM (e.g., HILM, HRLM)
         gcs_url=lambda w: (
             f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/{config['data']['gaez']['yield_var']}/"
             f"GAEZ-V5.{config['data']['gaez']['yield_var']}."
-            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{w.period}.{w.climate_model}.{w.climate_scenario}."
             f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
     log:
-        "logs/shared/download_gaez_yield_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
+        "logs/shared/download_gaez_yield_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
         "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_water_requirement_data:
     output:
-        "data/downloads/gaez_water_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
+        "data/downloads/gaez_water_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
         gcs_url=lambda w: (
             f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/{config['data']['gaez']['water_requirement_var']}/"
             f"GAEZ-V5.{config['data']['gaez']['water_requirement_var']}."
-            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{w.period}.{w.climate_model}.{w.climate_scenario}."
             f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
     log:
-        "logs/shared/download_gaez_water_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
+        "logs/shared/download_gaez_water_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
         "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_suitability_data:
     output:
-        "data/downloads/gaez_suitability_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
+        "data/downloads/gaez_suitability_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
         gcs_url=lambda w: (
             f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/{config['data']['gaez']['suitability_var']}/"
             f"GAEZ-V5.{config['data']['gaez']['suitability_var']}."
-            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{w.period}.{w.climate_model}.{w.climate_scenario}."
             f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
     log:
-        "logs/shared/download_gaez_suitability_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
+        "logs/shared/download_gaez_suitability_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
         "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_multiple_cropping_zone:
     output:
-        "data/downloads/gaez_multiple_cropping_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}.tif",
+        "data/downloads/gaez_multiple_cropping_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}.tif",
     params:
         gcs_url=lambda w: (
             f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES01-MCR/"
-            f"GAEZ-V5.RES01-MCR.{w.period}.{w.climate_model}.{w.scenario}.tif"
+            f"GAEZ-V5.RES01-MCR.{w.period}.{w.climate_model}.{w.climate_scenario}.tif"
             if w.water_supply.lower() == "r"
             else f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES01-MCI/"
-            f"GAEZ-V5.RES01-MCI.{w.period}.{w.climate_model}.{w.scenario}.tif"
+            f"GAEZ-V5.RES01-MCI.{w.period}.{w.climate_model}.{w.climate_scenario}.tif"
         ),
     log:
-        "logs/shared/download_gaez_multiple_cropping_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}.log",
+        "logs/shared/download_gaez_multiple_cropping_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}.log",
     shell:
         "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_growing_season_start:
     output:
-        "data/downloads/gaez_growing_season_start_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
+        "data/downloads/gaez_growing_season_start_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
         # RES02-CBD: Beginning of crop growth cycle (day)
         gcs_url=lambda w: (
             f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES02-CBD/"
             f"GAEZ-V5.RES02-CBD."
-            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{w.period}.{w.climate_model}.{w.climate_scenario}."
             f"{get_gaez_code(w.crop, 'res02')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
     log:
-        "logs/shared/download_gaez_growing_season_start_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
+        "logs/shared/download_gaez_growing_season_start_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
         "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_growing_season_length:
     output:
-        "data/downloads/gaez_growing_season_length_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
+        "data/downloads/gaez_growing_season_length_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
         # RES02-CYL: Length of crop growth cycle (days)
         gcs_url=lambda w: (
             f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES02-CYL/"
             f"GAEZ-V5.RES02-CYL."
-            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{w.period}.{w.climate_model}.{w.climate_scenario}."
             f"{get_gaez_code(w.crop, 'res02')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
     log:
-        "logs/shared/download_gaez_growing_season_length_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.log",
+        "logs/shared/download_gaez_growing_season_length_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
         "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 

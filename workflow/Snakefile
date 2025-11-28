@@ -38,16 +38,16 @@ include: "rules/documentation.smk"
 wildcard_constraints:
     climate_model=r"[a-zA-Z0-9\-]+",
     period=r"[A-Z0-9]+",
-    scenario=r"[A-Z0-9]+",
+    climate_scenario=r"[A-Z0-9]+",
     input_level=r"H|L",
     water_supply=r"[ri]",
     crop=r"[a-zA-Z0-9\-]+",
     item=r"[a-zA-Z0-9_-]+",
-    objective=r"[A-Z]*",  # Objective wildcard flags: H=health, G=GHG (e.g., HG, H, G, or empty for baseline)
+    scenario=r"[a-zA-Z0-9]+",  # Scenario preset wildcard (no underscores)
 
 
 ALL_RULE_TARGETS = [
-    "results/{name}/solved/model_obj-HG.nc",
+    "results/{name}/solved/model_scen-HG.nc",
     # maps (not objective-specific, in base plots directory)
     "results/{name}/plots/regions_map.pdf",
     "results/{name}/plots/resource_classes_map.pdf",
@@ -56,32 +56,32 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/food_consumption_comparison.csv",
     "results/{name}/plots/relative_risk_curves.pdf",
     # results plots
-    "results/{name}/plots/obj-HG/crop_production.pdf",
-    "results/{name}/plots/obj-HG/resource_usage.pdf",
-    "results/{name}/plots/obj-HG/crop_production.csv",
-    "results/{name}/plots/obj-HG/food_production.csv",
-    "results/{name}/plots/obj-HG/consumption_balance.pdf",
-    "results/{name}/plots/obj-HG/objective_breakdown.pdf",
-    "results/{name}/plots/obj-HG/objective_breakdown.csv",
-    "results/{name}/plots/obj-HG/emissions_breakdown.pdf",
-    "results/{name}/plots/obj-HG/health_risk_map.pdf",
-    "results/{name}/plots/obj-HG/health_risk_by_region.csv",
-    "results/{name}/plots/obj-HG/health_baseline_map.pdf",
-    "results/{name}/plots/obj-HG/health_baseline_by_region.csv",
+    "results/{name}/plots/scen-HG/crop_production.pdf",
+    "results/{name}/plots/scen-HG/resource_usage.pdf",
+    "results/{name}/plots/scen-HG/crop_production.csv",
+    "results/{name}/plots/scen-HG/food_production.csv",
+    "results/{name}/plots/scen-HG/consumption_balance.pdf",
+    "results/{name}/plots/scen-HG/objective_breakdown.pdf",
+    "results/{name}/plots/scen-HG/objective_breakdown.csv",
+    "results/{name}/plots/scen-HG/emissions_breakdown.pdf",
+    # "results/{name}/plots/scen-HG/health_risk_map.pdf",
+    # "results/{name}/plots/scen-HG/health_risk_by_region.csv",
+    # "results/{name}/plots/scen-HG/health_baseline_map.pdf",
+    # "results/{name}/plots/scen-HG/health_baseline_by_region.csv",
     # objective-specific maps
-    "results/{name}/plots/obj-HG/crop_production_map.pdf",
-    "results/{name}/plots/obj-HG/crop_land_use_map.pdf",
-    "results/{name}/plots/obj-HG/cropland_fraction_map.pdf",
-    "results/{name}/plots/obj-HG/irrigated_cropland_fraction_map.pdf",
-    "results/{name}/plots/obj-HG/crop_use_breakdown.pdf",
-    "results/{name}/plots/obj-HG/crop_use_breakdown.csv",
-    "results/{name}/plots/obj-HG/feed_breakdown.pdf",
-    "results/{name}/plots/obj-HG/feed_breakdown.csv",
-    "results/{name}/plots/obj-HG/food_group_slack.pdf",
-    "results/{name}/plots/obj-HG/food_group_slack.csv",
-    # "results/{name}/plots/obj-HG/water_value_map.pdf",   # Current not working
-    "results/{name}/plots/obj-HG/food_consumption.pdf",
-    "results/{name}/plots/obj-HG/food_consumption_map.pdf",
+    "results/{name}/plots/scen-HG/crop_production_map.pdf",
+    "results/{name}/plots/scen-HG/crop_land_use_map.pdf",
+    "results/{name}/plots/scen-HG/cropland_fraction_map.pdf",
+    "results/{name}/plots/scen-HG/irrigated_cropland_fraction_map.pdf",
+    "results/{name}/plots/scen-HG/crop_use_breakdown.pdf",
+    "results/{name}/plots/scen-HG/crop_use_breakdown.csv",
+    "results/{name}/plots/scen-HG/feed_breakdown.pdf",
+    "results/{name}/plots/scen-HG/feed_breakdown.csv",
+    "results/{name}/plots/scen-HG/food_group_slack.pdf",
+    "results/{name}/plots/scen-HG/food_group_slack.csv",
+    # "results/{name}/plots/scen-HG/water_value_map.pdf",   # Current not working
+    "results/{name}/plots/scen-HG/food_consumption.pdf",
+    "results/{name}/plots/scen-HG/food_consumption_map.pdf",
 ]
 
 

@@ -151,7 +151,7 @@ def _write_csv(
         for group in groups:
             records.append(
                 {
-                    "objective": label,
+                    "scenario": label,
                     "group": group,
                     "mass_g_person_day": float(mass_row.get(group, 0.0)),
                     "calories_kcal_person_day": float(cal_row.get(group, 0.0)),

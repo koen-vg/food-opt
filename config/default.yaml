@@ -4,6 +4,7 @@
 
 # Default configuration - override in project-specific configs
 # --- section: scenario_metadata ---
+scenario_defs: "config/scenarios.yaml"
 planning_horizon: 2030
 currency_base_year: 2024  # Base year for inflation-adjusted USD values
 
@@ -644,7 +645,7 @@ data:
     climate_model: "GFDL-ESM4" # Specific GCMs: "GFDL-ESM4", "IPSL-CM6A-LR", "MPI-ESM1-2-HR", "MRI-ESM2-0", "UKESM1-0-LL"
     climate_model_ensemble: "ENSEMBLE" # Multi-model mean (only available for RES05, not RES02)
     period: "FP2140" # Future: "FP2140" (2021-2040), "FP4160" (2041-2060), "FP6180" (2061-2080), "FP8100" (2081-2100); Historical: "HP0120" (2001-2020), "HP8100" (1981-2000)
-    scenario: "SSP126" # "SSP126" (low emissions), "SSP370" (medium, ~RCP4.5), "SSP585" (high), "HIST" (historical)
+    climate_scenario: "SSP126" # "SSP126" (low emissions), "SSP370" (medium, ~RCP4.5), "SSP585" (high), "HIST" (historical)
     input_level: "H" # "H" (High), "L" (Low)
     water_supply: "R" # "I" (irrigated), "R" (rainfed)
     # Variable codes for GAEZ v5
@@ -831,11 +832,11 @@ solving:
 
 # --- section: plotting ---
 plotting:
-  comparison_objective_wildcards:
-  - "obj-"
-  - "obj-H"
-  - "obj-G"
-  - "obj-HG"
+  comparison_scenarios:
+  - "scen-default"
+  - "scen-H"
+  - "scen-G"
+  - "scen-HG"
   colors:
     crops:
       wheat: "#C58E2D"

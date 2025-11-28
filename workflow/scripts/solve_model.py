@@ -30,7 +30,7 @@ from workflow.scripts.build_model.nutrition import (  # noqa: E402
 from workflow.scripts.build_model.utils import (  # noqa: E402
     _per_capita_mass_to_mt_per_year,
 )
-from workflow.scripts.snakemake_utils import apply_objective_config  # noqa: E402
+from workflow.scripts.snakemake_utils import apply_scenario_config  # noqa: E402
 
 try:  # Used for type annotations / documentation; fallback when unavailable
     import linopy  # type: ignore
@@ -920,8 +920,8 @@ if __name__ == "__main__":
     # Configure logging to write to Snakemake log file
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
 
-    # Apply objective config overrides based on wildcard
-    apply_objective_config(snakemake.config, snakemake.wildcards.objective)
+    # Apply scenario config overrides based on wildcard
+    apply_scenario_config(snakemake.config, snakemake.wildcards.scenario)
 
     n = pypsa.Network(snakemake.input.network)
 

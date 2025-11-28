@@ -8,7 +8,7 @@ plotting_cfg = config.get("plotting", {})
 crop_color_overrides = plotting_cfg.get("colors", {}).get("crops", {})
 crop_fallback_cmap = plotting_cfg.get("fallback_cmaps", {}).get("crops", "Set3")
 food_group_colors = plotting_cfg.get("colors", {}).get("food_groups", {})
-comparison_objective_wildcards = plotting_cfg["comparison_objective_wildcards"]
+comparison_scenarios = plotting_cfg["comparison_scenarios"]
 
 
 def _gaez_actual_yield_raster_path(crop_name: str, water_supply: str) -> str:
@@ -66,23 +66,23 @@ rule plot_resource_classes_map:
 
 rule plot_results:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
     output:
-        crop_pdf="results/{name}/plots/obj-{objective}/crop_production.pdf",
-        resource_pdf="results/{name}/plots/obj-{objective}/resource_usage.pdf",
-        crop_csv="results/{name}/plots/obj-{objective}/crop_production.csv",
-        food_csv="results/{name}/plots/obj-{objective}/food_production.csv",
+        crop_pdf="results/{name}/plots/scen-{scenario}/crop_production.pdf",
+        resource_pdf="results/{name}/plots/scen-{scenario}/resource_usage.pdf",
+        crop_csv="results/{name}/plots/scen-{scenario}/crop_production.csv",
+        food_csv="results/{name}/plots/scen-{scenario}/food_production.csv",
     params:
-        output_dir="results/{name}/plots/obj-{objective}",
+        output_dir="results/{name}/plots/scen-{scenario}",
     log:
-        "logs/{name}/plot_results_obj-{objective}.log",
+        "logs/{name}/plot_results_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_results.py"
 
 
 rule plot_objective_breakdown:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         risk_breakpoints="processing/{name}/health/risk_breakpoints.csv",
         health_cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
         health_cause_log="processing/{name}/health/cause_log_breakpoints.csv",
@@ -92,23 +92,26 @@ rule plot_objective_breakdown:
         population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",
     params:
-        ghg_price=config["emissions"]["ghg_price"],
+        ghg_price=lambda w: get_effective_config(w.scenario)["emissions"]["ghg_price"],
         health_risk_factors=config["health"]["risk_factors"],
         # Convert from USD/YLL -> bnUSD/YLL for objective consistency
-        health_value_per_yll=float(config["health"]["value_per_yll"]) * 1e-9,
+        health_value_per_yll=lambda w: float(
+            get_effective_config(w.scenario)["health"]["value_per_yll"]
+        )
+        * 1e-9,
         health_tmrel_g_per_day=config["health"]["tmrel_g_per_day"],
     output:
-        breakdown_pdf="results/{name}/plots/obj-{objective}/objective_breakdown.pdf",
-        breakdown_csv="results/{name}/plots/obj-{objective}/objective_breakdown.csv",
+        breakdown_pdf="results/{name}/plots/scen-{scenario}/objective_breakdown.pdf",
+        breakdown_csv="results/{name}/plots/scen-{scenario}/objective_breakdown.csv",
     log:
-        "logs/{name}/plot_objective_breakdown_obj-{objective}.log",
+        "logs/{name}/plot_objective_breakdown_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_objective_breakdown.py"
 
 
 rule plot_health_impacts:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         regions="processing/{name}/regions.geojson",
         risk_breakpoints="processing/{name}/health/risk_breakpoints.csv",
         health_cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
@@ -121,15 +124,18 @@ rule plot_health_impacts:
     params:
         health_risk_factors=config["health"]["risk_factors"],
         # Convert from USD/YLL -> bnUSD/YLL for objective consistency
-        health_value_per_yll=float(config["health"]["value_per_yll"]) * 1e-9,
+        health_value_per_yll=lambda w: float(
+            get_effective_config(w.scenario)["health"]["value_per_yll"]
+        )
+        * 1e-9,
         health_tmrel_g_per_day=config["health"]["tmrel_g_per_day"],
     output:
-        health_map_pdf="results/{name}/plots/obj-{objective}/health_risk_map.pdf",
-        health_map_csv="results/{name}/plots/obj-{objective}/health_risk_by_region.csv",
-        health_baseline_map_pdf="results/{name}/plots/obj-{objective}/health_baseline_map.pdf",
-        health_baseline_map_csv="results/{name}/plots/obj-{objective}/health_baseline_by_region.csv",
+        health_map_pdf="results/{name}/plots/scen-{scenario}/health_risk_map.pdf",
+        health_map_csv="results/{name}/plots/scen-{scenario}/health_risk_by_region.csv",
+        health_baseline_map_pdf="results/{name}/plots/scen-{scenario}/health_baseline_map.pdf",
+        health_baseline_map_csv="results/{name}/plots/scen-{scenario}/health_baseline_by_region.csv",
     log:
-        "logs/{name}/plot_health_impacts_obj-{objective}.log",
+        "logs/{name}/plot_health_impacts_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_health_impacts.py"
 
@@ -147,69 +153,69 @@ rule plot_relative_risk_curves:
 
 rule plot_crop_production_map:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         regions="processing/{name}/regions.geojson",
     output:
-        production_pdf="results/{name}/plots/obj-{objective}/crop_production_map.pdf",
-        land_pdf="results/{name}/plots/obj-{objective}/crop_land_use_map.pdf",
+        production_pdf="results/{name}/plots/scen-{scenario}/crop_production_map.pdf",
+        land_pdf="results/{name}/plots/scen-{scenario}/crop_land_use_map.pdf",
     params:
         crop_colors=crop_color_overrides,
         fallback_cmap=crop_fallback_cmap,
     log:
-        "logs/{name}/plot_crop_production_map_obj-{objective}.log",
+        "logs/{name}/plot_crop_production_map_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_crop_production_map.py"
 
 
 rule plot_crop_use_breakdown:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
     output:
-        pdf="results/{name}/plots/obj-{objective}/crop_use_breakdown.pdf",
-        csv="results/{name}/plots/obj-{objective}/crop_use_breakdown.csv",
+        pdf="results/{name}/plots/scen-{scenario}/crop_use_breakdown.pdf",
+        csv="results/{name}/plots/scen-{scenario}/crop_use_breakdown.csv",
     log:
-        "logs/{name}/plot_crop_use_breakdown_obj-{objective}.log",
+        "logs/{name}/plot_crop_use_breakdown_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_crop_use_breakdown.py"
 
 
 rule plot_feed_breakdown:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
     output:
-        pdf="results/{name}/plots/obj-{objective}/feed_breakdown.pdf",
-        csv="results/{name}/plots/obj-{objective}/feed_breakdown.csv",
+        pdf="results/{name}/plots/scen-{scenario}/feed_breakdown.pdf",
+        csv="results/{name}/plots/scen-{scenario}/feed_breakdown.csv",
     log:
-        "logs/{name}/plot_feed_breakdown_obj-{objective}.log",
+        "logs/{name}/plot_feed_breakdown_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_feed_breakdown.py"
 
 
 rule plot_food_group_slack:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
     output:
-        pdf="results/{name}/plots/obj-{objective}/food_group_slack.pdf",
-        csv="results/{name}/plots/obj-{objective}/food_group_slack.csv",
+        pdf="results/{name}/plots/scen-{scenario}/food_group_slack.pdf",
+        csv="results/{name}/plots/scen-{scenario}/food_group_slack.csv",
     params:
         group_colors=food_group_colors,
     log:
-        "logs/{name}/plot_food_group_slack_obj-{objective}.log",
+        "logs/{name}/plot_food_group_slack_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_food_group_slack.py"
 
 
 rule plot_food_consumption:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",
     output:
-        pdf="results/{name}/plots/obj-{objective}/food_consumption.pdf",
+        pdf="results/{name}/plots/scen-{scenario}/food_consumption.pdf",
     params:
         group_colors=food_group_colors,
     log:
-        "logs/{name}/plot_food_consumption_obj-{objective}.log",
+        "logs/{name}/plot_food_consumption_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_food_consumption.py"
 
@@ -217,7 +223,7 @@ rule plot_food_consumption:
 def food_consumption_comparison_inputs(wildcards):
     return [
         f"results/{wildcards.name}/solved/model_{suffix}.nc"
-        for suffix in comparison_objective_wildcards
+        for suffix in comparison_scenarios
     ]
 
 
@@ -230,7 +236,7 @@ rule plot_food_consumption_comparison:
         pdf="results/{name}/plots/food_consumption_comparison.pdf",
         csv="results/{name}/plots/food_consumption_comparison.csv",
     params:
-        wildcards=comparison_objective_wildcards,
+        wildcards=comparison_scenarios,
         group_colors=food_group_colors,
     log:
         "logs/{name}/plot_food_consumption_comparison.log",
@@ -240,18 +246,18 @@ rule plot_food_consumption_comparison:
 
 rule plot_food_consumption_map:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         population="processing/{name}/population.csv",
         clusters="processing/{name}/health/country_clusters.csv",
         regions="processing/{name}/regions.geojson",
         food_groups="data/food_groups.csv",
     output:
-        pdf="results/{name}/plots/obj-{objective}/food_consumption_map.pdf",
-        csv="results/{name}/plots/obj-{objective}/food_consumption_map.csv",
+        pdf="results/{name}/plots/scen-{scenario}/food_consumption_map.pdf",
+        csv="results/{name}/plots/scen-{scenario}/food_consumption_map.csv",
     params:
         group_colors=food_group_colors,
     log:
-        "logs/{name}/plot_food_consumption_map_obj-{objective}.log",
+        "logs/{name}/plot_food_consumption_map_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_food_consumption_map.py"
 
@@ -306,32 +312,32 @@ rule plot_yield_map:
 
 rule plot_cropland_fraction_map:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         regions="processing/{name}/regions.geojson",
         resource_classes="processing/{name}/resource_classes.nc",
     output:
-        pdf="results/{name}/plots/obj-{objective}/cropland_fraction_map.pdf",
+        pdf="results/{name}/plots/scen-{scenario}/cropland_fraction_map.pdf",
     log:
-        "logs/{name}/plot_cropland_fraction_map_obj-{objective}.log",
+        "logs/{name}/plot_cropland_fraction_map_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_cropland_fraction_map.py"
 
 
 rule plot_irrigated_cropland_fraction_map:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         regions="processing/{name}/regions.geojson",
         land_area_by_class="processing/{name}/land_area_by_class.csv",
         resource_classes="processing/{name}/resource_classes.nc",
     output:
-        pdf="results/{name}/plots/obj-{objective}/irrigated_cropland_fraction_map.pdf",
+        pdf="results/{name}/plots/scen-{scenario}/irrigated_cropland_fraction_map.pdf",
     params:
         water_supply="i",
         title="Irrigated Cropland Fraction by Region and Resource Class",
         colorbar_label="Irrigated cropland / total land area",
         csv_prefix="irrigated_cropland",
     log:
-        "logs/{name}/plot_irrigated_cropland_fraction_map_obj-{objective}.log",
+        "logs/{name}/plot_irrigated_cropland_fraction_map_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_cropland_fraction_map.py"
 
@@ -350,44 +356,48 @@ rule plot_average_yield_gap_by_country:
 
 rule plot_water_value_map:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         regions="processing/{name}/regions.geojson",
     output:
-        pdf="results/{name}/plots/obj-{objective}/water_value_map.pdf",
+        pdf="results/{name}/plots/scen-{scenario}/water_value_map.pdf",
     log:
-        "logs/{name}/plot_water_value_map_obj-{objective}.log",
+        "logs/{name}/plot_water_value_map_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_water_value_map.py"
 
 
 rule plot_emissions_breakdown:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         faostat_emissions="processing/{name}/faostat_emissions.csv",
         gleam_emissions="data/gleam_livestock_emissions.csv",
     output:
-        pdf="results/{name}/plots/obj-{objective}/emissions_breakdown.pdf",
-        csv="results/{name}/plots/obj-{objective}/emissions_breakdown.csv",
+        pdf="results/{name}/plots/scen-{scenario}/emissions_breakdown.pdf",
+        csv="results/{name}/plots/scen-{scenario}/emissions_breakdown.csv",
     params:
-        ch4_gwp=config["emissions"]["ch4_to_co2_factor"],
-        n2o_gwp=config["emissions"]["n2o_to_co2_factor"],
+        ch4_gwp=lambda w: get_effective_config(w.scenario)["emissions"][
+            "ch4_to_co2_factor"
+        ],
+        n2o_gwp=lambda w: get_effective_config(w.scenario)["emissions"][
+            "n2o_to_co2_factor"
+        ],
     log:
-        "logs/{name}/plot_emissions_breakdown_obj-{objective}.log",
+        "logs/{name}/plot_emissions_breakdown_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_emissions_breakdown.py"
 
 
 rule plot_consumption_balance:
     input:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         population="processing/{name}/population.csv",
         clusters="processing/{name}/health/country_clusters.csv",
         food_groups="data/food_groups.csv",
     output:
-        pdf="results/{name}/plots/obj-{objective}/consumption_balance.pdf",
+        pdf="results/{name}/plots/scen-{scenario}/consumption_balance.pdf",
     params:
         group_colors=food_group_colors,
     log:
-        "logs/{name}/plot_consumption_balance_obj-{objective}.log",
+        "logs/{name}/plot_consumption_balance_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_consumption_balance.py"

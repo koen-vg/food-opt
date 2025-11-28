@@ -7,8 +7,48 @@ Common configuration variables and helper functions shared across Snakemake rule
 
 This file should be included first in the main Snakefile, before any other rule files.
 """
-
+import copy
 import csv
+import yaml
+
+_SCENARIO_CACHE = None
+
+
+def _recursive_update(target, source):
+    for key, value in source.items():
+        if isinstance(value, dict) and key in target and isinstance(target[key], dict):
+            _recursive_update(target[key], value)
+        else:
+            target[key] = value
+    return target
+
+
+def get_effective_config(scenario_name):
+    """Return the configuration with scenario overrides applied."""
+    global _SCENARIO_CACHE
+    if _SCENARIO_CACHE is None:
+        path = config.get("scenario_defs")
+        if path:
+            with open(path, "r", encoding="utf-8") as f:
+                _SCENARIO_CACHE = yaml.safe_load(f)
+        else:
+            _SCENARIO_CACHE = {}
+
+    # Start with a deep copy of the global config to avoid mutating it
+    # We convert config to dict because it might be a Config object
+    eff_config = copy.deepcopy(dict(config))
+
+    if scenario_name and scenario_name != "default":
+        if scenario_name not in _SCENARIO_CACHE:
+            # If scenario is not found, maybe raise warning or error?
+            # For now, we assume if it's not in cache, no overrides (or invalid scenario handled elsewhere)
+            pass
+        else:
+            overrides = _SCENARIO_CACHE[scenario_name]
+            _recursive_update(eff_config, overrides)
+
+    return eff_config
+
 
 # Extract configuration name and relevant config sections
 name = config["name"]
@@ -63,7 +103,7 @@ def gaez_path(kind: str, water_supply: str, crop: str) -> str:
 
     climate = gaez_cfg["climate_model"]
     period = gaez_cfg["period"]
-    scenario = gaez_cfg["scenario"]
+    climate_scenario = gaez_cfg["climate_scenario"]
     input_level = gaez_cfg["input_level"]
 
     prefix_by_kind = {
@@ -81,6 +121,8 @@ def gaez_path(kind: str, water_supply: str, crop: str) -> str:
         raise ValueError(f"Unknown kind for gaez_path: {kind}") from exc
 
     if kind == "multiple_cropping_zone":
-        return f"{prefix}_{climate}_{period}_{scenario}_{input_level}_{ws}.tif"
+        return f"{prefix}_{climate}_{period}_{climate_scenario}_{input_level}_{ws}.tif"
 
-    return f"{prefix}_{climate}_{period}_{scenario}_{input_level}_{ws}_{crop}.tif"
+    return (
+        f"{prefix}_{climate}_{period}_{climate_scenario}_{input_level}_{ws}_{crop}.tif"
+    )

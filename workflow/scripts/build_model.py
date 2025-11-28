@@ -41,6 +41,7 @@ from workflow.scripts.build_model import (  # noqa: E402
     trade,
     utils,
 )
+from workflow.scripts.snakemake_utils import apply_scenario_config  # noqa: E402
 
 # Enable new PyPSA components API
 pypsa.options.api.new_components_api = True
@@ -49,6 +50,9 @@ pypsa.options.api.new_components_api = True
 if __name__ == "__main__":
     # Configure logging
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
+    # Apply scenario config overrides based on wildcard
+    apply_scenario_config(snakemake.config, snakemake.wildcards.scenario)
 
     read_csv = functools.partial(pd.read_csv, comment="#")
 

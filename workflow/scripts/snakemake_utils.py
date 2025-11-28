@@ -4,63 +4,62 @@
 
 """Utilities for Snakemake workflow execution."""
 
+from pathlib import Path
 
-def parse_objective_wildcard(wildcard_value: str) -> dict:
-    """Parse objective wildcard and return config overrides.
-
-    The objective wildcard controls which costs are included in the
-    objective function. The wildcard value contains flags:
-
-    - H: Health impacts (years of life lost)
-    - G: GHG pricing (greenhouse gas emissions)
-
-    Parameters
-    ----------
-    wildcard_value : str
-        The objective wildcard value containing flags (e.g., "HG", "H", "G", "")
-        Note: The wildcard captures just the flags, not the "obj-" prefix
-
-    Returns
-    -------
-    dict
-        A dictionary with config overrides for health and emissions settings
-
-    Examples
-    --------
-    >>> parse_objective_wildcard("HG")
-    {'health': {'enabled': True}, 'emissions': {'ghg_pricing_enabled': True}}
-
-    >>> parse_objective_wildcard("H")
-    {'health': {'enabled': True}, 'emissions': {'ghg_pricing_enabled': False}}
-
-    >>> parse_objective_wildcard("")
-    {'health': {'enabled': False}, 'emissions': {'ghg_pricing_enabled': False}}
-    """
-    # The wildcard value is just the flags (e.g., "HG", "H", "G", "")
-    flags = wildcard_value
-
-    return {
-        "health": {"enabled": "H" in flags},
-        "emissions": {"ghg_pricing_enabled": "G" in flags},
-    }
+import yaml
 
 
-def apply_objective_config(config: dict, objective_wildcard: str) -> None:
-    """Apply objective wildcard config overrides in-place.
+def _recursive_update(target: dict, source: dict) -> dict:
+    """Recursively update the target dictionary with the source dictionary."""
+    for key, value in source.items():
+        if isinstance(value, dict) and key in target and isinstance(target[key], dict):
+            _recursive_update(target[key], value)
+        else:
+            target[key] = value
+    return target
 
-    This function is designed to be called from Snakemake scripts to override
-    the config based on the objective wildcard.
+
+def load_scenarios(config: dict) -> dict:
+    """Load scenario definitions from the file specified in the config."""
+    scenario_path = config.get("scenario_defs")
+    if not scenario_path:
+        raise ValueError("Config key 'scenario_defs' must be set to use scenarios.")
+
+    # Resolve path relative to project root (assuming script runs in working dir or subfolder)
+    # We try to find the file.
+    path = Path(scenario_path)
+    if not path.exists():
+        # Fallback if running from a subdirectory
+        path = Path("../") / scenario_path
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Scenario definitions file not found at {scenario_path}"
+        )
+
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def apply_scenario_config(config: dict, scenario_name: str) -> None:
+    """Apply scenario config overrides in-place.
 
     Parameters
     ----------
     config : dict
         The Snakemake config dictionary (will be modified in-place)
-    objective_wildcard : str
-        The objective wildcard value (e.g., "obj-HG", "obj-H", "obj-")
+    scenario_name : str
+        The scenario name (e.g., "HG", "HighGHG")
     """
-    overrides = parse_objective_wildcard(objective_wildcard)
+    if not scenario_name or scenario_name == "default":
+        return
 
-    for section, values in overrides.items():
-        if section not in config:
-            config[section] = {}
-        config[section].update(values)
+    scenarios = load_scenarios(config)
+
+    if scenario_name not in scenarios:
+        raise ValueError(
+            f"Scenario '{scenario_name}' not found in scenario definitions."
+        )
+
+    overrides = scenarios[scenario_name]
+    _recursive_update(config, overrides)

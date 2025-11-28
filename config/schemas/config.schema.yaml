@@ -45,6 +45,10 @@ properties:
     pattern: "^[a-z0-9_-]+$"
     description: "Optional config name identifier (overrides default)"
 
+  scenario_defs:
+    type: string
+    description: "Path to scenario definitions YAML file"
+
   planning_horizon:
     type: integer
     minimum: 2020
@@ -709,7 +713,7 @@ properties:
           - climate_model
           - climate_model_ensemble
           - period
-          - scenario
+          - climate_scenario
           - input_level
           - water_supply
           - yield_var
@@ -727,7 +731,7 @@ properties:
             type: string
             pattern: "^(FP|HP)[0-9]{4}$"
             description: "GAEZ v5 time period (e.g., FP2140, HP0120)"
-          scenario:
+          climate_scenario:
             type: string
             enum: [SSP126, SSP370, SSP585, HIST]
             description: "GAEZ v5 climate scenario"
@@ -1039,16 +1043,16 @@ properties:
 
   plotting:
     type: object
-    required: [colors, fallback_cmaps, comparison_objective_wildcards]
+    required: [colors, fallback_cmaps, comparison_scenarios]
     additionalProperties: false
     properties:
-      comparison_objective_wildcards:
+      comparison_scenarios:
         type: array
         minItems: 1
         items:
           type: string
-          pattern: "^obj-.*"
-        description: "Objective wildcards (suffixes after 'model_') available for comparison plots"
+          pattern: "^scen-.*"
+        description: "Scenario wildcards (suffixes after 'model_') available for comparison plots"
       colors:
         type: object
         required: [crops, food_groups]

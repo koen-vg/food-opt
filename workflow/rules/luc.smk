@@ -23,7 +23,7 @@ _grid_yield_raster = (
     "data/downloads/gaez_yield"
     f"_{_default_gaez_cfg['climate_model']}"
     f"_{_default_gaez_cfg['period']}"
-    f"_{_default_gaez_cfg['scenario']}"
+    f"_{_default_gaez_cfg['climate_scenario']}"
     f"_{_default_gaez_cfg['input_level']}"
     f"_{_default_ws}"
     f"_{_first_crop}.tif"

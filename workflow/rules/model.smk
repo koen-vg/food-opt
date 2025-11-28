@@ -125,9 +125,9 @@ rule build_model:
         grazing=grazing_cfg,
         health_reference_year=config["health"]["reference_year"],
     output:
-        network="results/{name}/build/model.nc",
+        network="results/{name}/build/model_scen-{scenario}.nc",
     log:
-        "logs/{name}/build_model.log",
+        "logs/{name}/build_model_scen-{scenario}.log",
     script:
         "../scripts/build_model.py"
 
@@ -139,7 +139,7 @@ def solve_model_inputs(w):
     only when validation mode is enabled.
     """
     inputs = {
-        "network": f"results/{w.name}/build/model.nc",
+        "network": f"results/{w.name}/build/model_scen-{w.scenario}.nc",
         "health_risk_breakpoints": f"processing/{w.name}/health/risk_breakpoints.csv",
         "health_cluster_cause": f"processing/{w.name}/health/cluster_cause_baseline.csv",
         "health_cause_log": f"processing/{w.name}/health/cause_log_breakpoints.csv",
@@ -177,8 +177,8 @@ rule solve_model:
         diet=config["diet"],
         enforce_baseline=config["validation"]["enforce_gdd_baseline"],
     output:
-        network="results/{name}/solved/model_obj-{objective}.nc",
+        network="results/{name}/solved/model_scen-{scenario}.nc",
     log:
-        "logs/{name}/solve_model_obj-{objective}.log",
+        "logs/{name}/solve_model_scen-{scenario}.log",
     script:
         "../scripts/solve_model.py"
