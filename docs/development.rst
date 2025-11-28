@@ -220,11 +220,11 @@ Adding a New Visualization
       rule all:
           input:
               # ...
-              f"results/{name}/plots/my_metric.pdf"
+              f"results/{name}/plots/scen-{scenario}/my_metric.pdf"
 
 4. **Run**::
 
-       tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/my_metric.pdf
+       tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/scen-default/my_metric.pdf
 
 Version Control
 ---------------

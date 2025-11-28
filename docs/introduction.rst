@@ -139,7 +139,7 @@ The Snakemake workflow is organized into stages:
 
 You can target individual stages by specifying the output file. For example, to only build the model without solving::
 
-    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/build/model.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/build/model_scen-default.nc
 
 Or to just prepare regional aggregation::
 

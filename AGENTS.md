@@ -74,11 +74,11 @@ tools/smk -j4 --configfile config/<name>.yaml
 # Run with specific environment
 tools/smk -e gurobi -j4 --configfile config/<name>.yaml
 
-# Build model only
-tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/build/model.nc
+# Build model only (for scenario "default")
+tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/build/model_scen-default.nc
 
 # Solve model only (after build)
-tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/solved/model.nc
+tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/solved/model_scen-default.nc
 
 # Build the docs, including figures; this needs the 'dev' environment
 tools/smk -e dev -j4 --configfile config/doc_figures.yaml -- build_docs
@@ -91,6 +91,7 @@ Notes:
 
 - Remember the double dash (--) before any target file, to separate flags from the target file.
 - For now, use the config/toy.yaml configuration file.
+- **Scenario wildcard**: All model and plot targets include a `{scenario}` wildcard (e.g., `model_scen-default.nc`). Scenarios are defined in `config/scenarios.yaml` and apply configuration overrides. Available scenarios: default, H, G, HG.
 - Snakemake tracks code changes and will rerun affected rules; manual cleanup of workflow artefacts is unnecessary. You almost never have to use the `--forcerun` argument.
 - Prefer small, testable edits and validate by running the narrowest target that exercises your change.
 - `tools/smk` runs Snakemake in a systemd cgroup with a hard 10G cap and swap disabled by default; override with `SMK_MEM_MAX=12G tools/smk ...`. It also implements the `-e <environment>` flag to select the pixi environment.

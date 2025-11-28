@@ -9,7 +9,7 @@
 # The values are configuration overrides applied recursively on top
 # of the default configuration.
 
-none:
+default:
   health:
     enabled: false
   emissions:

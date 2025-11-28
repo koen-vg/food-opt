@@ -166,15 +166,15 @@ Running Specific Stages
 
 **Build model only** (no solving)::
 
-    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/build/model.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/build/model_scen-default.nc
 
 **Solve model**::
 
-    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model_scen-default.nc
 
 **Regenerate specific plot**::
 
-    tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/crop_production.pdf
+    tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/scen-default/crop_production.pdf
 
 **Prepare data without building model**::
 
@@ -236,7 +236,7 @@ Incremental Development
 
 **Rerun specific rule**::
 
-    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc --forcerun solve_model
+    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model_scen-default.nc --forcerun solve_model
 
 **Mark all existing outputs as up to date** (preventing rules from being run due to modification times, etc.)::
 

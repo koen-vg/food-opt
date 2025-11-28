@@ -36,6 +36,40 @@ To build and solve the model based on the above example configuration, you would
 
   tools/smk -j4 --configfile config/my_scenario.yaml
 
+Scenario Presets
+~~~~~~~~~~~~~~~~
+
+The workflow supports scenario presets defined in ``config/scenarios.yaml`` that apply configuration overrides via a ``{scenario}`` wildcard. This allows exploring variations (e.g., with/without health constraints or GHG pricing) within a single configuration without duplicating config files.
+
+Each scenario preset in ``scenarios.yaml`` contains a set of configuration overrides that are applied recursively on top of the base configuration. For example:
+
+.. code-block:: yaml
+
+   # config/scenarios.yaml
+   default:
+     health:
+       enabled: false
+     emissions:
+       ghg_pricing_enabled: false
+
+   HG:
+     health:
+       enabled: true
+     emissions:
+       ghg_pricing_enabled: true
+
+The scenario name becomes part of all output paths:
+
+- Built models: ``results/{name}/build/model_scen-{scenario}.nc``
+- Solved models: ``results/{name}/solved/model_scen-{scenario}.nc``
+- Plots: ``results/{name}/plots/scen-{scenario}/``
+
+To build a specific scenario::
+
+  tools/smk -j4 --configfile config/my_scenario.yaml -- results/my_scenario/build/model_scen-HG.nc
+
+This feature enables systematic sensitivity analysis and comparison across policy scenarios using a single configuration file.
+
 Validation Options
 ~~~~~~~~~~~~~~~~~~
 

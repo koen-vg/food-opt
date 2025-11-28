@@ -28,13 +28,13 @@ The various output files are structured as follows::
 PyPSA Network Results
 ---------------------
 
-The solved network (``results/{name}/solved/model.nc``) is a PyPSA Network whose components can be inspected as follows (for example):
+The solved network (``results/{name}/solved/model_scen-{scenario}.nc``) is a PyPSA Network whose components can be inspected as follows (for example):
 
 .. code-block:: python
 
    import pypsa
 
-   n = pypsa.Network("results/my_scenario/solved/model.nc")
+   n = pypsa.Network("results/my_scenario/solved/model_scen-default.nc")
 
    # Access component data
    links_df = n.links  # All links (production, processing, trade)
