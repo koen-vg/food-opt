@@ -404,6 +404,11 @@ properties:
       enabled:
         type: boolean
         description: "Whether to enable grazing in the model"
+      pasture_utilization_rate:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: "Fraction of pasture biomass that can be utilized by grazing animals"
 
   food_groups:
     type: object

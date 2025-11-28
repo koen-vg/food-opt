@@ -505,6 +505,7 @@ if __name__ == "__main__":
             land_rainfed_df,
             region_to_country,
             set(cfg_countries),
+            float(snakemake.params.grazing["pasture_utilization_rate"]),
             current_grassland_area=current_grassland_area_df,
             pasture_land_area=grazing_only_area_series,
             use_actual_production=use_actual_production,

@@ -82,6 +82,16 @@ Aggregation follows the same resource class structure as crops:
 2. Aggregate by (region, resource_class) using area-weighted means
 3. Output CSV with yields in t/ha/year
 
+Pasture Utilization
+~~~~~~~~~~~~~~~~~~~
+
+The model assumes that only a portion of the total grassland biomass production is available for grazing livestock. This reflects the need to leave biomass for regrowth, soil protection, and ecosystem function ("take half, leave half" principle).
+
+* **Utilization Rate**: 50% (0.50)
+* **Parameter**: ``grazing.pasture_utilization_rate`` in configuration
+
+This value is consistent with the **GLOBIOM** model, which assumes a 50% grazing efficiency for grass in native grasslands [3]_. While intensive dairy systems can achieve higher utilization (up to 70-80%), global rangeland management guidelines typically recommend utilization rates below 50% to prevent degradation.
+
 .. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/grassland_yield.png
    :alt: Managed grassland yield potential
    :width: 100%
@@ -538,3 +548,5 @@ References
 .. [1] Wirsenius, S. (2000). *Human Use of Land and Organic Materials: Modeling the Turnover of Biomass in the Global Food System*. Chalmers University of Technology and Göteborg University, Sweden. ISBN 91-7197-886-0. https://publications.lib.chalmers.se/records/fulltext/827.pdf
 
 .. [2] Organisation for Economic Co-operation and Development / Food and Agriculture Organization of the United Nations (2023). *OECD-FAO Agricultural Outlook 2023-2032*, Box 6.1: Meat. https://www.oecd.org/en/publications/oecd-fao-agricultural-outlook-2023-2032_08801ab7-en/full-report/meat_7b036d52.html#title-a5a1984180
+
+.. [3] Havlík, P., Valin, H., Herrero, M., Obersteiner, M., Schmid, E., Rufino, M. C., ... & Notenbaert, A. (2014). Climate change mitigation through livestock system transitions. *Proceedings of the National Academy of Sciences*, 111(10), 3709-3714, https://doi.org/10.1073/pnas.130804411. See the supporting information, Section 2.4.

@@ -727,6 +727,7 @@ def add_grassland_feed_links(
     land_rainfed: pd.DataFrame,
     region_to_country: pd.Series,
     allowed_countries: set,
+    pasture_utilization_rate: float,
     current_grassland_area: pd.DataFrame | None = None,
     pasture_land_area: pd.Series | None = None,
     use_actual_production: bool = False,
@@ -836,7 +837,8 @@ def add_grassland_feed_links(
             "carrier": "feed_ruminant_grassland",
             "bus0": work["bus0"].tolist(),
             "bus1": work["bus1"].tolist(),
-            "efficiency": work["yield"].to_numpy(),  # t/ha ≡ Mt/Mha on Mt buses
+            # t/ha ≡ Mt/Mha on Mt buses. Scaled by utilization rate.
+            "efficiency": work["yield"].to_numpy() * pasture_utilization_rate,
             "p_nom_max": available_mha,
             "p_nom_extendable": not use_actual_production,
             "marginal_cost": 0.0,

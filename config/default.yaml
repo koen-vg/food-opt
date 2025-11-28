@@ -222,6 +222,7 @@ animal_products:
 
 grazing:
   enabled: true
+  pasture_utilization_rate: 0.50 # Fraction of grassland yield available for grazing
 
 # --- section: food_groups ---
 food_groups:
