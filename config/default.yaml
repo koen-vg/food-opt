@@ -837,9 +837,6 @@ solving:
 plotting:
   comparison_scenarios:
   - "scen-default"
-  - "scen-H"
-  - "scen-G"
-  - "scen-HG"
   colors:
     crops:
       wheat: "#C58E2D"

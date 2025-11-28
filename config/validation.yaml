@@ -4,6 +4,7 @@
 
 # Toy scenario configuration - inherits from default.yaml
 name: "validation"
+scenario_defs: "config/validation_scenarios.yaml"
 
 planning_horizon: 2020
 
