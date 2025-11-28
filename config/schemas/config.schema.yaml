@@ -398,7 +398,7 @@ properties:
 
   grazing:
     type: object
-    required: [enabled]
+    required: [enabled, pasture_utilization_rate]
     additionalProperties: false
     properties:
       enabled:
@@ -858,6 +858,11 @@ properties:
             patternProperties:
               "^SE[0-9]+$":
                 type: string
+          grazing_cost_items:
+            type: object
+            patternProperties:
+              "^SE[0-9]+$":
+                type: string
           exclude_costs:
             type: object
             patternProperties:
@@ -870,6 +875,7 @@ properties:
           - dressed_weight_kg_per_head
           - include_items
           - exclude_items
+          - grazing_cost_items
         additionalProperties: false
         properties:
           request_timeout_seconds:
@@ -886,6 +892,10 @@ properties:
             items:
               type: string
           exclude_items:
+            type: array
+            items:
+              type: string
+          grazing_cost_items:
             type: array
             items:
               type: string

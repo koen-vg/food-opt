@@ -122,12 +122,17 @@ def process_livestock_costs(
     years: list[int],
     include_items: list[str],
     exclude_items: list[str],
-) -> float:
+    grazing_cost_items: list[str] | None = None,
+) -> tuple[float, float]:
     """
     Process USDA livestock cost of production data (dairy, hogs, cattle).
 
-    Returns cost per Mt of product in base year USD, excluding feed costs.
+    Returns tuple (production_cost_per_mt, grazing_cost_per_mt) in base year USD.
+    Production cost excludes feed. Grazing cost is calculated separately.
     """
+    if grazing_cost_items is None:
+        grazing_cost_items = []
+
     logger.info(
         f"Processing {product_name} data from CSV with {len(df)} rows, "
         f"filtering by region '{region_filter}' and categories {categories_filter}"
@@ -144,13 +149,14 @@ def process_livestock_costs(
         logger.warning(
             f"No data for {region_filter} in specified years for {product_name}"
         )
-        return 0.0
+        return 0.0, 0.0
 
     # Filter to cost categories we want (Operating costs and Allocated overhead)
     df = df[df["Category"].isin(categories_filter)].copy()
 
-    # Sum costs by year, including only items we want and excluding feed costs
+    # Sum costs by year
     yearly_costs = []
+    yearly_grazing_costs = []
 
     for year in years:
         year_df = df[df["Year"] == year].copy()
@@ -158,8 +164,18 @@ def process_livestock_costs(
             continue
 
         total_cost = 0.0
+        grazing_cost = 0.0
+
         for _, row in year_df.iterrows():
             item = row["Item"]
+            value = float(row["Value"])
+
+            # Check for grazing cost first (explicitly defined)
+            if any(g_item in item for g_item in grazing_cost_items):
+                grazing_cost += value
+                # Don't add to general production cost if it's a grazing item
+                # (even if it matches include_items, though it usually won't)
+                continue
 
             if any(excl in item for excl in exclude_items):
                 continue
@@ -172,33 +188,40 @@ def process_livestock_costs(
             ):
                 continue
 
-            value = float(row["Value"])
             total_cost += value
 
-        if total_cost > 0:
+        if total_cost > 0 or grazing_cost > 0:
             inflated_cost = inflate_to_base_year(
                 total_cost, int(year), base_year, cpi_values
             )
+            inflated_grazing_cost = inflate_to_base_year(
+                grazing_cost, int(year), base_year, cpi_values
+            )
+
             yearly_costs.append(inflated_cost)
+            yearly_grazing_costs.append(inflated_grazing_cost)
 
             logger.info(
-                f"  Year {year}: ${total_cost:.2f}/{df['Units'].iloc[0].split(' ')[-1]} (nominal) = "
-                f"${inflated_cost:.2f}/{df['Units'].iloc[0].split(' ')[-1]} ({base_year} USD)"
+                f"  Year {year}: Cost ${total_cost:.2f} (Grazing ${grazing_cost:.2f}) nominal -> "
+                f"${inflated_cost:.2f} (Grazing ${inflated_grazing_cost:.2f}) base year"
             )
 
     if not yearly_costs:
         logger.warning(f"No valid cost data after filtering for {product_name}")
-        return 0.0
+        return 0.0, 0.0
 
     avg_cost_per_unit = sum(yearly_costs) / len(yearly_costs)
     cost_per_mt = avg_cost_per_unit * units_to_mt_factor
 
+    avg_grazing_cost_per_unit = sum(yearly_grazing_costs) / len(yearly_grazing_costs)
+    grazing_cost_per_mt = avg_grazing_cost_per_unit * units_to_mt_factor
+
     logger.info(
         f"{product_name.capitalize()}: {len(yearly_costs)} years averaged, "
-        f"${avg_cost_per_unit:.2f}/unit -> ${cost_per_mt:.2f}/Mt ({base_year} USD)"
+        f"${avg_cost_per_unit:.2f}/unit -> ${cost_per_mt:.2f}/Mt (Grazing: ${grazing_cost_per_mt:.2f}/Mt)"
     )
 
-    return cost_per_mt
+    return cost_per_mt, grazing_cost_per_mt
 
 
 def main():
@@ -215,6 +238,7 @@ def main():
     )
     include_items = cost_params["include_items"]
     exclude_items = cost_params["exclude_items"]
+    grazing_cost_items = cost_params.get("grazing_cost_items", [])
     dressed_weight_kg = cost_params["dressed_weight_kg_per_head"]
     timeout = int(cost_params.get("request_timeout_seconds", 120))
 
@@ -264,7 +288,7 @@ def main():
                 )
                 units_to_mt_factor = 1.0  # Placeholder
 
-            cost_per_mt = process_livestock_costs(
+            cost_per_mt, grazing_cost_per_mt = process_livestock_costs(
                 df,
                 product,
                 base_year,
@@ -275,17 +299,21 @@ def main():
                 years,
                 include_items,
                 exclude_items,
+                grazing_cost_items,
             )
 
-            if cost_per_mt > 0:
+            if cost_per_mt > 0 or grazing_cost_per_mt > 0:
                 results.append(
                     {
                         "product": product,
                         f"cost_per_mt_usd_{base_year}": cost_per_mt,
+                        f"grazing_cost_per_mt_usd_{base_year}": grazing_cost_per_mt,
                     }
                 )
 
-                logger.info(f"{product}: ${cost_per_mt:.2f}/Mt ({base_year} USD)")
+                logger.info(
+                    f"{product}: Production ${cost_per_mt:.2f}/Mt, Grazing ${grazing_cost_per_mt:.2f}/Mt"
+                )
             else:
                 logger.warning(f"No valid cost data for {product}")
 
@@ -299,7 +327,13 @@ def main():
         logger.info(f"Wrote cost data for {len(results)} products to {out_path}")
     else:
         # Write empty file with correct columns
-        out_df = pd.DataFrame(columns=["product", f"cost_per_mt_usd_{base_year}"])
+        out_df = pd.DataFrame(
+            columns=[
+                "product",
+                f"cost_per_mt_usd_{base_year}",
+                f"grazing_cost_per_mt_usd_{base_year}",
+            ]
+        )
         out_df.to_csv(out_path, index=False)
         logger.warning("No products processed, wrote empty output file")
 

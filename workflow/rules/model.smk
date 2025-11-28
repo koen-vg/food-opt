@@ -98,6 +98,7 @@ rule build_model:
                 "constants.py",
                 "crops.py",
                 "food.py",
+                "grassland.py",
                 "infrastructure.py",
                 "land.py",
                 "nutrition.py",

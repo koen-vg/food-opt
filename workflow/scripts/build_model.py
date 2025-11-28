@@ -33,6 +33,7 @@ from workflow.scripts.build_model import (  # noqa: E402
     biomass,
     crops,
     food,
+    grassland,
     health,
     infrastructure,
     land,
@@ -333,6 +334,10 @@ if __name__ == "__main__":
         cost_per_mt_column
     ].astype(float)
 
+    grazing_cost_per_tonne_dm = grassland.calculate_grazing_cost_per_tonne_dm(
+        animal_costs_df, feed_to_products, base_year
+    )
+
     # ═══════════════════════════════════════════════════════════════
     # NETWORK BUILDING
     # ═══════════════════════════════════════════════════════════════
@@ -499,16 +504,19 @@ if __name__ == "__main__":
     elif use_actual_production:
         logger.info("Skipping multiple cropping links under actual production mode")
     if snakemake.params.grazing["enabled"]:
-        crops.add_grassland_feed_links(
+        grassland.add_grassland_feed_links(
             n,
             grassland_df,
             land_rainfed_df,
             region_to_country,
             set(cfg_countries),
-            float(snakemake.params.grazing["pasture_utilization_rate"]),
+            marginal_cost=grazing_cost_per_tonne_dm,
             current_grassland_area=current_grassland_area_df,
             pasture_land_area=grazing_only_area_series,
             use_actual_production=use_actual_production,
+            pasture_utilization_rate=float(
+                snakemake.params.grazing["pasture_utilization_rate"]
+            ),
         )
 
     # Food conversion

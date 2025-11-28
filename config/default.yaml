@@ -695,9 +695,10 @@ animal_costs:
       SE370: "Wages paid"
       SE380: "Interest paid"
       SE390: "Taxes"
-    exclude_costs:
+    grazing_cost_items:
       SE310: "Feed for grazing livestock"
       SE315: "Feed for grazing livestock home-grown"
+    exclude_costs:
       SE320: "Feed for pigs & poultry"
       SE325: "Feed for pigs & poultry home-grown"
       SE375: "Rent paid"
@@ -721,8 +722,9 @@ animal_costs:
     - "Capital recovery of machinery and equipment"
     - "General farm overhead"
     - "Taxes and insurance"
-    exclude_items:
+    grazing_cost_items:
     - "Grazed feed"
+    exclude_items:
     - "Homegrown harvested feed"
     - "Purchased feed"
     - "Total, feed costs"

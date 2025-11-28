@@ -38,9 +38,10 @@ def load_cost_sources(source_paths: list[str], base_year: int) -> pd.DataFrame:
     """
     Load and concatenate cost data from multiple sources.
 
-    Returns DataFrame with columns: product, source, cost_per_mt_usd_{base_year}
+    Returns DataFrame with columns: product, source, cost_per_mt_usd_{base_year}, grazing_cost_per_mt_usd_{base_year}
     """
     cost_column = f"cost_per_mt_usd_{base_year}"
+    grazing_column = f"grazing_cost_per_mt_usd_{base_year}"
 
     all_costs = []
 
@@ -61,8 +62,12 @@ def load_cost_sources(source_paths: list[str], base_year: int) -> pd.DataFrame:
             logger.warning(f"Missing cost column in {source_name}, skipping")
             continue
 
+        # Check for grazing cost column (optional in source, default to 0)
+        if grazing_column not in df.columns:
+            df[grazing_column] = 0.0
+
         # Extract relevant columns
-        df_subset = df[["product", cost_column]].copy()
+        df_subset = df[["product", cost_column, grazing_column]].copy()
         df_subset["source"] = source_name
         df_subset = df_subset.dropna(subset=[cost_column])
 
@@ -87,9 +92,10 @@ def merge_costs(
     """
     Merge costs from multiple sources, and ensure all products have cost data.
 
-    Returns DataFrame with columns: product, n_sources, cost_per_mt_usd_{base_year}
+    Returns DataFrame with columns: product, n_sources, cost_per_mt_usd_{base_year}, grazing_cost_per_mt_usd_{base_year}
     """
     cost_column = f"cost_per_mt_usd_{base_year}"
+    grazing_column = f"grazing_cost_per_mt_usd_{base_year}"
 
     # Step 1: Average costs for products with multiple sources
     averaged_costs = (
@@ -97,6 +103,7 @@ def merge_costs(
         .agg(
             {
                 cost_column: "mean",
+                grazing_column: "mean",
                 "source": "count",  # Count number of sources
             }
         )
@@ -110,13 +117,13 @@ def merge_costs(
         if row["n_sources"] > 1:
             logger.info(
                 f"  {row['product']}: averaged from {row['n_sources']} sources "
-                f"(${row[cost_column]:.2f}/Mt)"
+                f"(Prod: ${row[cost_column]:.2f}/Mt, Grazing: ${row[grazing_column]:.2f}/Mt)"
             )
 
     # Step 2: Create cost dictionary for easy lookup
-    cost_dict = averaged_costs.set_index("product")[[cost_column, "n_sources"]].to_dict(
-        "index"
-    )
+    cost_dict = averaged_costs.set_index("product")[
+        [cost_column, grazing_column, "n_sources"]
+    ].to_dict("index")
 
     # Step 3: Process all products, using zero costs for missing data
     results = []
@@ -129,6 +136,7 @@ def merge_costs(
                     "product": product,
                     "n_sources": cost_dict[product]["n_sources"],
                     cost_column: cost_dict[product][cost_column],
+                    grazing_column: cost_dict[product][grazing_column],
                 }
             )
         else:
@@ -139,6 +147,7 @@ def merge_costs(
                     "product": product,
                     "n_sources": 0,
                     cost_column: 0.0,
+                    grazing_column: 0.0,
                 }
             )
 
@@ -170,10 +179,14 @@ def main():
     # Summary statistics
     with_direct_data = (merged_costs["n_sources"] > 0).sum()
     with_zero = (merged_costs[f"cost_per_mt_usd_{base_year}"] == 0).sum()
+    with_zero_grazing = (
+        merged_costs[f"grazing_cost_per_mt_usd_{base_year}"] == 0
+    ).sum()
 
     logger.info(
         f"Summary: {with_direct_data} products with direct data, "
-        f"{with_zero} with zero costs"
+        f"{with_zero} with zero production costs, "
+        f"{with_zero_grazing} with zero grazing costs"
     )
 
 

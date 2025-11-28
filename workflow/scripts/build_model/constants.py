@@ -24,6 +24,7 @@ KCAL_PER_100G_TO_PJ_PER_MEGATONNE = (
     FOOD_PORTION_TO_MASS_FRACTION * GRAMS_PER_MEGATONNE * KCAL_TO_PJ
 )  # kcal/100g to PJ per Mt of food
 USD_TO_BNUSD = 1e-9  # convert USD to billion USD
+HA_PER_MHA = 1e6  # convert million hectares to hectares
 DAYS_PER_YEAR = 365
 N2O_N_TO_N2O = 44.0 / 28.0  # molecular weight ratio to convert N2O-N to N2O
 

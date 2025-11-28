@@ -146,12 +146,16 @@ def process_fadn_animal_costs(
     livestock_specific_costs: dict[str, str],
     shared_farm_costs: dict[str, str],
     high_cost_threshold: float,
+    grazing_cost_items: dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """
     Extract and process FADN livestock cost data, allocating to model products.
 
-    Returns DataFrame with columns: product, cost_per_mt_usd_{base_year}
+    Returns DataFrame with columns: product, cost_per_mt_usd_{base_year}, grazing_cost_per_mt_usd_{base_year}
     """
+    if grazing_cost_items is None:
+        grazing_cost_items = {}
+
     # Filter to relevant years
     fadn_df = fadn_df[fadn_df["year"].isin(years)].copy()
 
@@ -213,6 +217,9 @@ def process_fadn_animal_costs(
         shared_costs_total = sum(
             float(row.get(se_code, 0) or 0) for se_code in shared_farm_costs
         )
+        grazing_costs_total = sum(
+            float(row.get(se_code, 0) or 0) for se_code in grazing_cost_items
+        )
 
         # Calculate total livestock output (sum of categories) to allocate specific costs
         # Specific costs (SE330) are allocated within livestock categories only.
@@ -224,7 +231,7 @@ def process_fadn_animal_costs(
             if se_code not in animal_mapping:
                 continue
 
-            # Share of livestock output (for specific costs)
+            # Share of livestock output (for specific costs and grazing costs)
             share_of_livestock = output_val / total_livestock_output
 
             # Share of total farm output (for shared costs)
@@ -234,6 +241,8 @@ def process_fadn_animal_costs(
             allocated_cost_eur = (specific_costs_total * share_of_livestock) + (
                 shared_costs_total * share_of_farm
             )
+
+            allocated_grazing_cost_eur = grazing_costs_total * share_of_livestock
 
             mapping_info = animal_mapping[se_code]
             products = mapping_info["products"]
@@ -251,11 +260,13 @@ def process_fadn_animal_costs(
 
             # Cost per LU (EUR)
             cost_per_lu_eur = allocated_cost_eur / num_animals_lu
+            grazing_cost_per_lu_eur = allocated_grazing_cost_eur / num_animals_lu
 
             # Convert to Cost per Head (EUR) using LU factor
             # Heads = LU / Factor
             # Cost/Head = Cost/LU * Factor
             cost_per_head_eur = cost_per_lu_eur * lu_factor
+            grazing_cost_per_head_eur = grazing_cost_per_lu_eur * lu_factor
 
             # Inflate to base year and convert to USD (PPP)
             cost_per_head_eur_base = inflate_eur_to_base_year(
@@ -263,6 +274,13 @@ def process_fadn_animal_costs(
             )
             cost_per_head_usd = convert_eur_to_intl_dollar(
                 cost_per_head_eur_base, ppp_rate
+            )
+
+            grazing_cost_per_head_eur_base = inflate_eur_to_base_year(
+                grazing_cost_per_head_eur, year, base_year, hicp_values
+            )
+            grazing_cost_per_head_usd = convert_eur_to_intl_dollar(
+                grazing_cost_per_head_eur_base, ppp_rate
             )
 
             # Determine yield for each product in this category
@@ -280,6 +298,7 @@ def process_fadn_animal_costs(
                     continue
 
                 cost_per_mt = cost_per_head_usd / yield_t_per_head
+                grazing_cost_per_mt = grazing_cost_per_head_usd / yield_t_per_head
 
                 if cost_per_mt > high_cost_threshold and product != "eggs":
                     logger.warning(
@@ -294,6 +313,7 @@ def process_fadn_animal_costs(
                         "country": country_code,
                         "year": year,
                         "cost_per_mt": cost_per_mt,
+                        "grazing_cost_per_mt": grazing_cost_per_mt,
                     }
                 )
 
@@ -308,6 +328,7 @@ def process_fadn_animal_costs(
         results_df.groupby("product")
         .agg(
             cost_per_mt=("cost_per_mt", "mean"),
+            grazing_cost_per_mt=("grazing_cost_per_mt", "mean"),
             n_obs=("year", "count"),
             n_countries=("country", "nunique"),
         )
@@ -315,13 +336,17 @@ def process_fadn_animal_costs(
     )
 
     product_costs = product_costs.rename(
-        columns={"cost_per_mt": f"cost_per_mt_usd_{base_year}"}
+        columns={
+            "cost_per_mt": f"cost_per_mt_usd_{base_year}",
+            "grazing_cost_per_mt": f"grazing_cost_per_mt_usd_{base_year}",
+        }
     )
 
     for _, row in product_costs.iterrows():
         logger.info(
             f"  {row['product']}: "
             f"${row[f'cost_per_mt_usd_{base_year}']:.2f}/Mt "
+            f"(Grazing: ${row[f'grazing_cost_per_mt_usd_{base_year}']:.2f}/Mt) "
             f"({row['n_countries']} countries, {row['n_obs']} obs)"
         )
 
@@ -345,6 +370,7 @@ def main():
     )
     livestock_specific_costs = cost_params["livestock_specific_costs"]
     shared_farm_costs = cost_params["shared_farm_costs"]
+    grazing_cost_items = cost_params.get("grazing_cost_items", {})
     high_cost_threshold = float(cost_params["high_cost_threshold_usd_per_mt"])
 
     # Load mapping
@@ -386,10 +412,17 @@ def main():
         livestock_specific_costs,
         shared_farm_costs,
         high_cost_threshold,
+        grazing_cost_items,
     )
 
     if costs_df.empty:
-        costs_df = pd.DataFrame(columns=["product", f"cost_per_mt_usd_{base_year}"])
+        costs_df = pd.DataFrame(
+            columns=[
+                "product",
+                f"cost_per_mt_usd_{base_year}",
+                f"grazing_cost_per_mt_usd_{base_year}",
+            ]
+        )
 
     costs_df.to_csv(out_path, index=False)
     logger.info(f"Wrote cost data to {out_path}")
