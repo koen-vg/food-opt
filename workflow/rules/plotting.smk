@@ -244,6 +244,27 @@ rule plot_food_consumption_comparison:
         "../scripts/plotting/plot_food_consumption_comparison.py"
 
 
+def system_cost_comparison_inputs(wildcards):
+    return [
+        f"results/{wildcards.name}/plots/{suffix}/objective_breakdown.csv"
+        for suffix in comparison_scenarios
+    ]
+
+
+rule plot_system_cost_comparison:
+    input:
+        breakdowns=system_cost_comparison_inputs,
+    output:
+        pdf="results/{name}/plots/system_cost_comparison.pdf",
+        csv="results/{name}/plots/system_cost_comparison.csv",
+    params:
+        wildcards=comparison_scenarios,
+    log:
+        "logs/{name}/plot_system_cost_comparison.log",
+    script:
+        "../scripts/plotting/plot_system_cost_comparison.py"
+
+
 rule plot_food_consumption_map:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",

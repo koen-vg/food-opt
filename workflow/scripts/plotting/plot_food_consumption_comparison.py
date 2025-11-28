@@ -110,6 +110,7 @@ def _plot_comparison(
                 left += value
         ax.set_yticks(np.arange(len(labels)))
         ax.set_yticklabels(labels)
+        ax.set_ylim(-0.5, len(labels) - 0.5)
         ax.set_xlabel(xlabel)
         ax.set_title(title)
         ax.grid(axis="x", alpha=0.3)
@@ -123,9 +124,9 @@ def _plot_comparison(
             legend_handles[::-1],
             [patch.get_label() for patch in legend_handles][::-1],
             loc="center left",
-            bbox_to_anchor=(1.02, 0.5),
+            bbox_to_anchor=(1.0, 0.5),
         )
-        fig.tight_layout(rect=(0, 0, 0.85, 1))
+        fig.tight_layout(rect=(0, 0, 0.90, 1))
     else:
         fig.tight_layout()
 
