@@ -82,7 +82,7 @@ def _collect_slack(network: pypsa.Network) -> pd.DataFrame:
 
         quantity = weighted.abs().sum().sum()
         marginal_cost = generators.loc[mask, "marginal_cost"]
-        cost_bnusd = (weighted * marginal_cost).sum().sum()
+        cost_bnusd = (weighted.abs() * marginal_cost.abs()).sum().sum()
 
         records.append(
             {
@@ -114,36 +114,25 @@ def _plot(df: pd.DataFrame, output_pdf: Path) -> None:
         return
 
     df_sorted = df.sort_values("cost_bnusd", ascending=False)
-    max_abs = max(df_sorted["cost_bnusd"].abs().max(), 1e-9)
+    max_cost = max(df_sorted["cost_bnusd"].max(), 1e-9)
 
     bars = ax.barh(df_sorted.index, df_sorted["cost_bnusd"], color="#4c72b0")
-    ax.axvline(0, color="black", linewidth=0.8)
     ax.set_xlabel("Cost (bn USD)")
     ax.set_title("Slack penalty by category")
     ax.grid(axis="x", alpha=0.3)
 
     for bar, (_, row) in zip(bars, df_sorted.iterrows(), strict=False):
         text = f"{row['quantity']:.3g} {row['unit']}"
-        offset = 0.01 * max_abs
-        if bar.get_width() >= 0:
-            ax.text(
-                bar.get_width() + offset,
-                bar.get_y() + bar.get_height() / 2,
-                text,
-                va="center",
-                ha="left",
-            )
-        else:
-            ax.text(
-                bar.get_width() - offset,
-                bar.get_y() + bar.get_height() / 2,
-                text,
-                va="center",
-                ha="right",
-            )
+        offset = 0.01 * max_cost
+        ax.text(
+            bar.get_width() + offset,
+            bar.get_y() + bar.get_height() / 2,
+            text,
+            va="center",
+            ha="left",
+        )
 
-    x_lim = max_abs * 1.1
-    ax.set_xlim(-x_lim, x_lim)
+    ax.set_xlim(0, max_cost * 1.1)
 
     output_pdf.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()

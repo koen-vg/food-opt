@@ -40,6 +40,7 @@ def add_primary_resources(
     ch4_to_co2_factor: float,
     n2o_to_co2_factor: float,
     use_actual_production: bool,
+    water_slack_cost: float,
 ) -> None:
     """Add primary resource components and emissions bookkeeping.
 
@@ -59,12 +60,11 @@ def add_primary_resources(
 
     # Slack in water limits when using actual (current) production
     if use_actual_production:
-        slack_cost = 1e-6 * constants.USD_TO_BNUSD
         n.generators.add(
             "water_slack_" + water_limits.index,
             bus="water_" + water_limits.index,
             carrier="water",
-            marginal_cost=slack_cost,
+            marginal_cost=water_slack_cost,
             p_nom_extendable=True,
         )
 

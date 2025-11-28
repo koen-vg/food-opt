@@ -411,6 +411,7 @@ if __name__ == "__main__":
         ch4_to_co2_factor,
         n2o_to_co2_factor,
         use_actual_production=use_actual_production,
+        water_slack_cost=validation_slack_cost,
     )
     synthetic_n2o_factor = float(
         snakemake.params.emissions["fertilizer"]["synthetic_n2o_factor"]
