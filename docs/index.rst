@@ -25,6 +25,7 @@ A global food systems optimization model that explores trade-offs between enviro
    current_diets
    health
    environment
+   costs
    configuration
    data_sources
    workflow
