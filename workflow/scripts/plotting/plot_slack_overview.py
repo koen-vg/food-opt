@@ -17,15 +17,6 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
-def _snapshot_weights(network: pypsa.Network) -> pd.Series:
-    """Return per-snapshot objective weights (defaults to ones)."""
-
-    weights = network.snapshot_weightings.get("objective")
-    if weights is None:
-        return pd.Series(1.0, index=network.snapshots)
-    return weights
-
-
 def _mask_carrier_equals(carrier: str):
     def _mask(columns: pd.Index, generators: pd.DataFrame) -> pd.Series:
         carriers = generators.loc[columns, "carrier"].astype(str)
@@ -69,7 +60,6 @@ def _collect_slack(network: pypsa.Network) -> pd.DataFrame:
     if generators.empty or dispatch.empty:
         return pd.DataFrame(columns=["quantity", "unit", "cost_bnusd"])
 
-    weights = _snapshot_weights(network)
     records: list[dict[str, object]] = []
 
     for label, mask_fn, unit in CATEGORIES:
@@ -78,11 +68,9 @@ def _collect_slack(network: pypsa.Network) -> pd.DataFrame:
             continue
 
         cols = dispatch.loc[:, mask]
-        weighted = cols.multiply(weights, axis=0)
-
-        quantity = weighted.abs().sum().sum()
+        quantity = cols.abs().sum().sum()
         marginal_cost = generators.loc[mask, "marginal_cost"]
-        cost_bnusd = (weighted.abs() * marginal_cost.abs()).sum().sum()
+        cost_bnusd = (cols.abs() * marginal_cost.abs()).sum().sum()
 
         records.append(
             {

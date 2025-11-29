@@ -404,6 +404,8 @@ if __name__ == "__main__":
         biomass.add_biomass_infrastructure(n, cfg_countries, biomass_cfg)
 
     # Primary resources: water, fertilizer, emissions
+    water_slack_cost = validation_slack_cost / 1e3
+
     primary_resources.add_primary_resources(
         n,
         snakemake.params.fertilizer,
@@ -411,7 +413,7 @@ if __name__ == "__main__":
         ch4_to_co2_factor,
         n2o_to_co2_factor,
         use_actual_production=use_actual_production,
-        water_slack_cost=validation_slack_cost,
+        water_slack_cost=water_slack_cost,
     )
     synthetic_n2o_factor = float(
         snakemake.params.emissions["fertilizer"]["synthetic_n2o_factor"]

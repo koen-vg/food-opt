@@ -217,6 +217,31 @@ rule plot_slack_overview:
         "../scripts/plotting/plot_slack_overview.py"
 
 
+rule plot_water_balance:
+    input:
+        network="results/{name}/solved/model_scen-{scenario}.nc",
+    output:
+        pdf="results/{name}/plots/scen-{scenario}/water_balance.pdf",
+        csv="results/{name}/plots/scen-{scenario}/water_balance.csv",
+    log:
+        "logs/{name}/plot_water_balance_scen-{scenario}.log",
+    script:
+        "../scripts/plotting/plot_water_balance.py"
+
+
+rule plot_water_use_map:
+    input:
+        network="results/{name}/solved/model_scen-{scenario}.nc",
+        regions="processing/{name}/regions.geojson",
+    output:
+        pdf="results/{name}/plots/scen-{scenario}/water_use_map.pdf",
+        csv="results/{name}/plots/scen-{scenario}/water_use_by_region.csv",
+    log:
+        "logs/{name}/plot_water_use_map_scen-{scenario}.log",
+    script:
+        "../scripts/plotting/plot_water_use_map.py"
+
+
 rule plot_food_consumption:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",
