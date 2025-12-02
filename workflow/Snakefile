@@ -48,7 +48,7 @@ wildcard_constraints:
     water_supply=r"[ri]",
     crop=r"[a-zA-Z0-9\-]+",
     item=r"[a-zA-Z0-9_-]+",
-    scenario=r"[a-zA-Z0-9]+",  # Scenario preset wildcard (no underscores)
+    scenario=r"[a-zA-Z0-9_]+",  # Scenario preset wildcard
 
 
 ALL_RULE_TARGETS = [
@@ -59,6 +59,8 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/food_consumption_baseline_map.pdf",
     "results/{name}/plots/food_consumption_comparison.pdf",
     "results/{name}/plots/food_consumption_comparison.csv",
+    "results/{name}/plots/system_cost_comparison.pdf",
+    "results/{name}/plots/system_cost_comparison.csv",
     "results/{name}/plots/relative_risk_curves.pdf",
     # results plots
     "results/{name}/plots/scen-default/crop_production.pdf",
@@ -94,6 +96,17 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/scen-default/food_consumption.pdf",
     "results/{name}/plots/scen-default/food_consumption_map.pdf",
 ]
+
+# Dynamically add targets for all comparison scenarios
+# This ensures all prerequisite files are generated for comparison plots
+# comparison_scenarios is defined in plotting.smk (loaded above via include)
+for scenario_suffix in comparison_scenarios:
+    # Add solved model for food consumption comparison
+    ALL_RULE_TARGETS.append(f"results/{{name}}/solved/model_{scenario_suffix}.nc")
+    # Add objective breakdown for system cost comparison
+    ALL_RULE_TARGETS.append(
+        f"results/{{name}}/plots/{scenario_suffix}/objective_breakdown.csv"
+    )
 
 
 rule all:

@@ -1069,12 +1069,15 @@ properties:
     additionalProperties: false
     properties:
       comparison_scenarios:
-        type: array
-        minItems: 1
-        items:
-          type: string
-          pattern: "^scen-.*"
-        description: "Scenario wildcards (suffixes after 'model_') available for comparison plots"
+        oneOf:
+          - type: string
+            const: "all"
+          - type: array
+            minItems: 1
+            items:
+              type: string
+              pattern: "^scen-.*"
+        description: "Scenario wildcards (suffixes after 'model_') available for comparison plots. Use 'all' to compare all scenarios defined in scenario_defs."
       colors:
         type: object
         required: [crops, food_groups]
