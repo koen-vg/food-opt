@@ -145,7 +145,7 @@ When adding new configuration options:
 
 3. **Test** by running the workflow::
 
-       tools/smk --configfile config/toy.yaml -n
+       tools/smk --configfile config/validation.yaml -n
 
 4. **Verify** that both valid and invalid configurations are handled correctly
 

@@ -90,7 +90,6 @@ pixi run python <...>
 Notes:
 
 - Remember the double dash (--) before any target file, to separate flags from the target file.
-- For now, use the config/toy.yaml configuration file.
 - **Scenario wildcard**: All model and plot targets include a `{scenario}` wildcard (e.g., `model_scen-default.nc`). Scenarios are defined in `config/scenarios.yaml` and apply configuration overrides. Available scenarios: default, H, G, HG.
 - Snakemake tracks code changes and will rerun affected rules; manual cleanup of workflow artefacts is unnecessary. You almost never have to use the `--forcerun` argument.
 - Prefer small, testable edits and validate by running the narrowest target that exercises your change.

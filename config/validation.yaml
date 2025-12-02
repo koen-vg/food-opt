@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: CC-BY-4.0
 
-# Toy scenario configuration - inherits from default.yaml
 name: "validation"
 scenario_defs: "config/validation_scenarios.yaml"
 
@@ -27,4 +26,4 @@ health:
 
 solving:
   io_api: "direct"
-  solver: gurobi
+  solver: "highs"
