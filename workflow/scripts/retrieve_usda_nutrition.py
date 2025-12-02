@@ -97,9 +97,17 @@ def get_food_nutrients(fdc_id: int, api_key: str) -> dict[str, tuple[float, str]
 
     nutrients = {}
     for nutrient_entry in data.get("foodNutrients", []):
-        name = nutrient_entry["nutrient"]["name"]
+        nutrient = nutrient_entry.get("nutrient", {})
+        name = nutrient.get("name")
+        if not name:
+            logger.warning(
+                "Skipping nutrient entry without name for FDC ID %d", fdc_id
+            )
+            continue
+
         amount = nutrient_entry.get("amount", 0.0)
-        unit = nutrient_entry["nutrient"]["unitName"]
+        # In SR Legacy database, nutrients without explicit unitName are in grams
+        unit = nutrient.get("unitName", "G")
         nutrients[name] = (amount, unit)
 
     return nutrients
@@ -160,44 +168,39 @@ def main():
             "  [%d/%d] %s (FDC %d)", idx + 1, len(mapping_df), food_name, fdc_id
         )
 
-        try:
-            nutrients = get_food_nutrients(fdc_id, api_key)
+        nutrients = get_food_nutrients(fdc_id, api_key)
 
-            # Extract requested nutrients
-            for internal_name, usda_nutrient_name in nutrient_name_map.items():
-                if usda_nutrient_name in nutrients:
-                    amount, usda_unit = nutrients[usda_nutrient_name]
+        # Extract requested nutrients
+        for internal_name, usda_nutrient_name in nutrient_name_map.items():
+            if usda_nutrient_name in nutrients:
+                amount, usda_unit = nutrients[usda_nutrient_name]
 
-                    # Convert units if necessary
-                    if usda_unit.upper() == "KJ":
-                        # Convert kilojoules to kilocalories
-                        amount = amount / 4.184
-                        internal_unit = "kcal/100g"
-                    else:
-                        # Map USDA units to internal units
-                        internal_unit = unit_map.get(
-                            usda_unit.upper(), usda_unit.lower()
-                        )
-
-                    output_rows.append(
-                        {
-                            "food": food_name,
-                            "nutrient": internal_name,
-                            "unit": internal_unit,
-                            "value": round(amount, 2),
-                        }
-                    )
+                # Convert units if necessary
+                if usda_unit.upper() == "KJ":
+                    # Convert kilojoules to kilocalories
+                    amount = amount / 4.184
+                    internal_unit = "kcal/100g"
                 else:
-                    logger.warning(
-                        "    %s not found for %s", usda_nutrient_name, food_name
+                    # Map USDA units to internal units
+                    internal_unit = unit_map.get(
+                        usda_unit.upper(), usda_unit.lower()
                     )
 
-            # Be polite to the API
-            time.sleep(0.5)
+                output_rows.append(
+                    {
+                        "food": food_name,
+                        "nutrient": internal_name,
+                        "unit": internal_unit,
+                        "value": round(amount, 2),
+                    }
+                )
+            else:
+                logger.warning(
+                    "    %s not found for %s", usda_nutrient_name, food_name
+                )
 
-        except Exception as e:
-            logger.error("    Error retrieving data for %s: %s", food_name, e)
-            continue
+        # Be polite to the API
+        time.sleep(0.5)
 
     # Write output
     output_df = pd.DataFrame(output_rows)
