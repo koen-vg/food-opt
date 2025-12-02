@@ -21,7 +21,7 @@ Several licensed datasets cannot be fetched automatically. While their use is fr
 
 **Required manual downloads:**
 
-1. Create an account with IHME and download ``IHME-GBD_2021-dealth-rates.csv`` as described in :ref:`ihme-gbd-mortality`.
+1. Create an account with IHME and download ``IHME-GBD_2023-dealth-rates.csv`` as described in :ref:`ihme-gbd-mortality`.
 2. Download the IHME 2019 relative risk workbook ``IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX`` (:ref:`ihme-relative-risks`).
 3. Register at the Global Dietary Database portal and download the dataset, placed locally as the directory ``GDD-dietary-intake`` (:ref:`gdd-dietary-intake`).
 
@@ -501,7 +501,7 @@ Health and Epidemiology Data
 
 .. _ihme-gbd-mortality:
 
-IHME GBD 2021 — Mortality Rates
+IHME GBD 2023 — Mortality Rates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Provider**: Institute for Health Metrics and Evaluation (IHME)
@@ -513,19 +513,19 @@ IHME GBD 2021 — Mortality Rates
   * Causes: Ischemic heart disease, Stroke, Diabetes mellitus, Colon and rectum cancer, Chronic respiratory diseases, All causes
   * Age groups: <1 year, 12-23 months, 2-4 years, 5-9 years, ..., 95+ years (individual age bins)
   * Sex: Both
-  * Year: 2021
+  * Year: 2023
 
 **License**: Free for non-commercial use with attribution (IHME Free-of-Charge Non-commercial User Agreement)
 
-**Citation**: Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2021 (GBD 2021) Results. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2024. Available from https://vizhub.healthdata.org/gbd-results/
+**Citation**: Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2023 (GBD 2023) Results. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2024. Available from https://vizhub.healthdata.org/gbd-results/
 
 **Workflow integration**: Automatically processed via ``workflow/scripts/prepare_gbd_mortality.py``
 
 **Manual download steps**:
 
 1. Visit https://vizhub.healthdata.org/gbd-results/ and sign in with your IHME account.
-2. Reproduce the query parameters above by following this permanent link: https://vizhub.healthdata.org/gbd-results?params=gbd-api-2021-permalink/90f3c59133738e4b70b91072b6fd0db4
-3. Export the results as CSV (allow some time for the IHME to process the query) and save to ``data/manually_downloaded``. Rename the file to ``IHME-GBD_2021-dealth-rates.csv`` to match the name expected by the Snakemake workflow.
+2. Reproduce the query parameters above by following this permanent link: https://vizhub.healthdata.org/gbd-results?params=gbd-api-2023-permalink/05de3cfb56eafc99f2cc8e135644b81f
+3. Export the results as CSV (allow some time for the IHME to process the query) and save to ``data/manually_downloaded``. Rename the file to ``IHME-GBD_2023-dealth-rates.csv`` to match the name expected by the Snakemake workflow. Consider checking the file modification time and potentially resetting it (on Linux, run `touch` on the file); sometimes the modification time of the downloaded time can be in the future, which confuses snakemake.
 
 .. _ihme-relative-risks:
 

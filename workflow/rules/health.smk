@@ -12,7 +12,7 @@ and health cost calculations.
 
 rule prepare_gbd_mortality:
     input:
-        gbd_mortality="data/manually_downloaded/IHME-GBD_2021-dealth-rates.csv",
+        gbd_mortality="data/manually_downloaded/IHME-GBD_2023-dealth-rates.csv",
     params:
         countries=config["countries"],
         causes=config["health"]["causes"],

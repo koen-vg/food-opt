@@ -13,28 +13,30 @@ This directory contains datasets that must be manually downloaded because they:
 
 ## Current Files
 
-### IHME-GBD_2021-dealth-rates.csv
+### IHME-GBD_2023-dealth-rates.csv
 
-**Source:** IHME Global Burden of Disease Study 2021
+**Source:** IHME Global Burden of Disease Study 2023
 **Download:** https://vizhub.healthdata.org/gbd-results/
 
 Viewing and downloading these results requires a user account on the healthdata.org website.
 
 **Query parameters:**
+- **GBD Estimate:** Cause of death or injury
 - **Measure:** Deaths (Rate per 100,000)
+- **Metric:** Rate
 - **Causes:**
+  - All causes
   - Ischemic heart disease
   - Stroke
   - Diabetes mellitus
   - Colon and rectum cancer
   - Chronic respiratory diseases
-  - All causes
-- **Age groups:** <1 year, 12-23 months, 2-4 years, 5-9 years, ..., 95+ years
+- **Location:** Choose option to "Select all countries and territories"
+- **Age groups:** <1 year, 12-23 months, 2-4 years, 5-9 years, 10-14 years, 15-19 years, ..., 95+ years
 - **Sex:** Both
-- **Metric:** Rate
-- **Year:** 2021 (or latest available)
+- **Year:** 2023 (or latest available)
 
-This specific query can also be found at the following URL: https://vizhub.healthdata.org/gbd-results?params=gbd-api-2021-permalink/90f3c59133738e4b70b91072b6fd0db4
+This specific query can also be found at the following URL: https://vizhub.healthdata.org/gbd-results?params=gbd-api-2023-permalink/05de3cfb56eafc99f2cc8e135644b81f
 
 **Processing:** The Snakemake workflow automatically processes this file via `workflow/scripts/prepare_gbd_mortality.py` to:
 1. Map country names to ISO3 codes
@@ -46,7 +48,7 @@ This specific query can also be found at the following URL: https://vizhub.healt
 **License:** IHME Free-of-Charge Non-commercial User Agreement
 
 **Citation:**
-> Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2021 (GBD 2021) Results. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2024. Available from https://vizhub.healthdata.org/gbd-results/.
+> Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2023 (GBD 2023) Results. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2025. Available from https://vizhub.healthdata.org/gbd-results/.
 
 ---
 
@@ -118,7 +120,7 @@ When new GBD data is released:
 1. Visit https://vizhub.healthdata.org/gbd-results/
 2. Configure query with parameters above
 3. Download as CSV
-4. Replace `IHME-GBD_2021-dealth-rates.csv` (or create new file with updated year)
+4. Replace `IHME-GBD_2023-dealth-rates.csv` (or create new file with updated year)
 5. Update `workflow/Snakefile` rule `prepare_gbd_mortality` if filename changes
 6. Rerun workflow: `tools/smk processing/{name}/gbd_mortality_rates.csv`
 
