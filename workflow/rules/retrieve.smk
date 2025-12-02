@@ -269,7 +269,7 @@ rule download_gaez_yield_data:
     log:
         "logs/shared/download_gaez_yield_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_water_requirement_data:
@@ -285,7 +285,7 @@ rule download_gaez_water_requirement_data:
     log:
         "logs/shared/download_gaez_water_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_suitability_data:
@@ -301,7 +301,7 @@ rule download_gaez_suitability_data:
     log:
         "logs/shared/download_gaez_suitability_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_multiple_cropping_zone:
@@ -318,7 +318,7 @@ rule download_gaez_multiple_cropping_zone:
     log:
         "logs/shared/download_gaez_multiple_cropping_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_growing_season_start:
@@ -335,7 +335,7 @@ rule download_gaez_growing_season_start:
     log:
         "logs/shared/download_gaez_growing_season_start_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_growing_season_length:
@@ -352,7 +352,7 @@ rule download_gaez_growing_season_length:
     log:
         "logs/shared/download_gaez_growing_season_length_{climate_model}_{period}_{climate_scenario}_{input_level}_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_actual_yield:
@@ -370,7 +370,7 @@ rule download_gaez_actual_yield:
     log:
         "logs/shared/download_gaez_actual_yield_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_harvested_area:
@@ -387,7 +387,7 @@ rule download_gaez_harvested_area:
     log:
         "logs/shared/download_gaez_harvested_area_{water_supply}_{crop}.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 rule download_gaez_irrigated_landshare_map:
@@ -399,7 +399,7 @@ rule download_gaez_irrigated_landshare_map:
     log:
         "logs/shared/download_gaez_irrigated_landshare_map.log",
     shell:
-        "uv run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
+        "pixi run gsutil cp {params.gcs_url} {output} > {log} 2>&1"
 
 
 # TODO: license. Different variations?
