@@ -47,6 +47,7 @@ COUNTRY_NAME_OVERRIDES = {
     "United Kingdom of Great Britain and Northern Ireland": "GBR",
     "United Republic of Tanzania": "TZA",
     "United States of America": "USA",
+    "United States Virgin Islands": "VIR",
     "Venezuela (Bolivarian Republic of)": "VEN",
     "Viet Nam": "VNM",
 }
