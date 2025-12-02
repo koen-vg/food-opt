@@ -53,6 +53,7 @@ rule build_feed_to_animal_products:
             "net_to_metabolizable_energy_conversion"
         ],
         carcass_to_retail=config["animal_products"]["carcass_to_retail_meat"],
+        feed_proxy_map=config["animal_products"]["feed_proxy_map"],
     log:
         "logs/{name}/build_feed_to_animal_products.log",
     script:

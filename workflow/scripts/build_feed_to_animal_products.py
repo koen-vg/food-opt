@@ -61,6 +61,7 @@ def calculate_ruminant_me_requirements(
     k_g: float,
     k_l: float,
     carcass_to_retail: dict[str, float],
+    feed_proxy_map: dict[str, str],
 ) -> pd.DataFrame:
     """
     Convert Wirsenius NE requirements to ME requirements for ruminants.
@@ -69,6 +70,9 @@ def calculate_ruminant_me_requirements(
                      ME_retail = ME_carcass / carcass_to_retail_factor
     For dairy cattle: ME = NE_l / k_l + NE_m / k_m + NE_g / k_g
                       (no carcass conversion, milk is already retail product)
+
+    Supports proxy products that use feed requirements from other products,
+    configured via feed_proxy_map (e.g., dairy-buffalo -> dairy).
 
     Parameters
     ----------
@@ -82,6 +86,8 @@ def calculate_ruminant_me_requirements(
         Lactation efficiency factor (NE to ME conversion)
     carcass_to_retail : dict[str, float]
         Carcass-to-retail conversion factors by product
+    feed_proxy_map : dict[str, str]
+        Proxy products mapped to their source products
 
     Returns
     -------
@@ -132,6 +138,38 @@ def calculate_ruminant_me_requirements(
             )
 
     df = pd.DataFrame(results)
+
+    # ADD PROXY PRODUCTS using their source's ME requirements
+    proxy_results = []
+    for proxy_product, source_product in feed_proxy_map.items():
+        if source_product in df["animal_product"].values:
+            # Copy source product's requirements to proxy product
+            source_data = df[df["animal_product"] == source_product].copy()
+            source_data["animal_product"] = proxy_product
+
+            # Adjust for carcass-to-retail conversion if different
+            if (
+                proxy_product in carcass_to_retail
+                and source_product in carcass_to_retail
+            ):
+                source_factor = carcass_to_retail[source_product]
+                proxy_factor = carcass_to_retail[proxy_product]
+                if source_factor > 0 and proxy_factor > 0:
+                    # Adjust ME requirements per kg retail meat
+                    adjustment = source_factor / proxy_factor
+                    source_data["ME_MJ_per_kg"] = (
+                        source_data["ME_MJ_per_kg"] * adjustment
+                    )
+
+            proxy_results.append(source_data)
+
+    if proxy_results:
+        df = pd.concat([df, *proxy_results], ignore_index=True)
+        logger.info(
+            "Added proxy products: %s",
+            ", ".join(feed_proxy_map.keys()),
+        )
+
     logger.info(
         "Calculated ME requirements for %d ruminant product-region combinations",
         len(df),
@@ -281,6 +319,7 @@ def build_feed_to_animal_products(
     k_g: float,
     k_l: float,
     carcass_to_retail: dict[str, float],
+    feed_proxy_map: dict[str, str],
 ) -> None:
     """
     Generate feed-to-animal-product conversion table from Wirsenius data.
@@ -308,6 +347,8 @@ def build_feed_to_animal_products(
         NRC lactation efficiency factor
     carcass_to_retail : dict[str, float]
         Carcass-to-retail conversion factors by product
+    feed_proxy_map : dict[str, str]
+        Mapping of proxy products to source products for feed requirements
     """
     # Load data
     wirsenius = pd.read_csv(wirsenius_file, comment="#")
@@ -324,7 +365,12 @@ def build_feed_to_animal_products(
 
     # Calculate ME requirements (converted to per kg RETAIL product)
     ruminant_me = calculate_ruminant_me_requirements(
-        wirsenius, k_m, k_g, k_l, carcass_to_retail
+        wirsenius,
+        k_m,
+        k_g,
+        k_l,
+        carcass_to_retail,
+        feed_proxy_map,
     )
     monogastric_me = get_monogastric_me_requirements(wirsenius, carcass_to_retail)
 
@@ -407,4 +453,5 @@ if __name__ == "__main__":
         k_g=k_g,
         k_l=k_l,
         carcass_to_retail=carcass_to_retail,
+        feed_proxy_map=snakemake.params.feed_proxy_map,
     )

@@ -41,14 +41,17 @@ PRODUCT_TO_URINARY_CATEGORY = {
     "meat-pig": "pig",
     "meat-chicken": "chicken",
     "eggs": "chicken",
+    "dairy-buffalo": "ruminant",
+    "meat-sheep": "ruminant",
 }
 
 # Map GLEAM animal names to our animal products
 GLEAM_TO_PRODUCT = {
     "Cattle": ["meat-cattle", "dairy"],
-    "Buffalo": ["meat-cattle", "dairy"],  # Treat buffalo like cattle
+    "Buffalo": ["dairy-buffalo"],
     "Pigs": ["meat-pig"],
     "Chickens": ["meat-chicken", "eggs"],
+    "Sheep": ["meat-sheep"],
 }
 
 
@@ -258,7 +261,7 @@ if __name__ == "__main__":
 
     for product in b0_data["animal product"].unique():
         # Determine if ruminant or monogastric
-        if product in ["meat-cattle", "dairy"]:
+        if product in ["meat-cattle", "dairy", "dairy-buffalo", "meat-sheep"]:
             feed_categories = ruminant_categories
             category_prefix = "ruminant_"
         else:

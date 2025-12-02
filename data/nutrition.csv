@@ -47,6 +47,10 @@ dairy,carb,g/100g,4.8
 dairy,fat,g/100g,3.25
 dairy,kcal,kcal/100g,60.71
 dairy,protein,g/100g,3.15
+dairy-buffalo,carb,g/100g,5.18
+dairy-buffalo,fat,g/100g,6.89
+dairy-buffalo,kcal,kcal/100g,96.56
+dairy-buffalo,protein,g/100g,3.75
 dry-pea,carb,g/100g,61.63
 dry-pea,fat,g/100g,3.89
 dry-pea,kcal,kcal/100g,363.53
@@ -87,6 +91,10 @@ meat-chicken,carb,g/100g,0.0
 meat-chicken,fat,g/100g,2.62
 meat-chicken,kcal,kcal/100g,119.74
 meat-chicken,protein,g/100g,22.5
+meat-sheep,carb,g/100g,0.0
+meat-sheep,fat,g/100g,20.94
+meat-sheep,kcal,kcal/100g,258.0
+meat-sheep,protein,g/100g,16.88
 meat-pig,carb,g/100g,0.0
 meat-pig,fat,g/100g,3.09
 meat-pig,kcal,kcal/100g,122.85

@@ -337,6 +337,7 @@ properties:
       - wirsenius_regions
       - net_to_metabolizable_energy_conversion
       - carcass_to_retail_meat
+      - feed_proxy_map
       - residue_crops
     additionalProperties: false
     properties:
@@ -388,6 +389,15 @@ properties:
             minimum: 0
             maximum: 1
             description: "kg retail product per kg carcass/raw product"
+      feed_proxy_map:
+        type: object
+        additionalProperties: false
+        patternProperties:
+          "^[a-z0-9-]+$":
+            type: string
+            pattern: "^[a-z0-9-]+$"
+            description: "Source product whose feed requirements are reused"
+        description: "Mapping of proxy animal products to source products"
       residue_crops:
         type: array
         uniqueItems: true

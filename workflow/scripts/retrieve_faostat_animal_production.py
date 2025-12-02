@@ -28,6 +28,8 @@ ANIMAL_PRODUCT_MAPPING = {
     "meat-pig": "Meat of pig with the bone, fresh or chilled",
     "meat-chicken": "Meat of chickens, fresh or chilled",
     "eggs": "Hen eggs in shell, fresh",
+    "dairy-buffalo": "Raw milk of buffalo",
+    "meat-sheep": "Meat of sheep, fresh or chilled",
 }
 
 

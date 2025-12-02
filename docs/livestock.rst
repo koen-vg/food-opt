@@ -16,7 +16,7 @@ The livestock module models animal product production (meat, dairy, eggs) throug
 Animal Products
 ---------------
 
-The model includes five major animal product categories configured in ``config/default.yaml``:
+The model includes seven major animal product categories configured in ``config/default.yaml``:
 
 .. literalinclude:: ../config/default.yaml
    :language: yaml
@@ -163,6 +163,8 @@ Feed Conversion Efficiencies
 
 Feed conversion efficiencies (tonnes **retail product** per tonne feed DM) are generated automatically from Wirsenius (2000) regional feed energy requirements combined with GLEAM 3.0 feed category energy values.
 
+**Proxy Products**: Buffalo milk (``dairy-buffalo``) and sheep meat (``meat-sheep``) use cattle feed requirements as proxies, since Wirsenius (2000) does not provide separate regional estimates for these products. Buffalo milk inherits dairy cattle parameters, while sheep meat inherits beef cattle parameters with adjustments for the different carcass-to-retail conversion factor (0.63 for sheep vs 0.67 for cattle).
+
 In this calculation, we have to account for the following units:
 * **Feed inputs**: Dry matter (tonnes DM)
 * **Animal product outputs**: Fresh weight, retail meat (tonnes fresh weight)
@@ -174,9 +176,10 @@ In this calculation, we have to account for the following units:
 Wirsenius (2000) [1]_ provides feed requirements per kg **carcass weight** (dressed, bone-in). We apply carcass-to-retail conversion factors to obtain feed requirements per kg **retail meat**, from OECD-FAO Agricultural Outlook 2023-2032, Box 6.1 [2]_:
 
 * Cattle meat: 0.67 kg boneless retail per kg carcass
+* Sheep meat: 0.63 kg boneless retail per kg carcass
 * Pig meat: 0.73 kg boneless retail per kg carcass
 * Chicken meat: 0.60 kg boneless retail per kg carcass
-* Eggs & dairy: 1.00 (no conversion, already retail products)
+* Eggs, dairy, & buffalo milk: 1.00 (no conversion, already retail products)
 
 **Generation workflow**:
 

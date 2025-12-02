@@ -24,3 +24,11 @@ meat-chicken:
 eggs:
   production_item: "Hen eggs in shell, fresh"
   use_element_producing_animals: true # Element 2313 (Layers)
+
+dairy-buffalo:
+  production_item: "Raw milk of buffalo"
+  use_element_producing_animals: true
+
+meat-sheep:
+  production_item: "Meat of sheep, fresh or chilled"
+  stock_item: "Sheep"

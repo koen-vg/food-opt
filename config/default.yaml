@@ -175,6 +175,8 @@ animal_products:
   - meat-chicken
   - dairy
   - eggs
+  - dairy-buffalo
+  - meat-sheep
   # Regional feed conversion efficiencies from Wirsenius (2000)
   # If wirsenius_regions is specified, average over those regions
   # If null or empty, use global average across all regions
@@ -200,6 +202,11 @@ animal_products:
     meat-chicken: 0.60 # kg boneless retail chicken per kg carcass (OECD-FAO 2023)
     eggs: 1.00         # No conversion needed (whole egg = retail product)
     dairy: 1.00        # No conversion needed (whole milk = retail product)
+    meat-sheep: 0.63   # kg boneless retail lamb per kg carcass (slightly lower than beef)
+    dairy-buffalo: 1.00 # No conversion needed (whole milk = retail product)
+  feed_proxy_map:
+    dairy-buffalo: dairy
+    meat-sheep: meat-cattle
   residue_crops:
   - banana
   - barley
