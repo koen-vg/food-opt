@@ -661,7 +661,8 @@ data:
     water_requirement_var: "RES05-WDC" # Water deficit/net irrigation requirement during crop cycle, current cropland
     suitability_var: "RES05-SX1" # Share of grid cell assessed as VS or S (very suitable or suitable)
   usda:
-    api_key: "NZESBYEsg9Utlh3OmIsHu7pgEI2AD3jN76SxgCq6"
+    # API credentials: configure in config/secrets.yaml or via USDA_API_KEY environment variable
+    # See config/secrets.yaml.example for setup instructions
     retrieve_nutrition: true  # Set to true to fetch nutrition data from USDA instead of using the provided data
     # Nutrient mapping: internal name -> USDA FoodData Central name
     # USDA names must match nutrient names in FoodData Central exactly
@@ -671,6 +672,8 @@ data:
       fat: "Total lipid (fat)"
       cal: "Energy"
   land_cover:
+    # ECMWF credentials: configure in config/secrets.yaml or via environment variables
+    # See config/secrets.yaml.example for setup instructions
     year: "2022"
     version: "v2_1_1"
   soilgrids:

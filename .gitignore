@@ -18,3 +18,6 @@ vendor
 /.tmp/
 docs/_static/figures/*
 
+# Secrets (never commit credentials)
+config/secrets.yaml
+

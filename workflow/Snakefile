@@ -7,7 +7,7 @@ from pathlib import Path
 
 from snakemake.utils import min_version
 
-from validation import validate
+from validation import load_secrets_with_env_fallback, validate
 
 min_version("9.0")
 
@@ -15,6 +15,11 @@ os.makedirs("data/downloads", exist_ok=True)
 
 
 configfile: "config/default.yaml"
+
+
+# Load and merge secrets from file or environment variables
+secrets = load_secrets_with_env_fallback(Path.cwd())
+config.setdefault("credentials", {}).update(secrets)
 
 
 validate(config, project_root=Path.cwd())

@@ -15,6 +15,7 @@ from .crop_food_pathways import validate_crop_food_pathways
 from .food_groups import validate_food_groups
 from .gaez_crop_mapping import validate_gaez_crop_mapping
 from .health_map import validate_health_map
+from .secrets import load_secrets_with_env_fallback
 
 Validator = Callable[[dict, Path], None]
 
@@ -67,4 +68,4 @@ def validate(
         raise RuntimeError(f"Validation failed:\n{bullet_list}")
 
 
-__all__ = ["validate"]
+__all__ = ["load_secrets_with_env_fallback", "validate"]

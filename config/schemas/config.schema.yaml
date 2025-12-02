@@ -37,6 +37,7 @@ required:
   - crop_costs
   - solving
   - plotting
+  - credentials
 additionalProperties: false
 
 properties:
@@ -769,13 +770,9 @@ properties:
             description: "GAEZ v5 suitability variable code"
       usda:
         type: object
-        required: [api_key, retrieve_nutrition, nutrients]
+        required: [retrieve_nutrition, nutrients]
         additionalProperties: false
         properties:
-          api_key:
-            type: string
-            minLength: 1
-            description: "USDA FoodData Central API key"
           retrieve_nutrition:
             type: boolean
             description: "Whether to fetch nutrition data from USDA API"
@@ -1105,3 +1102,33 @@ properties:
           crops:
             type: string
             description: "Matplotlib colormap name for crops without specified colors"
+
+  credentials:
+    type: object
+    required: [usda, ecmwf]
+    additionalProperties: false
+    description: "API credentials for external data sources (configure via config/secrets.yaml or environment variables)"
+    properties:
+      usda:
+        type: object
+        required: [api_key]
+        additionalProperties: false
+        properties:
+          api_key:
+            type: string
+            minLength: 1
+            description: "USDA FoodData Central API key (or set USDA_API_KEY env var)"
+      ecmwf:
+        type: object
+        required: [url, key]
+        additionalProperties: false
+        properties:
+          url:
+            type: string
+            minLength: 1
+            format: uri
+            description: "ECMWF datastores API URL (or set ECMWF_DATASTORES_URL env var)"
+          key:
+            type: string
+            minLength: 1
+            description: "ECMWF datastores API key (or set ECMWF_DATASTORES_KEY env var)"

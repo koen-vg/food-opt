@@ -8,7 +8,8 @@ Retrieve nutritional data from USDA FoodData Central API.
 This script fetches nutrition data for foods listed in data/usda_food_mapping.csv
 and outputs in the format expected by the model (data/nutrition.csv).
 
-Requires network access to call the USDA API.
+Requires network access to call the USDA API. Credentials are sourced from
+config/secrets.yaml or the USDA_API_KEY environment variable.
 
 Adding New Foods
 ----------------
@@ -100,9 +101,7 @@ def get_food_nutrients(fdc_id: int, api_key: str) -> dict[str, tuple[float, str]
         nutrient = nutrient_entry.get("nutrient", {})
         name = nutrient.get("name")
         if not name:
-            logger.warning(
-                "Skipping nutrient entry without name for FDC ID %d", fdc_id
-            )
+            logger.warning("Skipping nutrient entry without name for FDC ID %d", fdc_id)
             continue
 
         amount = nutrient_entry.get("amount", 0.0)
@@ -118,7 +117,7 @@ def main():
     mapping_path = snakemake.input.mapping
     food_groups_path = snakemake.input.food_groups
     output_path = snakemake.output[0]
-    api_key = snakemake.config["data"]["usda"]["api_key"]
+    api_key = snakemake.config["credentials"]["usda"]["api_key"]
     nutrient_name_map = snakemake.config["data"]["usda"]["nutrients"]
 
     # Read food groups file to get list of foods requiring nutrition data
@@ -182,9 +181,7 @@ def main():
                     internal_unit = "kcal/100g"
                 else:
                     # Map USDA units to internal units
-                    internal_unit = unit_map.get(
-                        usda_unit.upper(), usda_unit.lower()
-                    )
+                    internal_unit = unit_map.get(usda_unit.upper(), usda_unit.lower())
 
                 output_rows.append(
                     {
@@ -195,9 +192,7 @@ def main():
                     }
                 )
             else:
-                logger.warning(
-                    "    %s not found for %s", usda_nutrient_name, food_name
-                )
+                logger.warning("    %s not found for %s", usda_nutrient_name, food_name)
 
         # Be polite to the API
         time.sleep(0.5)

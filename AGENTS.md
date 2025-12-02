@@ -122,6 +122,46 @@ The project uses automatic configuration validation via JSON Schema to ensure al
 - **User configs**: Only need to specify overrides; they're merged with default before validation
 - **Scientific notation**: PyYAML 6.0+ parses scientific notation like `1e-2` as strings. Use decimal notation (`0.01`) instead.
 
+## Secrets Management
+
+API credentials for external data sources (USDA, ECMWF) are managed separately from the main configuration to avoid committing secrets to version control.
+
+### Setup Options
+
+**Option 1: Secrets File (Recommended for local development)**
+
+1. Copy the template:
+   ```bash
+   cp config/secrets.yaml.example config/secrets.yaml
+   ```
+
+2. Edit `config/secrets.yaml` and fill in your API credentials:
+   - **USDA API key**: Get from https://fdc.nal.usda.gov/api-guide.html
+   - **ECMWF credentials**: Get from https://cds.climate.copernicus.eu/api-how-to
+     - Register at https://cds.climate.copernicus.eu/user/register
+     - Accept dataset licenses at https://cds.climate.copernicus.eu/datasets/satellite-land-cover
+     - Get your UID and API key from your profile page
+
+3. The file is excluded from git - never commit real credentials!
+
+**Option 2: Environment Variables (Recommended for CI/CD)**
+
+Set these environment variables before running the workflow:
+
+```bash
+export USDA_API_KEY="your-usda-api-key"
+export ECMWF_DATASTORES_URL="https://cds.climate.copernicus.eu/api"
+export ECMWF_DATASTORES_KEY="your-ecmwf-key"
+```
+
+### Precedence
+
+Environment variables take precedence over the secrets file. This allows you to override file-based credentials in CI/CD or testing environments.
+
+### Validation
+
+The workflow validates that all required credentials are present at startup (before any rules execute). If credentials are missing, you'll see a clear error message with instructions on how to configure them.
+
 
 ## PyPSA Modeling Notes
 
