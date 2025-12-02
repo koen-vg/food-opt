@@ -17,10 +17,36 @@ import logging
 from pathlib import Path
 
 from logging_config import setup_script_logging
+from osgeo import gdal, osr
 import requests
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
+
+# Enable GDAL exceptions for clearer failures
+gdal.UseExceptions()
+osr.UseExceptions()
+
+# SoilGrids uses the Interrupted Goode Homolosine projection; EPSG:152160 is not
+# available in our PROJ database, so we assign the projection via its proj4
+# definition.
+_SOILGRIDS_PROJ4 = "+proj=igh"
+
+
+def _ensure_projection(path: Path) -> None:
+    """Assign SoilGrids projection if the downloaded GeoTIFF lacks CRS."""
+
+    ds = gdal.Open(str(path), gdal.GA_Update)
+    if ds is None:
+        raise RuntimeError(f"Failed to open {path} for CRS assignment")
+    try:
+        if ds.GetProjectionRef():
+            return
+        srs = osr.SpatialReference()
+        srs.ImportFromProj4(_SOILGRIDS_PROJ4)
+        ds.SetProjection(srs.ExportToWkt())
+    finally:
+        ds = None
 
 
 def download_via_wcs(
@@ -93,6 +119,7 @@ def download_via_wcs(
             f.write(chunk)
 
     logger.info("Downloaded and saved %s", output_path)
+    _ensure_projection(output_path)
 
 
 if __name__ == "__main__":
