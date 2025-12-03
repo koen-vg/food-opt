@@ -9,6 +9,7 @@ by loading data and calling functions from the build_model package modules.
 """
 
 import functools
+import logging
 from pathlib import Path
 import sys
 
@@ -51,6 +52,24 @@ pypsa.options.api.new_components_api = True
 if __name__ == "__main__":
     # Configure logging
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+
+    class _CarrierUnitWarningFilter(logging.Filter):
+        """Drop noisy PyPSA carrier unit warnings."""
+
+        _prefix = (
+            "The attribute 'unit' is a standard attribute for other components "
+            "but not for carriers."
+        )
+
+        def filter(self, record: logging.LogRecord) -> bool:
+            message = record.getMessage()
+            return not (
+                record.name == "pypsa.network.transform"
+                and isinstance(message, str)
+                and message.startswith(self._prefix)
+            )
+
+    logging.getLogger("pypsa.network.transform").addFilter(_CarrierUnitWarningFilter())
 
     # Apply scenario config overrides based on wildcard
     apply_scenario_config(snakemake.config, snakemake.wildcards.scenario)
