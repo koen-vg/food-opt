@@ -323,6 +323,28 @@ trade:
       - dairy
       - eggs
   non_tradable_foods: []
+  feed_hubs: 15
+  feed_default_trade_cost_per_km: 0.012  # USD_2024 per tonne per km (1.2e-2)
+  feed_trade_cost_categories:
+    grain_protein:
+      cost_per_km: 0.006  # USD_2024 per tonne per km (6e-3) - matches crop bulk_dry_goods
+      feeds:
+      - ruminant_grain
+      - ruminant_protein
+      - monogastric_grain
+      - monogastric_energy
+      - monogastric_protein
+    forage:
+      cost_per_km: 0.012  # USD_2024 per tonne per km (1.2e-2) - 2x grain cost
+      feeds:
+      - ruminant_forage
+    bulky_low_quality:
+      cost_per_km: 0.016  # USD_2024 per tonne per km (1.6e-2) - 2.67x grain cost
+      feeds:
+      - ruminant_roughage
+      - monogastric_low_quality
+  non_tradable_feeds:
+  - ruminant_grassland
 
 # --- section: health ---
 health:

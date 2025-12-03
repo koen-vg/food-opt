@@ -293,3 +293,49 @@ def add_food_trade_hubs_and_links(
         link_name_prefix="trade_food",
         log_label="food",
     )
+
+
+def add_feed_trade_hubs_and_links(
+    n: pypsa.Network,
+    trade_config: dict,
+    regions_gdf: gpd.GeoDataFrame,
+    countries: list,
+    feed_categories: list,
+) -> None:
+    """Add trading hubs and links for animal feed categories.
+
+    Creates a hierarchical trade network for feed categories using K-means
+    clustering to position regional hubs. Feed buses follow the naming
+    convention feed_{category}_{country}.
+
+    Grassland feed is excluded from trading (fresh, location-specific).
+    Other feeds are tradable with costs reflecting bulkiness:
+    - Grain/protein feeds: Low cost (concentrated, easy handling)
+    - Forage feeds: Medium cost (moderately bulky)
+    - Roughage/low-quality: High cost (very bulky, low value)
+
+    Args:
+        n: PyPSA network to modify
+        trade_config: Trade configuration dictionary
+        regions_gdf: GeoDataFrame with regional geometries for hub placement
+        countries: List of country codes to connect
+        feed_categories: List of feed category names (from infrastructure)
+    """
+    _add_trade_hubs_and_links(
+        n,
+        trade_config,
+        regions_gdf,
+        countries,
+        feed_categories,
+        hub_count_key="feed_hubs",
+        marginal_cost_key="feed_default_trade_cost_per_km",
+        cost_categories_key="feed_trade_cost_categories",
+        default_cost_key="feed_default_trade_cost_per_km",
+        category_item_key="feeds",
+        non_tradable_key="non_tradable_feeds",
+        bus_prefix="feed_",
+        carrier_prefix="feed_",
+        hub_name_prefix="hub_feed",
+        link_name_prefix="trade_feed",
+        log_label="feed",
+    )

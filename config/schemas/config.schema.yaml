@@ -492,6 +492,10 @@ properties:
       - food_default_trade_cost_per_km
       - food_trade_cost_categories
       - non_tradable_foods
+      - feed_hubs
+      - feed_default_trade_cost_per_km
+      - feed_trade_cost_categories
+      - non_tradable_feeds
     additionalProperties: false
     properties:
       crop_hubs:
@@ -558,6 +562,38 @@ properties:
           type: string
           pattern: "^[a-z0-9-]+$"
         description: "Foods that cannot be traded"
+      feed_hubs:
+        type: integer
+        minimum: 1
+        description: "Number of feed trade hubs"
+      feed_default_trade_cost_per_km:
+        type: number
+        minimum: 0
+        description: "USD per tonne per km (default for unlisted feeds)"
+      feed_trade_cost_categories:
+        type: object
+        patternProperties:
+          "^[a-z0-9_]+$":
+            type: object
+            required: [cost_per_km, feeds]
+            additionalProperties: false
+            properties:
+              cost_per_km:
+                type: number
+                minimum: 0
+                description: "USD per tonne per km"
+              feeds:
+                type: array
+                items:
+                  type: string
+                  pattern: "^[a-z0-9_]+$"
+      non_tradable_feeds:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          pattern: "^[a-z0-9_]+$"
+        description: "Feeds that cannot be traded"
 
   health:
     type: object

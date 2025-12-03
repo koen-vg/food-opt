@@ -555,6 +555,27 @@ if __name__ == "__main__":
         cfg_countries,
     )
 
+    # Feed trade networks (between countries via hubs)
+    # Feed categories must match infrastructure.py lines 110-120
+    feed_category_list = [
+        "ruminant_grassland",
+        "ruminant_roughage",
+        "ruminant_forage",
+        "ruminant_grain",
+        "ruminant_protein",
+        "monogastric_low_quality",
+        "monogastric_grain",
+        "monogastric_energy",
+        "monogastric_protein",
+    ]
+    trade.add_feed_trade_hubs_and_links(
+        n,
+        snakemake.params.trade,
+        regions_df,
+        cfg_countries,
+        feed_category_list,
+    )
+
     # Crop residue soil incorporation (with N₂O emissions)
     # Process ALL residues regardless of animal type; N content from feed data
     incorporation_n2o_factor = float(
