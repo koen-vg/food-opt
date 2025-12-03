@@ -58,11 +58,18 @@ def categorize_ruminant_feeds(
     # Calculate ME from GE * digestibility * 0.82 (standard conversion)
     df["ME_MJ_per_kg_DM"] = df["GE_MJ_per_kg_DM"] * df["digestibility"] * 0.82
 
-    # Assign categories based on feed item and digestibility
+    # Assign categories based on nitrogen content and digestibility
     # Grassland gets its own category for special N management
     def assign_category(row):
         if row["feed_item"] == "grassland":
             return "grassland"
+
+        # Protein category takes precedence for high-N feeds (like monogastrics)
+        # Threshold of 50 g N/kg DM captures protein meals (rapeseed, soybean, etc.)
+        if row["N_g_per_kg_DM"] > 50:
+            return "protein"
+
+        # Otherwise categorize by digestibility
         di = row["digestibility"]
         if di < 0.55:
             return "roughage"

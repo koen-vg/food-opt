@@ -139,22 +139,24 @@ Each file contains:
 
 These properties are extracted from the GLEAM 3.0 supplement using ``data/gleam_feed_mapping.csv`` to map between model feed items and GLEAM feed categories.
 
-**Feed quality categories** (assigned based on digestibility and protein content):
+**Feed quality categories** (assigned based on nitrogen content and digestibility):
 
 * **Ruminant feeds**:
 
+  * **Protein**: High nitrogen content (>50 g N/kg DM) - protein meals such as rapeseed-meal, sunflower-meal, soybean meal (assigned by N content; takes precedence over digestibility)
+  * **Grassland**: Managed pasture grazing (special category for nitrogen management; manure deposited on pasture)
   * **Roughage**: Low digestibility (<0.55), high-fiber forages (crop residues, straw)
   * **Forage**: Medium digestibility (0.55-0.70), improved forages (silage maize, alfalfa)
-  * **Grassland**: Managed pasture grazing (special category for nitrogen management; manure deposited on pasture)
-  * **Grain**: High digestibility (0.70-0.90), low protein (<20%), energy concentrates (maize, wheat)
-  * **Protein**: High digestibility (>0.90), high protein (≥20%), protein concentrates (soybean meal)
+  * **Grain**: High digestibility (0.70-0.90), energy concentrates (maize, wheat, barley)
 
 * **Monogastric feeds**:
 
-  * **Low quality**: Low metabolizable energy (<12 MJ/kg DM), bulky feeds and byproducts
-  * **Grain**: Medium energy (12-14 MJ/kg DM), low protein (<20%), cereal grains
-  * **Energy**: High energy (>14 MJ/kg DM), low protein (<20%), fats and high-energy feeds
-  * **Protein**: High protein (≥20%), protein concentrates (soybean meal, fish meal)
+  * **Protein**: High nitrogen content (>35 g N/kg DM) - protein meals such as soybean meal, fish meal, rapeseed-meal (assigned by N content; takes precedence over energy)
+  * **Low quality**: Low metabolizable energy (<11 MJ/kg DM), bulky feeds and byproducts
+  * **Grain**: Medium energy (11-15.5 MJ/kg DM), cereal grains
+  * **Energy**: High energy (>15.5 MJ/kg DM), fats and high-energy feeds
+
+**Categorization logic**: Both ruminant and monogastric feeds prioritize nitrogen content to identify protein feeds, ensuring high-protein oilseed meals are correctly classified regardless of digestibility. For feeds below the nitrogen threshold, ruminants use digestibility ranges while monogastrics use metabolizable energy thresholds.
 
 Byproducts from food processing (with ``source_type=food``) are automatically excluded from human consumption and can only be used as animal feed.
 
