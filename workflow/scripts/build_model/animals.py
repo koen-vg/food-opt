@@ -91,6 +91,8 @@ def add_feed_to_animal_product_links(
     fertilizer_config: dict,
     emissions_config: dict,
     countries: list,
+    food_to_group: dict[str, str],
+    loss_waste: pd.DataFrame,
     animal_costs: pd.Series | None = None,
 ) -> None:
     """Add links that convert feed pools into animal products with emissions and manure N.
@@ -108,6 +110,7 @@ def add_feed_to_animal_product_links(
 
       - Incorporates carcass-to-retail conversion for meat products
       - Generated from Wirsenius (2000) + GLEAM feed energy values
+      - Adjusted for food loss and waste fractions
 
     Outputs per link:
 
@@ -137,6 +140,11 @@ def add_feed_to_animal_product_links(
         Fertilizer configuration with manure_n_to_fertilizer and manure_n2o_factor
     countries : list
         List of country codes
+    food_to_group : dict[str, str]
+        Mapping from food names to food group names for FLW lookup
+    loss_waste : pd.DataFrame
+        Food loss and waste fractions with columns: country, food_group,
+        loss_fraction, waste_fraction
     animal_costs : pd.Series | None, optional
         Animal product costs indexed by product (USD per Mt product).
         If provided, converted to cost per Mt feed via efficiency.
@@ -150,6 +158,15 @@ def add_feed_to_animal_product_links(
     if not animal_products:
         logger.info("No animal products configured; skipping feed→animal links")
         return
+
+    # Build food loss/waste lookup: (country, food_group) -> (loss_fraction, waste_fraction)
+    loss_waste_pairs: dict[tuple[str, str], tuple[float, float]] = {}
+    for _, row in loss_waste.iterrows():
+        key = (str(row["country"]), str(row["food_group"]))
+        loss_waste_pairs[key] = (
+            float(row["loss_fraction"]),
+            float(row["waste_fraction"]),
+        )
 
     # Build enteric methane yield lookup from ruminant feed categories
     enteric_my_lookup = (
@@ -242,6 +259,13 @@ def add_feed_to_animal_product_links(
             else:
                 marginal_cost = 0.0
 
+            # Calculate FLW-adjusted efficiency
+            base_efficiency = row["efficiency"]
+            group = food_to_group[row["product"]]
+            loss_frac, waste_frac = loss_waste_pairs[(country, group)]
+            flw_multiplier = (1.0 - loss_frac) * (1.0 - waste_frac)
+            adjusted_efficiency = base_efficiency * flw_multiplier
+
             all_names.append(
                 f"produce_{row['product']}_from_{row['feed_category']}_{country}"
             )
@@ -249,7 +273,7 @@ def add_feed_to_animal_product_links(
             all_bus1.append(food_bus)
             all_bus3.append(f"fertilizer_{country}")
             all_carrier.append(f"produce_{row['product']}")
-            all_efficiency.append(row["efficiency"])
+            all_efficiency.append(adjusted_efficiency)
             # Convert per-tonne emissions to per-Mt flows (CH4, N2O in t; feed in Mt)
             # Manure N needs no conversion: t N / t feed = Mt N / Mt feed (ratio is scale-invariant)
             all_ch4.append(ch4_per_t_feed * constants.MEGATONNE_TO_TONNE)

@@ -32,6 +32,14 @@ ANIMAL_PRODUCT_MAPPING = {
     "meat-sheep": "Meat of sheep, fresh or chilled",
 }
 
+# Additional milk sources to include in dairy totals (not modeled explicitly,
+# but added to production targets so cattle/buffalo stand in for all milk)
+ADDITIONAL_DAIRY_SOURCES = {
+    "Raw milk of goats": "dairy",
+    "Raw milk of sheep": "dairy",
+    "Raw milk of camel": "dairy",
+}
+
 
 def _normalize(name: str) -> str:
     return name.strip().lower().replace(" ", "_")
@@ -96,6 +104,24 @@ def main() -> None:
             "Mapped '%s' -> FAOSTAT item '%s' (code %s)",
             model_product,
             faostat_item,
+            item_code,
+        )
+
+    # Add additional dairy sources (goat, sheep, camel milk -> dairy)
+    for faostat_item, model_product in ADDITIONAL_DAIRY_SOURCES.items():
+        if faostat_item not in item_map:
+            logger.warning(
+                "FAOSTAT item '%s' not found; skipping additional dairy source",
+                faostat_item,
+            )
+            continue
+        item_code = item_map[faostat_item]
+        item_codes.append(str(item_code))
+        faostat_to_model[str(item_code)] = model_product
+        logger.info(
+            "Mapped additional dairy source '%s' -> '%s' (code %s)",
+            faostat_item,
+            model_product,
             item_code,
         )
 

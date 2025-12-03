@@ -606,6 +606,8 @@ if __name__ == "__main__":
         snakemake.params.fertilizer,
         snakemake.params.emissions,
         cfg_countries,
+        food_to_group,
+        food_loss_waste,
         animal_costs_per_mt,
     )
 

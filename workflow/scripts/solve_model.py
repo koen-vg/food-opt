@@ -413,12 +413,18 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
 
 
 def add_animal_production_constraints(
-    n: pypsa.Network, fao_production: pd.DataFrame
+    n: pypsa.Network,
+    fao_production: pd.DataFrame,
+    food_to_group: dict[str, str],
+    loss_waste: pd.DataFrame,
 ) -> None:
     """Add constraints to fix animal production at FAO levels per country.
 
     For each (country, product) combination in the FAO data, adds a constraint
-    that total production from all feed categories equals the FAO target.
+    that total production from all feed categories equals the FAO target,
+    adjusted for food loss and waste. Since the model applies FLW to the
+    feed→product efficiency, the constraint target must also be adjusted
+    to net production (gross FAO production * (1-loss) * (1-waste)).
 
     Parameters
     ----------
@@ -426,12 +432,25 @@ def add_animal_production_constraints(
         The network containing the model.
     fao_production : pd.DataFrame
         FAO production data with columns: country, product, production_mt.
+    food_to_group : dict[str, str]
+        Mapping from product names to food group names for FLW lookup.
+    loss_waste : pd.DataFrame
+        Food loss and waste fractions with columns: country, food_group,
+        loss_fraction, waste_fraction.
     """
     if fao_production.empty:
         logger.warning(
             "No FAO animal production data available; skipping production constraints"
         )
         return
+
+    # Build FLW lookup: (country, food_group) -> (1-loss)*(1-waste)
+    flw_multipliers: dict[tuple[str, str], float] = {}
+    for _, row in loss_waste.iterrows():
+        key = (str(row["country"]), str(row["food_group"]))
+        loss_frac = float(row["loss_fraction"])
+        waste_frac = float(row["waste_fraction"])
+        flw_multipliers[key] = (1.0 - loss_frac) * (1.0 - waste_frac)
 
     m = n.model
     link_p = m.variables["Link-p"].sel(snapshot="now")
@@ -472,6 +491,15 @@ def add_animal_production_constraints(
         "production_mt"
     ].astype(float)
 
+    # Adjust targets by FLW: net_target = gross_target * (1-loss) * (1-waste)
+    adjusted_targets = []
+    for product, country in target_series.index:
+        gross_value = target_series.loc[(product, country)]
+        group = food_to_group[product]
+        multiplier = flw_multipliers[(country, group)]
+        adjusted_targets.append(gross_value * multiplier)
+    target_series = pd.Series(adjusted_targets, index=target_series.index)
+
     model_index = pd.Index(total_production.coords["group"].values, name="group")
     common_index = model_index.intersection(target_series.index)
 
@@ -491,7 +519,7 @@ def add_animal_production_constraints(
     m.add_constraints(lhs == rhs, name="animal_production_target")
 
     logger.info(
-        "Added %d country-level animal production constraints",
+        "Added %d country-level animal production constraints (FLW-adjusted)",
         len(common_index),
     )
 
@@ -988,7 +1016,12 @@ if __name__ == "__main__":
     )
     if use_actual_production:
         fao_animal_production = pd.read_csv(snakemake.input.animal_production)
-        add_animal_production_constraints(n, fao_animal_production)
+        food_groups_df = pd.read_csv(snakemake.input.food_groups)
+        food_to_group = food_groups_df.set_index("food")["group"].to_dict()
+        food_loss_waste = pd.read_csv(snakemake.input.food_loss_waste)
+        add_animal_production_constraints(
+            n, fao_animal_production, food_to_group, food_loss_waste
+        )
 
     # Add health impacts to the objective if enabled
     health_enabled = bool(snakemake.config["health"]["enabled"])

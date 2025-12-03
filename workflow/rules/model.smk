@@ -156,6 +156,7 @@ def solve_model_inputs(w):
         inputs["animal_production"] = (
             f"processing/{w.name}/faostat_animal_production.csv"
         )
+        inputs["food_loss_waste"] = f"processing/{w.name}/food_loss_waste.csv"
 
     return inputs
 
