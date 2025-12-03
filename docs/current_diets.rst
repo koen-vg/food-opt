@@ -114,7 +114,7 @@ The following food groups are populated from FAOSTAT Food Balance Sheets (FBS) b
    * - Food Group
      - Description & Source Items
    * - ``dairy``
-     - **Total Milk Equivalent**. Aggregated from FAOSTAT items: Milk - Excluding Butter (2848), Butter/Ghee (2740), and Cream (2743). Converted to milk equivalents using standard factors (Butter: 20, Cream: 10). Note: "Milk - Excluding Butter" in FBS typically serves as the aggregate for fluid milk and milk used for cheese/yoghurt.
+     - **Total Milk Equivalent**. Aggregated from FAOSTAT items: Milk - Excluding Butter (2848), Butter/Ghee (2740), and Cream (2743). Butter and cream are converted to milk equivalents using FAO dairy commodity tree extraction rates (≈21.3× for butter/ghee, ≈6.7× for cream); milk-excl.-butter is taken as-is.
    * - ``poultry``
      - **Poultry Meat** (2734).
    * - ``oil``

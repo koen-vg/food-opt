@@ -32,16 +32,21 @@ FAO_ITEMS = {
     "poultry": [2734],  # Poultry Meat
     "oil": [2586],  # Vegetable Oils
     "dairy": [2848, 2740, 2743],  # Milk (excl butter), Butter/Ghee, Cream
-    # 2848: Milk - Excluding Butter (Aggregated Fluid + Cheese + Yoghurt origin milk in FBS usually)
+    # 2848: Milk - Excluding Butter (Aggregated Fluid + Cheese + Yoghurt origin milk in FBS)
     # 2740: Butter, Ghee
     # 2743: Cream
 }
 
-# Milk Equivalent Factors (Approximate)
-DAIRY_FACTORS = {
-    2848: 1.0,  # Milk - Excluding Butter (Already in primary equivalent or fluid weight)
-    2740: 20.0,  # Butter, Ghee (High fat content)
-    2743: 10.0,  # Cream
+# Milk→product extraction rates from FAO dairy; see
+# https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf,
+# commodity tree 57. Percent ranges below are extraction rates;
+# milk-equivalent factors are their reciprocals. Butter/ghee: 4.7%
+# yield → ~21.3 kg milk / kg butter Cream fresh: 15% yield → ~6.7 kg
+# milk / kg cream
+DAIRY_MILK_EQUIV_FACTORS = {
+    2848: 1.0,  # Milk - Excluding Butter (already milk-equivalent)
+    2740: 21.3,  # Butter/Ghee (cow milk commodity tree No. 57)
+    2743: 6.7,  # Cream (fresh) milk-equivalent
 }
 
 # Standard Age Groups
@@ -174,11 +179,11 @@ def main():
         oil_rows = group_df[group_df[item_col].isin(FAO_ITEMS["oil"])]
         supplies["oil"] = oil_rows[val_col].sum()
 
-        # Dairy
+        # Dairy: convert butter/ghee and cream to milk equivalents using FAO commodity tree
         dairy_sum = 0.0
         for item_code in FAO_ITEMS["dairy"]:
             val = group_df[group_df[item_col] == item_code][val_col].sum()
-            factor = DAIRY_FACTORS.get(item_code, 1.0)
+            factor = DAIRY_MILK_EQUIV_FACTORS.get(item_code, 1.0)
             dairy_sum += val * factor
         supplies["dairy"] = dairy_sum
 
