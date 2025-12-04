@@ -247,7 +247,7 @@ def _plot_slack(
     else:
         ax2 = None
 
-    ax.legend(handles, labels, loc="lower right")
+    ax.legend(handles, labels, loc="upper right")
     ax.set_ylim(bottom=bottom, top=top if top > 0 else 1.0)
 
     output_pdf.parent.mkdir(parents=True, exist_ok=True)

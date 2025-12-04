@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
+MIN_ABS_COST_BNUSD = 5.0
+
 
 def _categorize_cost_term(term: str) -> str:
     """Categorize cost terms into health, emissions, or other."""
@@ -69,6 +71,15 @@ def _assign_colors(terms: list[str]) -> dict[str, str]:
 def _ordered_terms(cost_df: pd.DataFrame) -> list[str]:
     """Order cost terms by total magnitude across all scenarios."""
     return cost_df.sum(axis=0).sort_values(ascending=False, key=np.abs).index.tolist()
+
+
+def _filter_small_terms(cost_df: pd.DataFrame, min_abs_cost: float) -> pd.DataFrame:
+    """Drop cost terms that never reach the minimum absolute cost."""
+    if cost_df.empty:
+        return cost_df
+
+    keep_terms = cost_df.abs().max(axis=0) >= min_abs_cost
+    return cost_df.loc[:, keep_terms]
 
 
 def _plot_comparison(
@@ -247,6 +258,9 @@ def main() -> None:
 
     # Create DataFrame with all scenarios
     cost_df = pd.DataFrame(cost_data).T.fillna(0.0) if cost_data else pd.DataFrame()
+
+    # Filter out categories below threshold across all scenarios
+    cost_df = _filter_small_terms(cost_df, MIN_ABS_COST_BNUSD)
 
     # Assign colors to cost terms
     all_terms = _ordered_terms(cost_df) if not cost_df.empty else []
