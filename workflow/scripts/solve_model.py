@@ -293,6 +293,20 @@ def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list
     return [binary_name]
 
 
+def _apply_solver_threads_option(
+    solver_options: dict, solver_name: str, threads: int
+) -> dict:
+    """Ensure the solver options include a threads override when configured."""
+
+    solver_key = solver_name.lower()
+    if solver_key == "gurobi":
+        solver_options["Threads"] = threads
+    elif solver_key == "highs":
+        solver_options["threads"] = threads
+
+    return solver_options
+
+
 def add_ghg_pricing_to_objective(n: pypsa.Network, ghg_price_usd_per_t: float) -> None:
     """Add GHG emissions pricing to the objective function.
 
@@ -1062,13 +1076,17 @@ if __name__ == "__main__":
     logger.info("Linopy model created.")
 
     solver_name = snakemake.params.solver
-    solver_options = snakemake.params.solver_options
+    solver_threads = snakemake.params.solver_threads
+    solver_options = _apply_solver_threads_option(
+        dict(snakemake.params.solver_options),
+        solver_name,
+        solver_threads,
+    )
     io_api = snakemake.params.io_api
     netcdf_compression = snakemake.params.netcdf_compression
 
     # Configure Gurobi to write detailed logs to the same file
     if solver_name.lower() == "gurobi" and snakemake.log:
-        solver_options = dict(solver_options)  # Make a copy to avoid modifying config
         if "LogFile" not in solver_options:
             solver_options["LogFile"] = snakemake.log[0]
         if "LogToConsole" not in solver_options:

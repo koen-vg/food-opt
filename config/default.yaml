@@ -846,6 +846,7 @@ solving:
   # - 'direct': Use solver's Python API directly (e.g., gurobipy) for faster performance
   # - null: Use linopy's default (typically 'lp')
   io_api: null
+  threads: 1  # Number of threads to use for solving
   # The calculate_fixed_duals option induces linopy to solve the MILP,
   # then fix all integer variables to their optimal values, then solve
   # the resulting LP in order to get dual variables for model

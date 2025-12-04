@@ -27,3 +27,4 @@ health:
 solving:
   io_api: "direct"
   solver: "highs"
+  threads: 1

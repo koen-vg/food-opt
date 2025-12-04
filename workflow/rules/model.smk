@@ -161,17 +161,40 @@ def solve_model_inputs(w):
     return inputs
 
 
+def get_solver_threads(cfg: dict) -> int:
+    """Return configured solver threads as an int."""
+
+    return int(cfg["solving"]["threads"])
+
+
+def solver_options_with_threads(cfg: dict) -> dict:
+    """Return solver options with a threads override applied when configured."""
+
+    solver_name = cfg["solving"]["solver"]
+    options = cfg["solving"].get(f"options_{solver_name}", {}) or {}
+    threads = get_solver_threads(cfg)
+
+    options = dict(options)
+    solver_key = solver_name.lower()
+    if solver_key == "gurobi":
+        options["Threads"] = threads
+    elif solver_key == "highs":
+        options["threads"] = threads
+
+    return options
+
+
 rule solve_model:
     input:
         unpack(solve_model_inputs),
+    threads: get_solver_threads(config)
     params:
         health_risk_factors=config["health"]["risk_factors"],
         health_risk_cause_map=config["health"]["risk_cause_map"],
         ghg_price=config["emissions"]["ghg_price"],
         solver=config["solving"]["solver"],
-        solver_options=config["solving"].get(
-            f"options_{config['solving']['solver']}", {}
-        ),
+        solver_threads=get_solver_threads(config),
+        solver_options=solver_options_with_threads(config),
         io_api=config["solving"]["io_api"],
         netcdf_compression=config["solving"].get("netcdf_compression"),
         macronutrients=config["macronutrients"],
