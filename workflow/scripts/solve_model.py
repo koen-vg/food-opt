@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from collections import defaultdict
+import itertools
 import math
 from pathlib import Path
 import sys
@@ -47,6 +48,8 @@ pypsa.options.api.new_components_api = True
 # Helpers and state for health objective construction
 HEALTH_AUX_MAP: dict[int, set[str]] = {}
 _SOS2_COUNTER = [0]  # Use list for mutable counter
+_LAMBDA_GROUP_COUNTER = itertools.count()
+_TOTAL_GROUP_COUNTER = itertools.count()
 
 
 def _register_health_variable(m: "linopy.Model", name: str) -> None:
@@ -581,6 +584,7 @@ def add_health_objective(
     risk_factors: list[str],
     risk_cause_map: dict[str, list[str]],
     solver_name: str,
+    enforce_baseline: bool,
 ) -> None:
     """Link SOS2-based health costs to explicit PyPSA stores.
 
@@ -589,6 +593,11 @@ def add_health_objective(
     level of per-cluster, per-cause YLL stores. The monetary contribution is
     then handled by the store ``marginal_cost_storage`` configured during network
     construction.
+
+    Health costs are formulated relative to TMREL (Theoretical Minimum Risk
+    Exposure Level) intake, such that cost is zero when RR = RR_ref. Store
+    energy levels represent (RR - RR_ref) * (YLL_base / RR_ref) and are
+    non-negative since TMREL is the theoretical minimum risk level.
     """
 
     m = n.model
@@ -642,6 +651,20 @@ def add_health_objective(
     )
     cause_log_breakpoints = cause_log_breakpoints.sort_values(["cause", "log_rr_total"])
 
+    logger.info(
+        "Health data: %d risk breakpoints across %d risks / %d causes; %d cause breakpoints",
+        len(risk_breakpoints),
+        risk_breakpoints["risk_factor"].nunique(),
+        risk_breakpoints["cause"].nunique(),
+        len(cause_log_breakpoints),
+    )
+
+    # Filter risk_cause_map to only include risk factors in the breakpoints
+    available_risks = set(risk_breakpoints["risk_factor"].unique())
+    risk_cause_map = {
+        r: causes for r, causes in risk_cause_map.items() if r in available_risks
+    }
+
     # Restrict to configured risk-cause pairs to avoid silent zeros
     allowed_pairs = {(r, c) for r, causes in risk_cause_map.items() for c in causes}
     rb_pairs = set(zip(risk_breakpoints["risk_factor"], risk_breakpoints["cause"]))
@@ -651,6 +674,39 @@ def add_health_objective(
         raise ValueError(f"Risk breakpoints missing required pairs: {text}")
 
     p = m.variables["Link-p"].sel(snapshot="now")
+
+    if enforce_baseline:
+        # Fixed dietary intakes: skip interpolation and pin store levels to the
+        # baseline RR reported in the precomputed health tables.
+        store_e = m.variables["Store-e"].sel(snapshot="now")
+        health_stores = (
+            n.stores.static[
+                n.stores.static["carrier"].notna()
+                & n.stores.static["carrier"].str.startswith("yll_")
+            ]
+            .reset_index()
+            .set_index(["health_cluster", "cause"])
+        )
+        constraints_added = 0
+        if "log_rr_total_baseline" not in cluster_cause.columns:
+            raise ValueError("cluster_cause must contain log_rr_total_baseline")
+        for (cluster, cause), row in cluster_cause_metadata.iterrows():
+            rr_ref = math.exp(float(row["log_rr_total_ref"]))
+            rr_base = math.exp(float(row["log_rr_total_baseline"]))
+            yll_base = float(row["yll_base"])
+            delta = max(0.0, rr_base - rr_ref)
+            store_level = delta * (yll_base / rr_ref) * constants.YLL_TO_MILLION_YLL
+            store_name = health_stores.loc[(int(cluster), str(cause)), "name"]
+            m.add_constraints(
+                store_e.sel(name=store_name) == store_level,
+                name=f"health_store_fixed_c{cluster}_cause{cause}",
+            )
+            constraints_added += 1
+        logger.info(
+            "Health stores fixed to baseline intake: added %d equality constraints",
+            constraints_added,
+        )
+        return
 
     # --- Stage 1: Intake to Log-RR ---
 
@@ -667,6 +723,13 @@ def add_health_objective(
         logger.info("No consumption links map to health risk factors; skipping")
         return
 
+    logger.info(
+        "Health intake mapping: %d links -> %d cluster-risk pairs across %d clusters",
+        len(link_map),
+        len(link_map[["cluster", "risk_factor"]].drop_duplicates()),
+        link_map["cluster"].nunique(),
+    )
+
     risk_data = {}
     for risk, grp in risk_breakpoints.groupby("risk_factor"):
         intakes = pd.Index(sorted(grp["intake_g_per_day"].unique()), name="intake")
@@ -682,7 +745,15 @@ def add_health_objective(
             .reindex(intakes, axis=0)
             .sort_index()
         )
-        risk_data[risk] = {"intakes": intakes, "log_rr": pivot}
+        intake_steps = pd.Index(range(len(intakes)), name="intake_step")
+        pivot.index = intake_steps
+        risk_data[risk] = {
+            "intake_steps": intake_steps,
+            "intake_values": xr.DataArray(
+                intakes.values, coords={"intake_step": intake_steps}, dims="intake_step"
+            ),
+            "log_rr": pivot,
+        }
 
     cause_breakpoint_data = {
         cause: df.sort_values("log_rr_total")
@@ -702,24 +773,25 @@ def add_health_objective(
         if risk_table is None:
             continue
 
-        coords_key = tuple(risk_table["intakes"].values)
+        coords_key = tuple(risk_table["intake_values"].values)
         intake_groups[coords_key].append((cluster, risk))
 
     log_rr_totals_dict = {}
 
     for coords_key, group_pairs in intake_groups.items():
-        coords = pd.Index(coords_key, name="intake")
+        intake_steps = risk_table["intake_steps"]
 
         # Identify group labels
         cluster_risk_labels = [f"c{cluster}_r{risk}" for cluster, risk in group_pairs]
         cluster_risk_index = pd.Index(cluster_risk_labels, name="cluster_risk")
 
         # Create lambdas (vectorized)
+        risk_label = str(group_pairs[0][1])
         lambdas_group = m.add_variables(
             lower=0,
             upper=1,
-            coords=[cluster_risk_index, coords],
-            name=f"health_lambda_group_{hash(coords_key)}",
+            coords=[cluster_risk_index, intake_steps],
+            name=f"health_lambda_group_{next(_LAMBDA_GROUP_COUNTER)}_{risk_label}",
         )
 
         # Register all variables
@@ -727,13 +799,13 @@ def add_health_objective(
 
         # Single SOS2 constraint call for entire group
         aux_names = _add_sos2_with_fallback(
-            m, lambdas_group, sos_dim="intake", solver_name=solver_name
+            m, lambdas_group, sos_dim="intake_step", solver_name=solver_name
         )
         for aux_name in aux_names:
             _register_health_variable(m, aux_name)
 
         # Vectorized convexity constraints
-        m.add_constraints(lambdas_group.sum("intake") == 1)
+        m.add_constraints(lambdas_group.sum("intake_step") == 1)
 
         # --- Intake Balance ---
         # LHS: Sum of link flows * coeffs
@@ -765,10 +837,8 @@ def add_health_objective(
             flow_expr = (p.sel(name=relevant_links) * coeffs).groupby(grouper).sum()
 
             # RHS: Intake interpolation
-            coeff_intake = xr.DataArray(
-                coords.values, coords={"intake": coords.values}, dims="intake"
-            )
-            intake_expr = (lambdas_group * coeff_intake).sum("intake")
+            coeff_intake = risk_table["intake_values"]
+            intake_expr = (lambdas_group * coeff_intake).sum("intake_step")
 
             # Add constraints vectorized
             m.add_constraints(
@@ -790,20 +860,20 @@ def add_health_objective(
         combined_log_rr = pd.concat(
             log_rr_frames,
             keys=cluster_risk_index,
-            names=["cluster_risk", "intake"],
+            names=["cluster_risk", "intake_step"],
         ).fillna(0.0)
 
-        # Convert to DataArray: (cluster_risk, intake, cause)
+        # Convert to DataArray: (cluster_risk, intake_step, cause)
         # Use stack() to flatten columns (cause) into index
         s_log = combined_log_rr.stack()
-        s_log.index.names = ["cluster_risk", "intake", "cause"]
+        s_log.index.names = ["cluster_risk", "intake_step", "cause"]
         da_log = xr.DataArray.from_series(s_log).fillna(0.0)
 
         # Calculate contribution: sum(lambda * log_rr) over intake
-        # lambdas_group: (cluster_risk, intake)
-        # da_log: (cluster_risk, intake, cause)
+        # lambdas_group: (cluster_risk, intake_step)
+        # da_log: (cluster_risk, intake_step, cause)
         # Result: (cause, cluster_risk) of LinearExpressions
-        contrib = (lambdas_group * da_log).sum("intake")
+        contrib = (lambdas_group * da_log).sum("intake_step")
 
         # Accumulate into totals by grouping cluster_risk -> cluster
         c_map = group_map_df.set_index("cluster_risk")["cluster"]
@@ -837,15 +907,15 @@ def add_health_objective(
                 else:
                     log_rr_totals_dict[key] = expr
     # Group (cluster, cause) pairs by their log_total coordinate patterns
+    # so we can reuse a single SOS2 variable for all pairs that share the same
+    # breakpoint grid (one grid per cause).
     log_total_groups: dict[tuple[float, ...], list[tuple[int, str]]] = defaultdict(list)
     cluster_cause_data: dict[tuple[int, str], dict] = {}
 
     for (cluster, cause), row in cluster_cause_metadata.iterrows():
         cluster = int(cluster)
         cause = str(cause)
-        yll_base = float(row.get("yll_base", 0.0))
-        if yll_base == 0 or not math.isfinite(yll_base):
-            continue
+        yll_base = float(row["yll_base"])
 
         cause_bp = cause_breakpoint_data[cause]
         coords_key = tuple(cause_bp["log_rr_total"].values)
@@ -857,13 +927,19 @@ def add_health_objective(
         log_total_groups[coords_key].append((cluster, cause))
 
         # Store data for later use
-        log_rr_total_ref = float(row.get("log_rr_total_ref", 0.0))
+        log_rr_total_ref = float(row["log_rr_total_ref"])
         cluster_cause_data[(cluster, cause)] = {
             "yll_base": yll_base,
             "log_rr_total_ref": log_rr_total_ref,
             "rr_ref": math.exp(log_rr_total_ref),
             "cause_bp": cause_bp,
         }
+
+    logger.info(
+        "Health risk aggregation: %d (cluster, cause) pairs grouped into %d log-RR grids",
+        len(cluster_cause_data),
+        len(log_total_groups),
+    )
 
     store_e = m.variables["Store-e"].sel(snapshot="now")
     health_stores = (
@@ -875,9 +951,14 @@ def add_health_objective(
         .set_index(["health_cluster", "cause"])
     )
 
-    # Process each group with vectorized operations
+    constraints_added = 0
+
+    # Process each group with vectorized operations. The outer loop handles one
+    # shared grid (coords_key) at a time; the inner loop attaches each
+    # (cluster, cause) pair using that grid to its own balance and store.
     for coords_key, cluster_cause_pairs in log_total_groups.items():
-        coords = pd.Index(coords_key, name="log_total")
+        log_total_vals = np.asarray(coords_key, dtype=float)
+        log_total_steps = pd.Index(range(len(log_total_vals)), name="log_total_step")
 
         # Create flattened index for this group
         cluster_cause_labels = [
@@ -886,11 +967,12 @@ def add_health_objective(
         cluster_cause_index = pd.Index(cluster_cause_labels, name="cluster_cause")
 
         # Single vectorized variable creation
+        cause_label = str(cluster_cause_pairs[0][1])
         lambda_total_group = m.add_variables(
             lower=0,
             upper=1,
-            coords=[cluster_cause_index, coords],
-            name=f"health_lambda_total_group_{hash(coords_key)}",
+            coords=[cluster_cause_index, log_total_steps],
+            name=f"health_lambda_total_group_{next(_TOTAL_GROUP_COUNTER)}_{cause_label}",
         )
 
         # Register all variables
@@ -898,18 +980,18 @@ def add_health_objective(
 
         # Single SOS2 constraint call for entire group
         aux_names = _add_sos2_with_fallback(
-            m, lambda_total_group, sos_dim="log_total", solver_name=solver_name
+            m, lambda_total_group, sos_dim="log_total_step", solver_name=solver_name
         )
         for aux_name in aux_names:
             _register_health_variable(m, aux_name)
         # Vectorized convexity constraints
-        m.add_constraints(lambda_total_group.sum("log_total") == 1)
+        m.add_constraints(lambda_total_group.sum("log_total_step") == 1)
 
         # Process each (cluster, cause) for balance constraints and objective
         coeff_log_total = xr.DataArray(
-            coords.values,
-            coords={"log_total": coords.values},
-            dims=["log_total"],
+            log_total_vals,
+            coords={"log_total_step": log_total_steps},
+            dims=["log_total_step"],
         )
 
         for (cluster, cause), label in zip(cluster_cause_pairs, cluster_cause_labels):
@@ -919,13 +1001,15 @@ def add_health_objective(
             total_expr = log_rr_totals_dict[(cluster, cause)]
             cause_bp = data["cause_bp"]
 
-            log_interp = m.linexpr((coeff_log_total, lambda_total)).sum("log_total")
+            log_interp = m.linexpr((coeff_log_total, lambda_total)).sum(
+                "log_total_step"
+            )
             coeff_rr = xr.DataArray(
                 cause_bp["rr_total"].values,
-                coords={"log_total": coords.values},
-                dims=["log_total"],
+                coords={"log_total_step": log_total_steps},
+                dims=["log_total_step"],
             )
-            rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total")
+            rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total_step")
             m.add_constraints(
                 log_interp == total_expr,
                 name=f"health_total_balance_c{cluster}_cause{cause}",
@@ -933,18 +1017,29 @@ def add_health_objective(
 
             store_name = health_stores.loc[(cluster, cause), "name"]
 
+            if data["yll_base"] <= 0:
+                logger.warning(
+                    "Health store has non-positive yll_base (cluster=%d, cause=%s); constraint will be non-binding",
+                    cluster,
+                    cause,
+                )
+
+            # Health cost is zero at TMREL (where RR = RR_ref) and increases with
+            # deviation from optimal intake. Since TMREL is the theoretical minimum
+            # risk level, RR >= RR_ref always, so store levels are non-negative.
             yll_expr_myll = (
-                rr_interp
+                (rr_interp - data["rr_ref"])
                 * (data["yll_base"] / data["rr_ref"])
                 * constants.YLL_TO_MILLION_YLL
             )
 
             m.add_constraints(
-                store_e.sel(name=store_name) == yll_expr_myll,
+                store_e.sel(name=store_name) >= yll_expr_myll,
                 name=f"health_store_level_c{cluster}_cause{cause}",
             )
+            constraints_added += 1
 
-    logger.info("Linked health stores to risk model (no direct objective edits)")
+    logger.info("Added %d health store level constraints", constraints_added)
 
 
 if __name__ == "__main__":
@@ -1023,9 +1118,15 @@ if __name__ == "__main__":
             n, fao_animal_production, food_to_group, food_loss_waste
         )
 
-    # Add health impacts to the objective if enabled
+    # Add health impacts / store levels if enabled or baseline intake is enforced
     health_enabled = bool(snakemake.config["health"]["enabled"])
-    if health_enabled:
+    enforce_baseline = bool(snakemake.params.enforce_baseline)
+    if health_enabled and enforce_baseline:
+        raise ValueError(
+            "health.enabled and validation.enforce_gdd_baseline cannot both be true; "
+            "disable one of them in the config."
+        )
+    if health_enabled or enforce_baseline:
         add_health_objective(
             n,
             snakemake.input.health_risk_breakpoints,
@@ -1037,13 +1138,8 @@ if __name__ == "__main__":
             snakemake.params.health_risk_factors,
             snakemake.params.health_risk_cause_map,
             solver_name,
+            enforce_baseline,
         )
-
-    # Temporary debug export of the raw linopy model for coefficient inspection.
-    # linopy_debug_path = Path(snakemake.output.network).with_name("linopy_model.nc")
-    # linopy_debug_path.parent.mkdir(parents=True, exist_ok=True)
-    # n.model.to_netcdf(linopy_debug_path)
-    # logger.info("Wrote linopy model snapshot to %s", linopy_debug_path)
 
     status, condition = n.model.solve(
         solver_name=solver_name,
@@ -1051,6 +1147,12 @@ if __name__ == "__main__":
         **solver_options,
     )
     result = (status, condition)
+
+    # Temporary debug export of the raw solved linopy model
+    # linopy_debug_path = Path(snakemake.output.network).with_name("linopy_model.nc")
+    # linopy_debug_path.parent.mkdir(parents=True, exist_ok=True)
+    # n.model.to_netcdf(linopy_debug_path)
+    # logger.info("Wrote linopy model snapshot to %s", linopy_debug_path)
 
     if status == "ok":
         aux_names = HEALTH_AUX_MAP.pop(id(n.model), set())

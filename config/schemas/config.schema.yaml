@@ -1171,3 +1171,17 @@ properties:
             type: string
             minLength: 1
             description: "ECMWF datastores API key (or set ECMWF_DATASTORES_KEY env var)"
+
+# Disallow enabling the health objective while also enforcing fixed baseline diet
+allOf:
+  - not:
+      required: [health, validation]
+      properties:
+        health:
+          properties:
+            enabled:
+              const: true
+        validation:
+          properties:
+            enforce_gdd_baseline:
+              const: true

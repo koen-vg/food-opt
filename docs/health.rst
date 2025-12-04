@@ -234,7 +234,7 @@ Monetising years of life lost
 For each cluster–cause pair the preprocessing step stores
 :math:`\mathrm{YLL}^{\mathrm{base}}_{c,g}` (baseline years of life lost). The
 solver also records the reference log-relative-risk
-:math:`z^{\mathrm{ref}}_{c,g}` (from baseline diets) and its exponential
+:math:`z^{\mathrm{ref}}_{c,g}` (from TMREL intake levels) and its exponential
 :math:`RR^{\mathrm{ref}}_{c,g}`. The contribution to the objective is
 constructed as
 
@@ -242,12 +242,32 @@ constructed as
    \text{Cost}_{c,g} = V\, \mathrm{YLL}^{\mathrm{base}}_{c,g}
    \left( \frac{RR_{c,g}}{RR^{\mathrm{ref}}_{c,g}} - 1 \right).
 
-where :math:`V` is the value per year of life lost (configured in ``health.value_per_yll`` as USD_2024 per YLL).
+where :math:`V` is the value per year of life lost (configured in
+``health.value_per_yll`` as USD_2024 per YLL), and
+:math:`RR^{\mathrm{ref}}_{c,g}` is the relative risk when all risk
+factors are at their TMREL levels. This formulation ensures the health
+cost is exactly zero when intake is at TMREL.
 
-A constant term subtracts
-:math:`V\,\mathrm{YLL}^{\mathrm{base}}_{c,g}` so that the baseline diet has zero
-health cost and only improvements or deteriorations relative to the reference
-affect the optimisation.
+Since TMREL represents the theoretical minimum risk level, relative risk curves
+reach their minimum at TMREL intake. Therefore :math:`RR_{c,g} \geq RR^{\mathrm{ref}}_{c,g}`
+always, and health costs are non-negative. PyPSA store energy levels directly
+encode the deviation from optimal:
+
+.. math::
+   e_{c,g} = (RR_{c,g} - RR^{\mathrm{ref}}_{c,g})
+   \cdot \frac{\mathrm{YLL}^{\mathrm{base}}_{c,g}}{RR^{\mathrm{ref}}_{c,g}}
+   \cdot 10^{-6}
+
+measured in million years of life lost relative to TMREL baseline. The
+monetary contribution is ``marginal_cost_storage × e``.
+
+Interpreting Results
+~~~~~~~~~~~~~~~~~~~~
+
+The optimization objective includes health costs measured relative to TMREL:
+
+- **Zero health cost**: All dietary intakes are at TMREL levels (optimal, minimum risk)
+- **Positive health cost**: Intake deviates from TMREL, increasing disease burden relative to optimal
 
 Objective Contribution
 ----------------------
@@ -255,9 +275,7 @@ Objective Contribution
 ``workflow/scripts/solve_model.py`` adds the summed cost over all clusters and
 causes to the PyPSA objective. If the solver exposes SOS2 constraints, the
 implementation keeps the formulation linear without integer variables; for
-HiGHS a tight binary fallback is activated. The script also records the constant
-baseline adjustment in ``network.meta["objective_constant_terms"]["health"]`` to
-help interpret objective values ex post.
+HiGHS a tight binary fallback is activated.
 
 Configuration Highlights
 ------------------------

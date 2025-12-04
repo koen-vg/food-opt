@@ -121,6 +121,7 @@ rule prepare_health_costs:
         dr="processing/{name}/health/gbd_mortality_rates.csv",
         population="processing/{name}/population_age.csv",
         life_table="processing/{name}/health/life_table.csv",
+        food_groups="data/food_groups.csv",
     params:
         countries=config["countries"],
         health=config["health"],

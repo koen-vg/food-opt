@@ -368,7 +368,7 @@ health:
   - red_meat
   - prc_meat
   - whole_grains
-  - sugar
+  # - sugar # Has a funky relative risk curve
   # Health outcomes/causes to consider (must be present in IHME GBD data and relative risks)
   causes:
   - CHD              # Coronary/Ischemic Heart Disease
@@ -385,7 +385,7 @@ health:
     red_meat: [CHD, Stroke, T2DM, CRC]
     prc_meat: [CHD, T2DM, CRC]
     whole_grains: [CHD, Stroke, T2DM, CRC]
-    sugar: [CHD, Stroke, T2DM, CRC]
+    # sugar: [CHD, Stroke, T2DM, CRC]
   # Theoretical minimum risk exposure levels (TMREL) from GBD Study 2021
   # Source: Brauer et al. (2024), Global Burden of Disease Study 2021
   # Values represent optimal intake levels where health risk is minimized

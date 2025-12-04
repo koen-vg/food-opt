@@ -163,6 +163,36 @@ def _build_rr_tables(
     return table, max_exposure_g_per_day
 
 
+def _derive_tmrel_from_rr(
+    rr_lookup: RelativeRiskTable, risk_to_causes: dict[str, list[str]]
+) -> dict[str, float]:
+    """Derive TMREL intake per risk from empirical RR curves.
+
+    For each risk, find the intake that minimizes the sum of log(RR) across all
+    its causes (i.e., the product of RRs), evaluated on the union of exposure
+    knots in the RR tables.
+    """
+    tmrel: dict[str, float] = {}
+    for risk, causes in risk_to_causes.items():
+        exposure_grid: list[float] = []
+        for cause in causes:
+            exposure_grid.extend(rr_lookup[(risk, cause)]["exposures"])
+        if not exposure_grid:
+            raise ValueError(f"No RR exposure data for risk factor: {risk}")
+        grid = sorted({float(x) for x in exposure_grid})
+        best_intake = grid[0]
+        best_log = math.inf
+        for intake in grid:
+            total_log = 0.0
+            for cause in causes:
+                total_log += math.log(_evaluate_rr(rr_lookup, risk, cause, intake))
+            if total_log < best_log:
+                best_log = total_log
+                best_intake = intake
+        tmrel[risk] = best_intake
+    return tmrel
+
+
 def _evaluate_rr(
     table: RelativeRiskTable, risk: str, cause: str, intake: float
 ) -> float:
@@ -431,8 +461,9 @@ def _process_health_clusters(
             )
 
             # Use TMREL intake as reference point for health cost calculations.
-            # This ensures Cost = 0 when intake == TMREL and Cost > 0 when
-            # deviating from TMREL.
+            # rr_ref is calculated at TMREL, ensuring that in the solver, health cost
+            # is zero when RR = RR_ref (i.e., when intake is at optimal levels).
+            # This implements Cost = V * YLL_base * (RR/RR_ref - 1).
             tmrel_intake = float(tmrel_g_per_day[risk])
             if not math.isfinite(tmrel_intake):
                 tmrel_intake = 0.0
@@ -614,16 +645,32 @@ def _generate_breakpoint_tables(
 
 def main() -> None:
     """Main entry point for health cost preparation."""
+    logger = logging.getLogger(__name__)
+
     cfg_countries: list[str] = list(snakemake.params["countries"])
     health_cfg = snakemake.params["health"]
-    risk_factors: list[str] = list(health_cfg["risk_factors"])
+    configured_risk_factors: list[str] = list(health_cfg["risk_factors"])
+
+    # Filter risk factors to only those with foods mapped in food_groups.csv
+    food_groups_df = pd.read_csv(snakemake.input.food_groups)
+    available_risk_factors = set(food_groups_df["group"].unique())
+    risk_factors: list[str] = [
+        rf for rf in configured_risk_factors if rf in available_risk_factors
+    ]
+    excluded_risk_factors = set(configured_risk_factors) - set(risk_factors)
+    if excluded_risk_factors:
+        logger.warning(
+            "Risk factors configured but not in food_groups.csv (no foods mapped): %s. "
+            "These will be excluded from health cost calculations.",
+            sorted(excluded_risk_factors),
+        )
+
     risk_cause_map: dict[str, list[str]] = {
         str(risk): list(health_cfg["risk_cause_map"][risk]) for risk in risk_factors
     }
     reference_year = int(health_cfg["reference_year"])
     intake_grid_points = int(health_cfg["intake_grid_points"])
     log_rr_points = int(health_cfg["log_rr_points"])
-    tmrel_g_per_day: dict[str, float] = dict(health_cfg["tmrel_g_per_day"])
     intake_cap_limit = float(health_cfg["intake_cap_g_per_day"])
     intake_age_min = int(health_cfg["intake_age_min"])
 
@@ -660,6 +707,12 @@ def main() -> None:
         risk_factors,
         risk_cause_map,
         intake_age_min,
+    )
+
+    tmrel_g_per_day = _derive_tmrel_from_rr(rr_lookup, risk_to_causes)
+    logger.info(
+        "Derived TMREL from RR curves for %d risks (ignoring configured TMREL values)",
+        len(tmrel_g_per_day),
     )
 
     intake_caps_g_per_day = _build_intake_caps(max_exposure_g_per_day, intake_cap_limit)
