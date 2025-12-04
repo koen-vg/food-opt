@@ -45,7 +45,7 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
             carrier = str(carriers.get(name, "")) if not carriers.empty else ""
             if name_str.startswith("biomass_for_energy_"):
                 categories.append("Biomass exports")
-            elif name_str.startswith("slack_") or carrier.startswith("slack_"):
+            elif "slack" in name_str or "slack" in carrier:
                 categories.append("Slack penalties")
             elif carrier == "fertilizer":
                 categories.append("Fertilizer (synthetic)")
