@@ -4,17 +4,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Prepare dietary intake data from FAOSTAT Food Balance Sheets (FBS).
+Retrieve food supply data from FAOSTAT Food Balance Sheets (FBS).
 
-Extracts supply data for specific food groups (Dairy, Poultry, Vegetable Oils),
-converts to g/day, and applies waste fractions to estimate intake.
+Extracts supply data for specific food groups (Dairy, Poultry, Vegetable Oils)
+and converts to g/day. Waste fractions are applied later in merge_dietary_sources.py.
 
 Input:
-    - Food Loss & Waste data (for waste fractions)
     - FAOSTAT API (via faostat package)
 
 Output:
     - CSV with columns: unit,item,country,age,year,value
+      Values are raw food supply (not adjusted for waste)
 """
 
 import logging
@@ -130,10 +130,8 @@ def fetch_faostat_data(countries, reference_year):
 def main():
     countries = snakemake.params.countries
     reference_year = snakemake.params.reference_year
-    loss_waste_file = snakemake.input.food_loss_waste
-    output_file = snakemake.output.diet
+    output_file = snakemake.output.supply
 
-    waste_df = pd.read_csv(loss_waste_file)
     fao_df = fetch_faostat_data(countries, reference_year)
 
     if fao_df.empty:
@@ -189,13 +187,6 @@ def main():
 
         for item, supply_kg in supplies.items():
             supply_g = (supply_kg * 1000.0) / 365.0
-
-            w_row = waste_df[
-                (waste_df["country"] == country) & (waste_df["food_group"] == item)
-            ]
-            waste_frac = w_row.iloc[0]["waste_fraction"] if not w_row.empty else 0.0
-
-            intake = supply_g * (1.0 - waste_frac)
             unit = "g/day (milk equiv)" if item == "dairy" else "g/day (fresh wt)"
 
             for age in AGE_GROUPS:
@@ -206,7 +197,7 @@ def main():
                         "country": country,
                         "age": age,
                         "year": reference_year,
-                        "value": intake,
+                        "value": supply_g,
                     }
                 )
 

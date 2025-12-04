@@ -75,7 +75,11 @@ The workflow incorporates **food loss** (pre-retail) and **food waste** (retail 
 * Food waste is reported as **kilograms per capita per year**. To convert this to a fraction of available food supply, the script retrieves the FAOSTAT FBS Grand Total item (kg/capita/year), converts both to grams/day, and computes ``waste_fraction = waste_g_day / supply_g_day``.
 * The resulting dataset ``processing/{name}/food_loss_waste.csv`` lists, for every country and model food group, the derived **loss_fraction** and **waste_fraction**.
 
-During ``build_model`` the crop→food conversion links multiply the baseline processing efficiency by ``(1 - loss_fraction) * (1 - waste_fraction)`` for the relevant country-food group pair. Because all factors are multiplicative (dry matter → fresh mass → edible portion → usable food), their ordering does not affect the final efficiency.
+During ``build_model`` the crop→food conversion links multiply the baseline processing efficiency by ``(1 - loss_fraction) * (1 - waste_fraction)`` for the relevant country-food group pair. The same FLW adjustment is applied to animal product links (feed→dairy, feed→meat, etc.), ensuring consistent treatment across all food pathways.
+
+**Dairy-specific loss**: The SDG data groups all animal products (meat, dairy, eggs) together under the ``ANMPROD`` category. However, dairy has significantly lower losses than meat due to better cold chain infrastructure and faster processing. To correct for this, the script compares FAOSTAT dairy production with food supply data to calculate an implicit dairy loss fraction, which is typically near zero. This FBS-derived loss fraction replaces the SDG value for dairy products.
+
+Because all factors are multiplicative (dry matter → fresh mass → edible portion → usable food), their ordering does not affect the final efficiency.
 
 Trade
 -----

@@ -13,8 +13,13 @@ Queries the UN Statistics Division API for:
 Maps UN SDG food categories to internal model food groups, and converts
 food waste from kg/person/year to fractions relative to food supply.
 
+For dairy specifically, the SDG "animal products" loss rate is too high,
+so we calculate implicit loss from FAOSTAT production vs food supply data.
+
 Input:
     - M49 codes (for regional mapping)
+    - FAOSTAT animal production data (for dairy loss calculation)
+    - FAOSTAT food supply data (for dairy loss calculation)
     - Countries list from config
     - Food groups list from config
     - Reference year from config (for FAOSTAT food supply data)
@@ -710,6 +715,9 @@ def process_food_waste_data(
 
 def main():
     m49_file = snakemake.input["m49"]
+    animal_production_file = snakemake.input["animal_production"]
+    faostat_food_supply_file = snakemake.input["faostat_food_supply"]
+    population_file = snakemake.input["population"]
     output_file = snakemake.output["food_loss_waste"]
     countries = snakemake.params["countries"]
     food_groups = snakemake.params["food_groups"]
@@ -723,6 +731,11 @@ def main():
     # Load M49 region mappings
     m49_regions = load_m49_regions(m49_file)
     logger.info("Loaded M49 regions for %d countries", len(m49_regions))
+
+    # Load FAOSTAT data for dairy loss calculation
+    animal_production = pd.read_csv(animal_production_file)
+    faostat_supply = pd.read_csv(faostat_food_supply_file)
+    population = pd.read_csv(population_file)
 
     # Fetch FAOSTAT food supply data
     food_supply = fetch_faostat_food_supply(countries, reference_year)
@@ -768,6 +781,55 @@ def main():
     result = result.infer_objects(copy=False)
     result["loss_fraction"] = result["loss_fraction"].fillna(0.0)
     result["waste_fraction"] = result["waste_fraction"].fillna(0.0)
+
+    # Override dairy loss with FBS-derived implicit loss
+    # SDG data groups all "animal products" together, but dairy has lower losses than meat.
+    # Calculate implicit loss from global production vs food supply comparison.
+    if "dairy" in food_groups:
+        # Sum global dairy production (Mt)
+        dairy_prod_total = animal_production[
+            animal_production["product"].isin(["dairy", "dairy-buffalo"])
+        ]["production_mt"].sum()
+
+        # Get dairy supply per country (g/day per capita)
+        dairy_supply_rows = faostat_supply[faostat_supply["item"] == "dairy"]
+        dairy_supply_per_country = dairy_supply_rows.drop_duplicates(
+            subset=["country"]
+        ).set_index("country")["value"]
+
+        # Get population per country
+        pop_per_country = population.set_index("iso3")["population"]
+
+        # Calculate total global dairy supply (Mt)
+        # supply_mt = supply_g_day * population * 365 days / 1e12 (g to Mt)
+        dairy_supply_total = 0.0
+        for country in dairy_supply_per_country.index:
+            if country in pop_per_country.index:
+                supply_g_day = dairy_supply_per_country[country]
+                pop = pop_per_country[country]
+                supply_mt = supply_g_day * pop * 365 / 1e12
+                dairy_supply_total += supply_mt
+
+        # Calculate implicit loss: loss = 1 - (supply / production)
+        if dairy_prod_total > 0:
+            implicit_dairy_loss = max(0.0, 1 - dairy_supply_total / dairy_prod_total)
+        else:
+            implicit_dairy_loss = 0.0
+
+        logger.info(
+            "Dairy FBS comparison: production=%.1f Mt, supply=%.1f Mt",
+            dairy_prod_total,
+            dairy_supply_total,
+        )
+
+        dairy_mask = result["food_group"] == "dairy"
+        old_avg = result.loc[dairy_mask, "loss_fraction"].mean()
+        result.loc[dairy_mask, "loss_fraction"] = implicit_dairy_loss
+        logger.info(
+            "Dairy loss fraction: %.1f%% (SDG) -> %.1f%% (FBS-derived)",
+            old_avg * 100,
+            implicit_dairy_loss * 100,
+        )
 
     # Sort for readability
     result = result.sort_values(["country", "food_group"]).reset_index(drop=True)

@@ -41,24 +41,23 @@ rule prepare_gdd_dietary_intake:
         "../scripts/prepare_gdd_dietary_intake.py"
 
 
-rule prepare_faostat_dietary_intake:
-    input:
-        food_loss_waste="processing/{name}/food_loss_waste.csv",
+rule retrieve_faostat_food_supply:
     params:
         countries=config["countries"],
         reference_year=config["health"]["reference_year"],
     output:
-        diet="processing/{name}/faostat_dietary_intake.csv",
+        supply="processing/{name}/faostat_food_supply.csv",
     log:
-        "logs/{name}/prepare_faostat_dietary_intake.log",
+        "logs/{name}/retrieve_faostat_food_supply.log",
     script:
-        "../scripts/prepare_faostat_dietary_intake.py"
+        "../scripts/retrieve_faostat_food_supply.py"
 
 
 rule merge_dietary_sources:
     input:
         gdd="processing/{name}/gdd_dietary_intake.csv",
-        faostat="processing/{name}/faostat_dietary_intake.csv",
+        faostat="processing/{name}/faostat_food_supply.csv",
+        food_loss_waste="processing/{name}/food_loss_waste.csv",
     output:
         diet="processing/{name}/dietary_intake.csv",
     log:
@@ -70,6 +69,9 @@ rule merge_dietary_sources:
 rule prepare_food_loss_waste:
     input:
         m49="data/M49-codes.csv",
+        animal_production="processing/{name}/faostat_animal_production.csv",
+        faostat_food_supply="processing/{name}/faostat_food_supply.csv",
+        population="processing/{name}/population.csv",
     params:
         countries=config["countries"],
         food_groups=config["food_groups"]["included"],
