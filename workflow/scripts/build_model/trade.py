@@ -200,7 +200,6 @@ def _add_trade_hubs_and_links(
             bus1=link_bus1,
             marginal_cost=link_costs,
             p_nom_extendable=True,
-            product=np.nan,
         )
 
     if n_hubs >= 2:
@@ -235,7 +234,6 @@ def _add_trade_hubs_and_links(
                 bus1=hub_link_bus1,
                 marginal_cost=hub_link_costs,
                 p_nom_extendable=True,
-                product=np.nan,
             )
 
 

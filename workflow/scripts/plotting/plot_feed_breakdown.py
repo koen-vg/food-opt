@@ -135,6 +135,11 @@ def _extract_feed_use(n: pypsa.Network) -> pd.DataFrame:
 
         product = str(feed_links.at[link_name, "product"])
         animal = _map_animal(product)
+
+        # Skip links without a valid animal product (e.g., trade links)
+        if animal == "Unknown":
+            continue
+
         feed_category = _map_feed_category(feed_links.at[link_name, "bus0"])
 
         records.append(
