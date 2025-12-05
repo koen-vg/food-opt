@@ -186,6 +186,8 @@ rule plot_crop_use_breakdown:
     output:
         pdf="results/{name}/plots/scen-{scenario}/crop_use_breakdown.pdf",
         csv="results/{name}/plots/scen-{scenario}/crop_use_breakdown.csv",
+    params:
+        animal_products=config["animal_products"]["include"],
     log:
         "logs/{name}/plot_crop_use_breakdown_scen-{scenario}.log",
     script:

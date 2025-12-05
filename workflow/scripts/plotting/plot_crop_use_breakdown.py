@@ -147,6 +147,7 @@ def _build_dataframe(
     rainfed: pd.Series,
     human_use: pd.Series,
     feed_use: pd.Series,
+    animal_products: set[str],
 ) -> pd.DataFrame:
     """Combine the individual series into a single dataframe for plotting/export."""
 
@@ -165,6 +166,13 @@ def _build_dataframe(
 
     df = df[(df > 0).any(axis=1)]
 
+    # Filter out animal products (non-crops)
+    animal_products_lower = {str(product).lower() for product in animal_products}
+    df = df[~df.index.str.lower().isin(animal_products_lower)]
+
+    if df.empty:
+        return df
+
     df["irrigated_fraction"] = df["irrigated_mt"] / df["production_mt"].replace(
         0, float("nan")
     )
@@ -180,7 +188,11 @@ def _build_dataframe(
             ", ".join(df.index[residual_mask]),
         )
 
-    df.sort_values("production_mt", ascending=False, inplace=True)
+    # Sort by total height (human consumption + animal feed)
+    df["total_use_mt"] = df["human_consumption_mt"] + df["animal_feed_mt"]
+    df.sort_values("total_use_mt", ascending=False, inplace=True)
+    df.drop(columns=["total_use_mt"], inplace=True)
+
     return df
 
 
@@ -262,7 +274,16 @@ if __name__ == "__main__":
     production, irrigated, rainfed = _extract_crop_production(network)
     human_use, feed_use = _extract_crop_use(network)
 
-    df = _build_dataframe(production, irrigated, rainfed, human_use, feed_use)
+    raw_animal_products = getattr(
+        snakemake.params,
+        "animal_products",
+        snakemake.config["animal_products"]["include"],
+    )
+    animal_products = {str(product) for product in raw_animal_products}
+
+    df = _build_dataframe(
+        production, irrigated, rainfed, human_use, feed_use, animal_products
+    )
 
     csv_path = Path(snakemake.output.csv)
     pdf_path = Path(snakemake.output.pdf)
