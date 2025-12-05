@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Joint GHG price and biomass price sensitivity configuration.
+# Runs a 5x5 grid of scenarios combining carbon prices (0–200 USD/tCO2-eq)
+# and biomass prices (0–200 USD/tonne dry matter).
+
+name: "ghg_biomass"
+scenario_defs: "config/ghg_biomass_scenarios.yaml"
+
+# Use coarser spatial aggregation for faster processing
+aggregation:
+  regions:
+    target_count: 250  # Reduced from 400 for faster processing
+
+macronutrients:
+  cal:
+    min: 2400    # kcal/person/day
+
+# Enable emissions tracking; individual scenarios set prices and toggles
+emissions:
+  ghg_pricing_enabled: true
+  ghg_price: 100  # Overridden by scenario grid
+
+# Enable biomass production; individual scenarios set prices
+biomass:
+  enabled: true
+  marginal_cost: 100  # Overridden by scenario grid
+
+# Compare all combined scenarios in plots
+plotting:
+  comparison_scenarios: "all"
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2

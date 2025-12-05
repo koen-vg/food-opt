@@ -1,0 +1,205 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Joint GHG Price and YLL Value Sensitivity Scenarios
+# ---------------------------------------------------
+# Cross-product of five GHG prices (USD_2024/tCO2-eq) and five YLL values
+# (USD_2024 per year of life lost). Prices span 0–100; YLL values span
+# 0–50_000. GHG pricing is disabled when the price is zero; health costs
+# are disabled when the YLL value is zero.
+
+ghg0_yll0:
+  emissions:
+    ghg_pricing_enabled: false
+    ghg_price: 0
+  health:
+    enabled: false
+
+ghg0_yll12500:
+  emissions:
+    ghg_pricing_enabled: false
+    ghg_price: 0
+  health:
+    enabled: true
+    value_per_yll: 12500
+
+ghg0_yll25000:
+  emissions:
+    ghg_pricing_enabled: false
+    ghg_price: 0
+  health:
+    enabled: true
+    value_per_yll: 25000
+
+ghg0_yll37500:
+  emissions:
+    ghg_pricing_enabled: false
+    ghg_price: 0
+  health:
+    enabled: true
+    value_per_yll: 37500
+
+ghg0_yll50000:
+  emissions:
+    ghg_pricing_enabled: false
+    ghg_price: 0
+  health:
+    enabled: true
+    value_per_yll: 50000
+
+ghg25_yll0:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 25
+  health:
+    enabled: false
+
+ghg25_yll12500:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 25
+  health:
+    enabled: true
+    value_per_yll: 12500
+
+ghg25_yll25000:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 25
+  health:
+    enabled: true
+    value_per_yll: 25000
+
+ghg25_yll37500:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 25
+  health:
+    enabled: true
+    value_per_yll: 37500
+
+ghg25_yll50000:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 25
+  health:
+    enabled: true
+    value_per_yll: 50000
+
+ghg50_yll0:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 50
+  health:
+    enabled: false
+
+ghg50_yll12500:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 50
+  health:
+    enabled: true
+    value_per_yll: 12500
+
+ghg50_yll25000:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 50
+  health:
+    enabled: true
+    value_per_yll: 25000
+
+ghg50_yll37500:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 50
+  health:
+    enabled: true
+    value_per_yll: 37500
+
+ghg50_yll50000:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 50
+  health:
+    enabled: true
+    value_per_yll: 50000
+
+ghg75_yll0:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 75
+  health:
+    enabled: false
+
+ghg75_yll12500:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 75
+  health:
+    enabled: true
+    value_per_yll: 12500
+
+ghg75_yll25000:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 75
+  health:
+    enabled: true
+    value_per_yll: 25000
+
+ghg75_yll37500:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 75
+  health:
+    enabled: true
+    value_per_yll: 37500
+
+ghg75_yll50000:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 75
+  health:
+    enabled: true
+    value_per_yll: 50000
+
+ghg100_yll0:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 100
+  health:
+    enabled: false
+
+ghg100_yll12500:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 100
+  health:
+    enabled: true
+    value_per_yll: 12500
+
+ghg100_yll25000:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 100
+  health:
+    enabled: true
+    value_per_yll: 25000
+
+ghg100_yll37500:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 100
+  health:
+    enabled: true
+    value_per_yll: 37500
+
+ghg100_yll50000:
+  emissions:
+    ghg_pricing_enabled: true
+    ghg_price: 100
+  health:
+    enabled: true
+    value_per_yll: 50000

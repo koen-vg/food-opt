@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Joint GHG price and YLL value sensitivity configuration.
+# Runs a 5x5 grid of scenarios combining carbon prices (0–100 USD/tCO2-eq)
+# and monetized health impacts (0–50_000 USD per YLL).
+
+name: "ghg_yll"
+scenario_defs: "config/ghg_yll_scenarios.yaml"
+
+# Use coarser spatial aggregation for faster processing
+aggregation:
+  regions:
+    target_count: 250  # Reduced from 400 for faster processing
+
+macronutrients:
+  cal:
+    min: 2400    # kcal/person/day
+
+health:
+  enabled: true
+  value_per_yll: 50000  # Overridden by scenario grid
+
+# Enable emissions tracking; individual scenarios set prices and toggles
+emissions:
+  ghg_pricing_enabled: true
+  ghg_price: 50  # Overridden by scenario grid
+
+# Compare all combined scenarios in plots
+plotting:
+  comparison_scenarios: "all"
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
