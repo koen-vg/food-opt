@@ -18,9 +18,8 @@ Development Setup
 Prerequisites
 ~~~~~~~~~~~~~
 
-* Python >= 3.12
 * Git
-* uv (dependency manager)
+* pixi (dependency manager)
 
 Installation
 ~~~~~~~~~~~~
@@ -32,15 +31,15 @@ Installation
 
 2. Install dependencies::
 
-       uv sync
+       pixi install
 
 3. Install development tools::
 
-       uv sync --extra dev
+       pixi install --environment dev
 
 4. Set up pre-commit hooks::
 
-       uv run pre-commit install
+       pixi run --environment dev pre-commit install
 
 Code Conventions
 ----------------
@@ -57,15 +56,15 @@ The project uses **ruff** for linting and formatting, enforcing:
 
 **Run linter**::
 
-    uv run ruff check .
+    pixi run --environment dev ruff check .
 
 **Auto-format code**::
 
-    uv run ruff format .
+    pixi run --environment dev ruff format .
 
 **Run from pre-commit** (automatic on ``git commit``)::
 
-    uv run pre-commit run --all-files
+    pixi run --environment dev pre-commit run --all-files
 
 Specific Conventions
 ~~~~~~~~~~~~~~~~~~~~
@@ -100,7 +99,7 @@ The configuration schema is defined in ``config/schemas/config.schema.yaml`` as 
 
 * Enforces required fields and their types
 * Validates numerical ranges (e.g., percentages must be between 0 and 1)
-* Ensures enumerated values are valid (e.g., solver must be "highs", "gurobi", or "cplex")
+* Ensures enumerated values are valid (e.g., solver must be "highs" or "gurobi")
 * Validates patterns (e.g., country codes must be 3-letter ISO codes)
 * Prevents typos through strict property name checking
 
@@ -113,10 +112,10 @@ How It Works
 
 Example validation error::
 
-    ValidationError: 'xyz' is not one of ['highs', 'gurobi', 'cplex']
+    ValidationError: 'xyz' is not one of ['highs', 'gurobi']
 
     Failed validating 'enum' in schema['properties']['solving']['properties']['solver']:
-        {'type': 'string', 'enum': ['highs', 'gurobi', 'cplex']}
+        {'type': 'string', 'enum': ['highs', 'gurobi']}
 
     On instance['solving']['solver']:
         'xyz'
@@ -158,7 +157,7 @@ Repository Structure
 
     food-opt/
     ├── config/              # Scenario configuration files
-    ├── data/                # Input data (not committed)
+    ├── data/                # Input data (small tracked files; large downloads ignored)
     ├── docs/                # Documentation (Sphinx)
     ├── processing/          # Intermediate outputs (not committed)
     ├── results/             # Model results (not committed)
@@ -207,9 +206,9 @@ Adding a New Visualization
 
       rule plot_my_metric:
           input:
-              network="results/{name}/solved/model.nc"
+              network="results/{name}/solved/model_scen-{scenario}.nc"
           output:
-              plot="results/{name}/plots/my_metric.pdf"
+              plot="results/{name}/plots/scen-{scenario}/my_metric.pdf"
           script:
               "../scripts/plotting/plot_my_metric.py"
 
@@ -224,7 +223,7 @@ Adding a New Visualization
 
 4. **Run**::
 
-       tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/scen-default/my_metric.pdf
+       tools/smk -j4 --configfile config/my_scenario.yaml -- results/my_scenario/plots/scen-default/my_metric.pdf
 
 Version Control
 ---------------
@@ -284,8 +283,8 @@ Building Documentation Locally
 
 ::
 
-    tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs
-    # Open _build/html/index.html in browser
+    tools/smk -e dev -j4 --configfile config/doc_figures.yaml -- build_docs
+    # Open docs/_build/html/index.html in browser
 
 
 Updating Documentation
@@ -294,9 +293,7 @@ Updating Documentation
 1. **Edit** ``.rst`` files in ``docs/``
 2. **Rebuild**::
 
-       tools/smk -j4 --configfile config/doc_figures.yaml --forcerun build_docs -- build_docs
-
-   The ``--forcerun build_docs`` is necessary when only documentation text has been updated and no other files/figures.
+       tools/smk -e dev -j4 --configfile config/doc_figures.yaml -- build_docs
 
 3. **Check** for warnings/errors
 4. **Commit** documentation changes
@@ -341,7 +338,7 @@ Contributing Guidelines
 Before Submitting a Pull Request
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. **Run linter**: ``uv run ruff check . && uv run ruff format .`` (this is taken care of automatically if you set up ``pre-commit``)
+1. **Run linter**: ``pixi run --environment dev ruff check . && pixi run --environment dev ruff format .`` (this is taken care of automatically if you set up ``pre-commit``)
 2. **Test workflow**: Verify that the default configuration runs successfully
 3. **Update documentation**: If changing user-facing behavior
 4. **Write commit messages**: Descriptive and following conventions
