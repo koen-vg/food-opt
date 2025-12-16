@@ -28,7 +28,7 @@ In order to build the model, you will first have to download a few datasets manu
 
 ```bash
 pixi install
-tools/smk -j4 --config name=test
+tools/smk -j4 --configfile config/validation.yaml
 ```
 
 The default environment uses the HiGHS open-source solver. If you have a Gurobi license, install with:
@@ -40,7 +40,7 @@ pixi install --environment gurobi
 - `tools/smk` wraps Snakemake with the repository's resource limits and environment pins.
 - Snakemake targets land under `results/{name}/`.
 
-Snakemake runs a configuration/data validation hook (powered by Pydantic + Pandera) before it resolves any rules; extend the checks under `workflow/validation/` when adding new consistency requirements.
+Snakemake runs configuration schema validation (JSON Schema via Snakemake) and additional Pandera-based dataset checks before it resolves any rules; extend the checks under `workflow/validation/` when adding new consistency requirements.
 
 ## Repository Layout
 
