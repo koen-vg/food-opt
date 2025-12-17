@@ -203,6 +203,7 @@ def add_regional_crop_production_links(
                 "p_nom_max": df["suitable_area"] / 1e6,  # ha → Mha
                 "p_nom_extendable": not use_actual_production,
                 # Add metadata attributes
+                "crop": crop,
                 "country": df["country"],
                 "region": df["region"],
                 "resource_class": df["resource_class"].astype(int),

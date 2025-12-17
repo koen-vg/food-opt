@@ -509,7 +509,9 @@ if __name__ == "__main__":
         use_actual_production=use_actual_production,
     )
     enable_multiple_cropping = (
-        bool(snakemake.params.multiple_cropping) and not use_actual_production
+        bool(snakemake.params.multiple_cropping)
+        and not use_actual_production
+        and not validation_cfg["production_stability"]["enabled"]
     )
     if enable_multiple_cropping:
         crops.add_multi_cropping_links(

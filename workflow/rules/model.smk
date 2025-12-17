@@ -158,6 +158,19 @@ def solve_model_inputs(w):
         )
         inputs["food_loss_waste"] = f"processing/{w.name}/food_loss_waste.csv"
 
+    # Add production stability inputs
+    stability_cfg = config["validation"]["production_stability"]
+    if stability_cfg["enabled"]:
+        if stability_cfg["crops"]["enabled"]:
+            inputs["crop_production_baseline"] = (
+                f"processing/{w.name}/faostat_crop_production.csv"
+            )
+        if stability_cfg["animals"]["enabled"]:
+            inputs["animal_production_baseline"] = (
+                f"processing/{w.name}/faostat_animal_production.csv"
+            )
+            inputs["food_loss_waste"] = f"processing/{w.name}/food_loss_waste.csv"
+
     return inputs
 
 
@@ -201,6 +214,7 @@ rule solve_model:
         food_group_constraints=config["food_groups"].get("constraints", {}),
         diet=config["diet"],
         enforce_baseline=config["validation"]["enforce_gdd_baseline"],
+        production_stability=config["validation"]["production_stability"],
     output:
         network="results/{name}/solved/model_scen-{scenario}.nc",
     log:

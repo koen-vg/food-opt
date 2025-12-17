@@ -20,6 +20,14 @@ validation:
   slack_marginal_cost: 1. # bn USD per Mt/Mha for validation slack (food groups, feed, land)
   harvest_area_source: gaez  # Options: gaez (RES06), cropgrids
   production_year: 2018 # To match with GDD baseline year
+  production_stability:
+    enabled: false
+    crops:
+      enabled: true
+      max_relative_deviation: 0.2  # ±20%
+    animals:
+      enabled: true
+      max_relative_deviation: 0.2
 
 # --- section: land ---
 land:

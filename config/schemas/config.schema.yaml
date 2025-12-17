@@ -80,6 +80,7 @@ properties:
       - slack_marginal_cost
       - harvest_area_source
       - production_year
+      - production_stability
     additionalProperties: false
     properties:
       use_actual_yields:
@@ -104,6 +105,41 @@ properties:
         minimum: 1990
         maximum: 2024
         description: "Reference year for production data"
+      production_stability:
+        type: object
+        required: [enabled, crops, animals]
+        additionalProperties: false
+        description: "Limit production deviation from baseline levels"
+        properties:
+          enabled:
+            type: boolean
+            description: "Whether to apply production stability bounds"
+          crops:
+            type: object
+            required: [enabled, max_relative_deviation]
+            additionalProperties: false
+            properties:
+              enabled:
+                type: boolean
+                description: "Whether to apply crop production bounds"
+              max_relative_deviation:
+                type: number
+                minimum: 0
+                maximum: 1
+                description: "Maximum relative deviation from baseline (e.g., 0.2 = ±20%)"
+          animals:
+            type: object
+            required: [enabled, max_relative_deviation]
+            additionalProperties: false
+            properties:
+              enabled:
+                type: boolean
+                description: "Whether to apply animal production bounds"
+              max_relative_deviation:
+                type: number
+                minimum: 0
+                maximum: 1
+                description: "Maximum relative deviation from baseline (e.g., 0.2 = ±20%)"
 
   land:
     type: object

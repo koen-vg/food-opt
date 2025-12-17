@@ -88,6 +88,36 @@ penalty (USD\ :sub:`2024` per Mt) for the slack generators that backstop those f
 food-group loads. Keep the value high so slack only activates when recorded production
 cannot meet the enforced demand targets.
 
+Production Stability Bounds
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``validation.production_stability`` section allows constraining how much crop and
+animal product production can deviate from current (baseline) levels. This is useful for
+investigating what positive changes (e.g., improved health outcomes, reduced emissions)
+can be achieved with limited disruption to existing production patterns.
+
+When enabled, the solver applies per-(product, country) bounds of the form:
+
+.. math::
+
+   (1 - \delta) \times \text{baseline} \le \text{production} \le (1 + \delta) \times \text{baseline}
+
+where :math:`\delta` is the ``max_relative_deviation`` parameter (e.g., 0.2 for ±20%).
+
+**Configuration options**:
+
+* ``production_stability.enabled``: Master switch for the feature (default: ``false``)
+* ``production_stability.crops.enabled``: Apply bounds to crop production
+* ``production_stability.crops.max_relative_deviation``: Maximum relative deviation for crops (0-1)
+* ``production_stability.animals.enabled``: Apply bounds to animal product production
+* ``production_stability.animals.max_relative_deviation``: Maximum relative deviation for animal products (0-1)
+
+**Behavior notes**:
+
+* Products with zero baseline production are constrained to zero (no new products introduced)
+* Products missing baseline data are skipped with a warning
+* Multi-cropping is automatically disabled when production stability is enabled
+
 Configuration sections
 ----------------------
 

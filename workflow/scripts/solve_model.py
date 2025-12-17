@@ -541,6 +541,276 @@ def add_animal_production_constraints(
     )
 
 
+def add_production_stability_constraints(
+    n: pypsa.Network,
+    crop_baseline: pd.DataFrame | None,
+    animal_baseline: pd.DataFrame | None,
+    stability_cfg: dict,
+    food_to_group: dict[str, str],
+    loss_waste: pd.DataFrame,
+) -> None:
+    """Add constraints limiting production deviation from baseline levels.
+
+    For crops and animal products, applies per-(product, country) bounds:
+    ``(1 - delta) * baseline <= production <= (1 + delta) * baseline``
+
+    Products with zero baseline are constrained to zero production.
+
+    Note: Multi-cropping is disabled when production stability is enabled.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network containing the model.
+    crop_baseline : pd.DataFrame | None
+        FAO crop production with columns: country, crop, production_tonnes.
+    animal_baseline : pd.DataFrame | None
+        FAO animal production with columns: country, product, production_mt.
+    stability_cfg : dict
+        Configuration with enabled, crops.max_relative_deviation, etc.
+    food_to_group : dict[str, str]
+        Mapping from product names to food group names for FLW lookup.
+    loss_waste : pd.DataFrame
+        Food loss and waste fractions with columns: country, food_group,
+        loss_fraction, waste_fraction.
+    """
+    if not stability_cfg["enabled"]:
+        return
+
+    m = n.model
+    link_p = m.variables["Link-p"].sel(snapshot="now")
+    links_df = n.links.static
+
+    # --- CROP PRODUCTION BOUNDS ---
+    crops_cfg = stability_cfg["crops"]
+    if crops_cfg["enabled"] and crop_baseline is not None:
+        _add_crop_stability_constraints(m, link_p, links_df, crop_baseline, crops_cfg)
+
+    # --- ANIMAL PRODUCTION BOUNDS ---
+    animals_cfg = stability_cfg["animals"]
+    if animals_cfg["enabled"] and animal_baseline is not None:
+        _add_animal_stability_constraints(
+            m, link_p, links_df, animal_baseline, animals_cfg, food_to_group, loss_waste
+        )
+
+
+def _add_crop_stability_constraints(
+    m: "linopy.Model",
+    link_p,
+    links_df: pd.DataFrame,
+    crop_baseline: pd.DataFrame,
+    crops_cfg: dict,
+) -> None:
+    """Add crop production stability bounds."""
+    delta = crops_cfg["max_relative_deviation"]
+
+    # Filter to crop production links using the crop column
+    crop_mask = links_df["crop"].notna()
+    crop_links = links_df[crop_mask].copy()
+
+    if crop_links.empty:
+        logger.info(
+            "No crop production links found; skipping crop stability constraints"
+        )
+        return
+
+    crops = crop_links["crop"].astype(str)
+    countries = crop_links["country"].astype(str)
+    link_names = crop_links.index
+
+    # Efficiencies (yield: Mt/Mha)
+    efficiencies = xr.DataArray(
+        crop_links["efficiency"].values, coords={"name": link_names}, dims="name"
+    )
+
+    # Production = p * efficiency (p is land in Mha)
+    production_vars = link_p.sel(name=link_names)
+
+    grouper = pd.MultiIndex.from_arrays(
+        [crops.values, countries.values], names=["crop", "country"]
+    )
+    da_grouper = xr.DataArray(grouper, coords={"name": link_names}, dims="name")
+
+    total_production = (production_vars * efficiencies).groupby(da_grouper).sum()
+
+    # Convert baseline to Mt and build targets
+    baseline_df = crop_baseline.copy()
+    baseline_df["production_mt"] = baseline_df["production_tonnes"] * 1e-6
+    target_series = baseline_df.set_index(["crop", "country"])["production_mt"]
+
+    # Match to model index
+    model_index = pd.Index(total_production.coords["group"].values, name="group")
+    common_index = model_index.intersection(target_series.index)
+
+    if common_index.empty:
+        logger.warning("No matching crop production targets for stability bounds")
+        return
+
+    # Build RHS bounds
+    baselines = target_series.loc[common_index].values
+    lower_bounds = np.maximum(0.0, (1.0 - delta) * baselines)
+    upper_bounds = (1.0 + delta) * baselines
+
+    rhs_lower = xr.DataArray(lower_bounds, coords={"group": common_index}, dims="group")
+    rhs_upper = xr.DataArray(upper_bounds, coords={"group": common_index}, dims="group")
+
+    # Handle zero baselines: force production to zero
+    zero_mask = baselines == 0
+    nonzero_mask = ~zero_mask
+
+    if zero_mask.any():
+        zero_index = common_index[zero_mask]
+        lhs_zero = total_production.sel(group=zero_index)
+        m.add_constraints(lhs_zero == 0, name="crop_production_zero_baseline")
+        logger.info(
+            "Added %d crop production constraints for zero-baseline (crop, country) pairs",
+            int(zero_mask.sum()),
+        )
+
+    if nonzero_mask.any():
+        nonzero_index = common_index[nonzero_mask]
+        lhs_nonzero = total_production.sel(group=nonzero_index)
+        lower_nonzero = rhs_lower.sel(group=nonzero_index)
+        upper_nonzero = rhs_upper.sel(group=nonzero_index)
+
+        m.add_constraints(lhs_nonzero >= lower_nonzero, name="crop_production_min")
+        m.add_constraints(lhs_nonzero <= upper_nonzero, name="crop_production_max")
+
+        logger.info(
+            "Added %d crop production stability constraints (delta=%.0f%%)",
+            2 * int(nonzero_mask.sum()),
+            delta * 100,
+        )
+
+    # Log missing baselines
+    missing = model_index.difference(target_series.index)
+    if len(missing) > 0:
+        examples = [f"{c}/{r}" for c, r in list(missing)[:5]]
+        logger.warning(
+            "Missing crop baseline data for %d (crop, country) pairs; examples: %s",
+            len(missing),
+            ", ".join(examples),
+        )
+
+
+def _add_animal_stability_constraints(
+    m: "linopy.Model",
+    link_p,
+    links_df: pd.DataFrame,
+    animal_baseline: pd.DataFrame,
+    animals_cfg: dict,
+    food_to_group: dict[str, str],
+    loss_waste: pd.DataFrame,
+) -> None:
+    """Add animal production stability bounds.
+
+    Reuses the aggregation logic from add_animal_production_constraints()
+    but applies inequality bounds instead of equality.
+    """
+    delta = animals_cfg["max_relative_deviation"]
+
+    # Build FLW lookup (same as add_animal_production_constraints)
+    flw_multipliers: dict[tuple[str, str], float] = {}
+    for _, row in loss_waste.iterrows():
+        key = (str(row["country"]), str(row["food_group"]))
+        loss_frac = float(row["loss_fraction"])
+        waste_frac = float(row["waste_fraction"])
+        flw_multipliers[key] = (1.0 - loss_frac) * (1.0 - waste_frac)
+
+    # Filter to animal production links using product column
+    prod_mask = links_df["product"].notna()
+    prod_links = links_df[prod_mask]
+
+    if prod_links.empty:
+        logger.info(
+            "No animal production links found; skipping animal stability constraints"
+        )
+        return
+
+    products = prod_links["product"].astype(str)
+    countries = prod_links["country"].astype(str)
+    link_names = prod_links.index
+
+    efficiencies = xr.DataArray(
+        prod_links["efficiency"].values, coords={"name": link_names}, dims="name"
+    )
+
+    production_vars = link_p.sel(name=link_names)
+
+    grouper = pd.MultiIndex.from_arrays(
+        [products.values, countries.values], names=["product", "country"]
+    )
+    da_grouper = xr.DataArray(grouper, coords={"name": link_names}, dims="name")
+
+    total_production = (production_vars * efficiencies).groupby(da_grouper).sum()
+
+    # Build FLW-adjusted targets (same logic as add_animal_production_constraints)
+    target_series = animal_baseline.set_index(["product", "country"])[
+        "production_mt"
+    ].astype(float)
+
+    adjusted_targets = []
+    for product, country in target_series.index:
+        gross_value = target_series.loc[(product, country)]
+        group = food_to_group.get(product, product)
+        multiplier = flw_multipliers.get((country, group), 1.0)
+        adjusted_targets.append(gross_value * multiplier)
+    target_series = pd.Series(adjusted_targets, index=target_series.index)
+
+    model_index = pd.Index(total_production.coords["group"].values, name="group")
+    common_index = model_index.intersection(target_series.index)
+
+    if common_index.empty:
+        logger.warning("No matching animal production targets for stability bounds")
+        return
+
+    # Build bounds
+    baselines = target_series.loc[common_index].values
+    lower_bounds = np.maximum(0.0, (1.0 - delta) * baselines)
+    upper_bounds = (1.0 + delta) * baselines
+
+    rhs_lower = xr.DataArray(lower_bounds, coords={"group": common_index}, dims="group")
+    rhs_upper = xr.DataArray(upper_bounds, coords={"group": common_index}, dims="group")
+
+    # Handle zero baselines: force production to zero
+    zero_mask = baselines == 0
+    nonzero_mask = ~zero_mask
+
+    if zero_mask.any():
+        zero_index = common_index[zero_mask]
+        lhs_zero = total_production.sel(group=zero_index)
+        m.add_constraints(lhs_zero == 0, name="animal_production_zero_baseline")
+        logger.info(
+            "Added %d animal production constraints for zero-baseline (product, country) pairs",
+            int(zero_mask.sum()),
+        )
+
+    if nonzero_mask.any():
+        nonzero_index = common_index[nonzero_mask]
+        lhs_nonzero = total_production.sel(group=nonzero_index)
+        lower_nonzero = rhs_lower.sel(group=nonzero_index)
+        upper_nonzero = rhs_upper.sel(group=nonzero_index)
+
+        m.add_constraints(lhs_nonzero >= lower_nonzero, name="animal_production_min")
+        m.add_constraints(lhs_nonzero <= upper_nonzero, name="animal_production_max")
+
+        logger.info(
+            "Added %d animal production stability constraints (delta=%.0f%%)",
+            2 * int(nonzero_mask.sum()),
+            delta * 100,
+        )
+
+    # Log missing baselines
+    missing = model_index.difference(target_series.index)
+    if len(missing) > 0:
+        examples = [f"{p}/{c}" for p, c in list(missing)[:5]]
+        logger.warning(
+            "Missing animal baseline data for %d (product, country) pairs; examples: %s",
+            len(missing),
+            ", ".join(examples),
+        )
+
+
 def _get_consumption_link_map(
     p_names: pd.Index,
     links_df: pd.DataFrame,
@@ -1134,6 +1404,34 @@ if __name__ == "__main__":
         food_loss_waste = pd.read_csv(snakemake.input.food_loss_waste)
         add_animal_production_constraints(
             n, fao_animal_production, food_to_group, food_loss_waste
+        )
+
+    # Add production stability constraints
+    stability_cfg = snakemake.params.production_stability
+    if stability_cfg["enabled"]:
+        # Load food_to_group if not already loaded
+        if "food_to_group" not in dir():
+            food_groups_df = pd.read_csv(snakemake.input.food_groups)
+            food_to_group = food_groups_df.set_index("food")["group"].to_dict()
+
+        crop_baseline = None
+        animal_baseline = None
+        food_loss_waste_df = pd.DataFrame()
+
+        if stability_cfg["crops"]["enabled"]:
+            crop_baseline = pd.read_csv(snakemake.input.crop_production_baseline)
+
+        if stability_cfg["animals"]["enabled"]:
+            animal_baseline = pd.read_csv(snakemake.input.animal_production_baseline)
+            food_loss_waste_df = pd.read_csv(snakemake.input.food_loss_waste)
+
+        add_production_stability_constraints(
+            n,
+            crop_baseline,
+            animal_baseline,
+            stability_cfg,
+            food_to_group,
+            food_loss_waste_df,
         )
 
     # Add health impacts / store levels if enabled or baseline intake is enforced
