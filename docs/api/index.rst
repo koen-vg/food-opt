@@ -1,5 +1,4 @@
 .. SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
-..
 .. SPDX-License-Identifier: CC-BY-4.0
 
 API Reference

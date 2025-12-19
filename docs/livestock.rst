@@ -99,6 +99,8 @@ This value is consistent with the **GLOBIOM** model, which assumes a 50% grazing
 
    Global distribution of managed grassland yield potential (tonnes dry matter per hectare per year) from ISIMIP LPJmL historical simulations
 
+.. _byproduct-feed-conversion:
+
 Feed Conversion
 ---------------
 

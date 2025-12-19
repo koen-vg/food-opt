@@ -15,7 +15,7 @@ The model uses a hybrid approach to represent current consumption patterns, comb
 * **Model constraints**: Optionally constrain the optimization to remain near current diets
 
 Data Sources
------------
+------------
 
 **Global Dietary Database (GDD)**
   * **Provider**: Tufts University Friedman School of Nutrition Science and Policy

@@ -333,10 +333,12 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
     """Add constraints limiting residue removal for animal feed.
 
     Constrains the fraction of residues that can be removed for feed vs.
-    incorporated into soil. The constraint is formulated as:
+    incorporated into soil. The constraint is formulated as::
+
         feed_use ≤ (max_feed_fraction / (1 - max_feed_fraction)) x incorporation
 
-    This ensures that if a total amount R of residue is generated:
+    This ensures that if a total amount R of residue is generated::
+
         R = feed_use + incorporation
         feed_use ≤ max_feed_fraction x R
 

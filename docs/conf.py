@@ -7,8 +7,9 @@
 import os
 import sys
 
-# Add project root to path for autodoc
+# Add project root and scripts directory to path for autodoc
 sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("../workflow/scripts"))
 
 # Project information
 project = "food-opt"

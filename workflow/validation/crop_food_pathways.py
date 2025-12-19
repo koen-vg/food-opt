@@ -38,24 +38,22 @@ def validate_crop_food_pathways(config: dict, project_root: Path) -> None:
 
     df = FOODS_SCHEMA.validate(pd.read_csv(csv_path, comment="#"))
 
-    # Check all crops referenced in foods.csv exist in config
+    # Ensure all config crops have a pathway entry in foods.csv.
     config_crops = set(config["crops"])
     csv_crops = set(df["crop"].unique())
 
-    missing = sorted(csv_crops - config_crops)
+    missing = sorted(config_crops - csv_crops)
     if missing:
         missing_text = ", ".join(missing)
-        raise ValueError(
-            f"foods.csv references crops not in config.crops: {missing_text}"
-        )
+        raise ValueError(f"Config crops missing in foods.csv pathways: {missing_text}")
 
-    # Warn about crops in config without food pathways
-    # (This could be intentional for feed-only crops like alfalfa)
-    unused = sorted(config_crops - csv_crops)
+    # Warn about crops in foods.csv that are not in config
+    # (allowed for reduced-scope configs like doc_figures).
+    unused = sorted(csv_crops - config_crops)
     if unused:
         unused_text = ", ".join(unused)
         logger.warning(
-            f"Crops in config without food pathways (feed-only?): {unused_text}"
+            "foods.csv contains crops not in config (ignored): " f"{unused_text}"
         )
 
     # Check that byproducts listed in config appear as foods

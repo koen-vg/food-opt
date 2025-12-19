@@ -286,7 +286,7 @@ Configuration Highlights
    :end-before: # --- section: aggregation ---
 
 Lowering ``region_clusters`` or ``log_rr_points`` eases the optimisation at the
-   cost of coarser health resolution. ``health.intake_grid_points`` controls the
+cost of coarser health resolution. ``health.intake_grid_points`` controls the
 density of the first-stage interpolation grid; smaller values give smoother
 curves but produce larger tables.
 
