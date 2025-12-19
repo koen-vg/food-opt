@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Example scenario configuration
+#
+# This file demonstrates how to create a custom scenario. Configuration files
+# act as overrides to the default configuration (config/default.yaml). You only
+# need to specify the settings you want to change; all other settings are
+# inherited from the default.
+#
+# To use this as a starting point for your own scenario:
+#   1. Copy this file: cp config/example.yaml config/my_scenario.yaml
+#   2. Change the name below to match your filename
+#   3. Add or modify any settings you want to override
+#   4. Run: tools/smk -j4 --configfile config/my_scenario.yaml
+
+# Required: unique name for this scenario (determines output directory)
+name: "example"
+
+# Example overrides (uncomment and modify as needed):
+
+# Change the planning horizon year
+# planning_horizon: 2040
+
+# Adjust carbon pricing
+# emissions:
+#   ghg_price: 200  # USD per tonne CO2-eq
+
+# Restrict to specific countries (ISO 3166-1 alpha-3 codes)
+# countries:
+#   - NOR
+#   - SWE
+#   - DNK
+
+# Reduce spatial resolution for faster testing
+# aggregation:
+#   regions:
+#     target_count: 50

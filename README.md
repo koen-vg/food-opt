@@ -22,25 +22,56 @@ Documentation (model design, configuration reference, data provenance, API) live
 
 ## Quickstart
 
-To install, clone the git repository and make sure you have [pixi](https://pixi.sh/) installed.
+### Prerequisites
 
-In order to build the model, you will first have to download a few datasets manually. See the documentation for details. Then you are ready to run the model:
+1. Install [Git](https://git-scm.com/) and [pixi](https://pixi.sh/) (cross-platform package manager)
+2. Ensure ~30 GB of free disk space for datasets
+
+### Installation
 
 ```bash
+git clone https://github.com/Sustainable-Solutions-Lab/food-opt.git
+cd food-opt
 pixi install
+```
+
+### Setup (required before first run)
+
+1. **API credentials**: Copy and configure the secrets file:
+   ```bash
+   cp config/secrets.yaml.example config/secrets.yaml
+   # Edit config/secrets.yaml with your ECMWF Climate Data Store credentials
+   # Get credentials at: https://cds.climate.copernicus.eu/user/register
+   ```
+
+2. **Manual downloads**: Three datasets require free registration and manual download:
+   - IHME GBD mortality rates and relative risks (https://vizhub.healthdata.org/)
+   - Global Dietary Database (https://globaldietarydatabase.org/)
+
+   See the [Data Sources documentation](https://sustainable-solutions-lab.github.io/food-opt/data_sources.html#manual-download-checklist) for detailed instructions. Place files in `data/manually_downloaded/`.
+
+### Run the model
+
+```bash
 tools/smk -j4 --configfile config/validation.yaml
 ```
 
-The default environment uses the HiGHS open-source solver. If you have a Gurobi license, install with:
+The first run downloads several gigabytes of global datasets (GAEZ, GADM, land cover, etc.) and may take 30+ minutes.
+
+### Solver options
+
+The default environment uses the HiGHS open-source solver. For faster solving with Gurobi (requires license):
 
 ```bash
 pixi install --environment gurobi
+tools/smk -e gurobi -j4 --configfile config/validation.yaml
 ```
 
-- `tools/smk` wraps Snakemake with the repository's resource limits and environment pins.
-- Snakemake targets land under `results/{name}/`.
+### Notes
 
-Snakemake runs configuration schema validation (JSON Schema via Snakemake) and additional Pandera-based dataset checks before it resolves any rules; extend the checks under `workflow/validation/` when adding new consistency requirements.
+- `tools/smk` wraps Snakemake with memory limits and environment configuration
+- Results are saved under `results/{config_name}/`
+- The workflow validates configuration and data before running
 
 ## Repository Layout
 

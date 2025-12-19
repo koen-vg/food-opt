@@ -166,19 +166,19 @@ Running Specific Stages
 
 **Build model only** (no solving)::
 
-    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/build/model_scen-default.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml -- results/my_scenario/build/model_scen-default.nc
 
 **Solve model**::
 
-    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model_scen-default.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml -- results/my_scenario/solved/model_scen-default.nc
 
 **Regenerate specific plot**::
 
-    tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/scen-default/crop_production.pdf
+    tools/smk --configfile config/my_scenario.yaml -- results/my_scenario/plots/scen-default/crop_production.pdf
 
 **Prepare data without building model**::
 
-    tools/smk -j4 --configfile config/my_scenario.yaml processing/my_scenario/regions.geojson processing/my_scenario/resource_classes.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml -- processing/my_scenario/regions.geojson processing/my_scenario/resource_classes.nc
 
 For any of the above targets, Snakemake will first run any other previous rules in order to generate the necessary inputs for the specified target output/rule.
 
@@ -236,7 +236,7 @@ Incremental Development
 
 **Rerun specific rule**::
 
-    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model_scen-default.nc --forcerun solve_model
+    tools/smk -j4 --configfile config/my_scenario.yaml --forcerun solve_model -- results/my_scenario/solved/model_scen-default.nc
 
 **Mark all existing outputs as up to date** (preventing rules from being run due to modification times, etc.)::
 

@@ -129,7 +129,7 @@ Scenario Metadata
    :start-after: # --- section: scenario_metadata ---
    :end-before: # --- section: downloads ---
 
-* **planning_horizon**: Target year for optimization (default: 2030). Should match UN WPP population year and GAEZ climate period.
+* **planning_horizon**: Target year for optimization (default: 2030). Currently determined only which (projected) population levels to use.
 * **currency_base_year**: Base year for inflation-adjusted USD values (default: 2024). All cost data is automatically converted to real USD in this base year using CPI adjustments. See :doc:`crop_production` (Production Costs section) for details on cost modeling.
 
 Download Options
