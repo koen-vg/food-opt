@@ -26,7 +26,10 @@ FOODS_SCHEMA = DataFrameSchema(
 
 
 def validate_crop_food_pathways(config: dict, project_root: Path) -> None:
-    """Validate that foods.csv references only crops defined in config.
+    """Validate that foods.csv references only food crops defined in config.
+
+    Crops listed in config["non_food_crops"] (e.g. fodder, biomass) are excluded
+    from this validation since they don't produce human food.
 
     Also validates CSV structure and warns about crops without pathways.
 
@@ -38,11 +41,14 @@ def validate_crop_food_pathways(config: dict, project_root: Path) -> None:
 
     df = FOODS_SCHEMA.validate(pd.read_csv(csv_path, comment="#"))
 
-    # Ensure all config crops have a pathway entry in foods.csv.
+    # Ensure all food crops have a pathway entry in foods.csv.
+    # non_food_crops (fodder, biomass) are excluded from this check.
     config_crops = set(config["crops"])
+    non_food_crops = set(config["non_food_crops"])
+    food_crops = config_crops - non_food_crops
     csv_crops = set(df["crop"].unique())
 
-    missing = sorted(config_crops - csv_crops)
+    missing = sorted(food_crops - csv_crops)
     if missing:
         missing_text = ", ".join(missing)
         raise ValueError(f"Config crops missing in foods.csv pathways: {missing_text}")

@@ -19,6 +19,7 @@ required:
   - emissions
   - luc
   - crops
+  - non_food_crops
   - multiple_cropping
   - macronutrients
   - byproducts
@@ -321,6 +322,14 @@ properties:
       type: string
       pattern: "^[a-z0-9-]+$"
     description: "List of crop names to include in the model"
+
+  non_food_crops:
+    type: array
+    uniqueItems: true
+    items:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+    description: "Crops not intended for human food (e.g. fodder, biomass); excluded from foods.csv validation"
 
   multiple_cropping:
     type: object

@@ -120,10 +120,17 @@ crops:
 # Sugar crops
 - sugarcane
 - sugarbeet
-# Fodder
+# Fodder / biomass (also listed in non_food_crops below)
 - alfalfa
 - biomass-sorghum
 # Note: mango and taro excluded - missing RES02 (growing season) data for GFDL-ESM4
+
+# --- section: non_food_crops ---
+# Crops not intended for human food production (fodder, biomass).
+# These are excluded from foods.csv validation but still need yield/land data.
+non_food_crops:
+- alfalfa
+- biomass-sorghum
 
 # --- section: multiple_cropping ---
 multiple_cropping:
