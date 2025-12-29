@@ -45,10 +45,12 @@ rule build_feed_to_animal_products:
         wirsenius="data/wirsenius_feed_energy_requirements.csv",
         ruminant_categories="processing/{name}/ruminant_feed_categories.csv",
         monogastric_categories="processing/{name}/monogastric_feed_categories.csv",
+        country_region_map="data/country_wirsenius_region.csv",
     output:
         "processing/{name}/feed_to_animal_products.csv",
     params:
-        wirsenius_regions=config["animal_products"]["wirsenius_regions"],
+        feed_efficiency_regions=config["animal_products"]["feed_efficiency_regions"],
+        countries=config["countries"],
         net_to_me_conversion=config["animal_products"][
             "net_to_metabolizable_energy_conversion"
         ],

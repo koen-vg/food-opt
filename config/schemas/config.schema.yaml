@@ -380,7 +380,7 @@ properties:
     type: object
     required:
       - include
-      - wirsenius_regions
+      - feed_efficiency_regions
       - net_to_metabolizable_energy_conversion
       - carcass_to_retail_meat
       - feed_proxy_map
@@ -395,11 +395,22 @@ properties:
           type: string
           pattern: "^[a-z0-9-]+$"
         description: "Animal products to include in the model"
-      wirsenius_regions:
-        type: array
-        items:
-          type: string
-        description: "Regions for averaging feed conversion efficiencies (Wirsenius 2000)"
+      feed_efficiency_regions:
+        oneOf:
+          - type: array
+            items:
+              type: string
+              enum:
+                - East Asia
+                - East Europe
+                - Latin America & Caribbean
+                - North Africa & West Asia
+                - North America & Oceania
+                - South & Central Asia
+                - Sub-Saharan Africa
+                - West Europe
+          - type: "null"
+        description: "Regions for averaging feed conversion efficiencies (list) or null for country-specific regional values"
       net_to_metabolizable_energy_conversion:
         type: object
         required: [k_m, k_g, k_l]

@@ -314,18 +314,26 @@ def build_feed_to_animal_products(
     ruminant_categories_file: str,
     monogastric_categories_file: str,
     output_file: str,
-    regions_to_average: list[str],
+    regions_to_average: list[str] | None,
     k_m: float,
     k_g: float,
     k_l: float,
     carcass_to_retail: dict[str, float],
     feed_proxy_map: dict[str, str],
+    countries: list[str] | None = None,
+    country_region_file: str | None = None,
 ) -> None:
     """
     Generate feed-to-animal-product conversion table from Wirsenius data.
 
     Converts Wirsenius carcass-weight-based feed requirements to retail-meat-based
     feed conversion efficiencies.
+
+    Supports two modes controlled by feed_efficiency_regions config:
+    - Global average mode: If list of regions provided, average efficiencies
+      across those regions (all countries get the same values).
+    - Regionalized mode: If null, use country-specific efficiencies based on
+      each country's geographic region mapping.
 
     Parameters
     ----------
@@ -338,7 +346,8 @@ def build_feed_to_animal_products(
     output_file : str
         Path to output feed_to_animal_products.csv
     regions_to_average : list[str] | None
-        List of Wirsenius regions to average.
+        List of Wirsenius regions to average (global mode), or None for
+        regionalized mode where each country uses its mapped region's values.
     k_m : float
         NRC maintenance efficiency factor
     k_g : float
@@ -349,6 +358,10 @@ def build_feed_to_animal_products(
         Carcass-to-retail conversion factors by product
     feed_proxy_map : dict[str, str]
         Mapping of proxy products to source products for feed requirements
+    countries : list[str] | None
+        List of country codes (required for regionalized mode)
+    country_region_file : str | None
+        Path to country-to-Wirsenius-region mapping CSV (required for regionalized mode)
     """
     # Load data
     wirsenius = pd.read_csv(wirsenius_file, comment="#")
@@ -383,34 +396,81 @@ def build_feed_to_animal_products(
     # Combine
     all_eff = pd.concat([ruminant_eff, monogastric_eff], ignore_index=True)
 
-    # Filter to specified regions if provided
-    if regions_to_average:
-        logger.info("Filtering to regions: %s", ", ".join(regions_to_average))
+    # Both modes require countries list
+    if countries is None:
+        raise ValueError("'countries' parameter is required")
+
+    # Determine mode based on regions_to_average
+    # Note: Validation ensures region names are valid Wirsenius regions
+    if regions_to_average is not None:
+        # GLOBAL AVERAGE MODE: Average specified regions, then expand to all countries
+        logger.info("Global average mode: averaging regions %s", regions_to_average)
         all_eff = all_eff[all_eff["region"].isin(regions_to_average)].copy()
-        if all_eff.empty:
-            raise ValueError(
-                f"No data found for specified regions: {regions_to_average}"
-            )
         region_label = " & ".join(regions_to_average)
+
+        # Average across the selected regions
+        averaged = all_eff.groupby(["product", "feed_category"], as_index=False).agg(
+            {"efficiency": "mean"}
+        )
+        averaged["region"] = region_label
+
+        # Expand to all countries (same efficiency for everyone)
+        country_results = []
+        for country in countries:
+            country_data = averaged.copy()
+            country_data["country"] = country
+            country_results.append(country_data)
+
+        all_eff = pd.concat(country_results, ignore_index=True)
+
+        logger.info(
+            "Expanded global average to %d countries (%d total rows)",
+            len(countries),
+            len(all_eff),
+        )
+
     else:
-        logger.info("Using all regions")
-        region_label = "Global average"
+        # REGIONALIZED MODE: Country-specific efficiencies
+        if country_region_file is None:
+            raise ValueError("Regionalized mode requires 'country_region_file'")
 
-    # Average across the selected regions
-    logger.info("Averaging efficiencies across selected regions")
-    all_eff = all_eff.groupby(["product", "feed_category"], as_index=False).agg(
-        {"efficiency": "mean"}
-    )
-    all_eff["region"] = region_label
+        logger.info(
+            "Regionalized mode: mapping %d countries to Wirsenius regions",
+            len(countries),
+        )
 
-    # Add notes
+        # Load country-to-region mapping
+        country_region = pd.read_csv(country_region_file, comment="#")
+        country_to_region = dict(
+            zip(country_region["country"], country_region["wirsenius_region"])
+        )
+
+        # Expand efficiencies to countries based on their mapped region
+        # Note: Validation ensures all countries have mappings in country_wirsenius_region.csv
+        country_results = []
+        for country in countries:
+            region = country_to_region[country]
+            country_data = all_eff[all_eff["region"] == region].copy()
+            country_data["country"] = country
+            country_results.append(country_data)
+
+        all_eff = pd.concat(country_results, ignore_index=True)
+
+        logger.info(
+            "Generated efficiencies for %d countries (%d total rows)",
+            len(country_results),
+            len(all_eff),
+        )
+
+    # Add notes and sort (common to both modes)
     all_eff = add_notes(all_eff)
+    all_eff = all_eff.sort_values(["country", "product", "feed_category"])
 
-    # Sort
-    all_eff = all_eff.sort_values(["product", "feed_category"])
+    # Output columns (always include country)
+    output_cols = ["country", "product", "feed_category", "efficiency", "notes"]
 
-    # Write output
-    all_eff.to_csv(output_file, index=False)
+    # Write output with appropriate columns
+    all_eff[output_cols].to_csv(output_file, index=False)
 
     logger.info("Wrote %d feed conversion entries to %s", len(all_eff), output_file)
 
@@ -431,8 +491,8 @@ if __name__ == "__main__":
     # Configure logging
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
 
-    # Get regions to average from config
-    regions = snakemake.params.wirsenius_regions
+    # Get regions to average from config (None triggers regionalized mode)
+    regions = snakemake.params.feed_efficiency_regions
 
     # Get net-to-ME conversion efficiency factors from config
     conversion_factors = snakemake.params.net_to_me_conversion
@@ -442,6 +502,10 @@ if __name__ == "__main__":
 
     # Get carcass-to-retail conversion factors from config
     carcass_to_retail = snakemake.params.carcass_to_retail
+
+    # Get countries (always required) and country-region mapping (for regionalized mode)
+    countries = snakemake.params.countries
+    country_region_file = snakemake.input.get("country_region_map", None)
 
     build_feed_to_animal_products(
         wirsenius_file=snakemake.input.wirsenius,
@@ -454,4 +518,6 @@ if __name__ == "__main__":
         k_l=k_l,
         carcass_to_retail=carcass_to_retail,
         feed_proxy_map=snakemake.params.feed_proxy_map,
+        countries=countries,
+        country_region_file=country_region_file,
     )

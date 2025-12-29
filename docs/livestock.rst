@@ -204,24 +204,28 @@ Wirsenius (2000) [1]_ provides feed requirements per kg **carcass weight** (dres
 
 **Output**: ``processing/{name}/feed_to_animal_products.csv`` with columns:
 
+* ``country``: ISO 3166-1 alpha-3 country code
 * ``product``: Product name (e.g., "meat-cattle", "dairy")
 * ``feed_category``: Feed pool (e.g., ``ruminant_forage``, ``ruminant_grain``, ``monogastric_grain``)
 * ``efficiency``: Feed conversion efficiency (t product / t feed DM)
-* ``region``: Region label (averaged over configured regions)
 * ``notes``: Description with inverse feed requirement
 
-**Configuration**: Specify which Wirsenius regions to average in ``config/default.yaml``:
+**Configuration**: The ``feed_efficiency_regions`` setting controls how feed conversion efficiencies are assigned:
 
 .. code-block:: yaml
 
    animal_products:
-     wirsenius_regions:
+     # Option 1: Average specific regions (all countries use same values)
+     feed_efficiency_regions:
      - North America & Oceania
      - West Europe
 
-Available regions: East Asia, East Europe, Latin America & Caribbean, North Africa & West Asia, North America & Oceania, South & Central Asia, Sub-Saharan Africa, West Europe
+     # Option 2: Use country-specific regional values (set to null)
+     # feed_efficiency_regions: null
 
-If ``wirsenius_regions`` is null or empty, a global average across all eight regions is used.
+Available regions (from Wirsenius 2000): East Asia, East Europe, Latin America & Caribbean, North Africa & West Asia, North America & Oceania, South & Central Asia, Sub-Saharan Africa, West Europe
+
+When ``feed_efficiency_regions`` is null, each country uses the feed conversion efficiencies from its geographic region. The mapping from countries to Wirsenius regions is defined in ``data/country_wirsenius_region.csv``.
 
 **Example efficiencies** (North America & Oceania + West Europe average, with carcass-to-retail conversion):
 

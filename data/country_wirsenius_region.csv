@@ -1,0 +1,282 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC0-1.0
+#
+# Mapping from ISO-alpha3 country codes to Wirsenius (2000) regions.
+#
+# Source: Wirsenius, S. (2000). Human Use of Land and Organic Materials:
+# Modeling the Turnover of Biomass in the Global Food System.
+# Chalmers University of Technology and Göteborg University, Sweden.
+# Table 2.1, ISBN 91-7197-886-0.
+#
+# Note: Wirsenius regional definitions differ from UN M49 regions in some cases:
+# - Greece classified as East Europe (not Southern Europe)
+# - Balkans (Albania, Croatia, Slovenia, etc.) classified as East Europe
+# - Iran classified as South & Central Asia (not Western Asia)
+# - Southeast Asian countries classified as East Asia
+#
+country,wirsenius_region
+# Northern Africa -> North Africa & West Asia
+DZA,North Africa & West Asia
+EGY,North Africa & West Asia
+LBY,North Africa & West Asia
+MAR,North Africa & West Asia
+SDN,North Africa & West Asia
+TUN,North Africa & West Asia
+ESH,North Africa & West Asia
+# Sub-Saharan Africa -> Sub-Saharan Africa
+IOT,Sub-Saharan Africa
+BDI,Sub-Saharan Africa
+COM,Sub-Saharan Africa
+DJI,Sub-Saharan Africa
+ERI,Sub-Saharan Africa
+ETH,Sub-Saharan Africa
+ATF,Sub-Saharan Africa
+KEN,Sub-Saharan Africa
+MDG,Sub-Saharan Africa
+MWI,Sub-Saharan Africa
+MUS,Sub-Saharan Africa
+MYT,Sub-Saharan Africa
+MOZ,Sub-Saharan Africa
+REU,Sub-Saharan Africa
+RWA,Sub-Saharan Africa
+SYC,Sub-Saharan Africa
+SOM,Sub-Saharan Africa
+SSD,Sub-Saharan Africa
+UGA,Sub-Saharan Africa
+TZA,Sub-Saharan Africa
+ZMB,Sub-Saharan Africa
+ZWE,Sub-Saharan Africa
+AGO,Sub-Saharan Africa
+CMR,Sub-Saharan Africa
+CAF,Sub-Saharan Africa
+TCD,Sub-Saharan Africa
+COG,Sub-Saharan Africa
+COD,Sub-Saharan Africa
+GNQ,Sub-Saharan Africa
+GAB,Sub-Saharan Africa
+STP,Sub-Saharan Africa
+BWA,Sub-Saharan Africa
+SWZ,Sub-Saharan Africa
+LSO,Sub-Saharan Africa
+NAM,Sub-Saharan Africa
+ZAF,Sub-Saharan Africa
+BEN,Sub-Saharan Africa
+BFA,Sub-Saharan Africa
+CPV,Sub-Saharan Africa
+CIV,Sub-Saharan Africa
+GMB,Sub-Saharan Africa
+GHA,Sub-Saharan Africa
+GIN,Sub-Saharan Africa
+GNB,Sub-Saharan Africa
+LBR,Sub-Saharan Africa
+MLI,Sub-Saharan Africa
+MRT,Sub-Saharan Africa
+NER,Sub-Saharan Africa
+NGA,Sub-Saharan Africa
+SHN,Sub-Saharan Africa
+SEN,Sub-Saharan Africa
+SLE,Sub-Saharan Africa
+TGO,Sub-Saharan Africa
+# Latin America and the Caribbean -> Latin America & Caribbean
+AIA,Latin America & Caribbean
+ATG,Latin America & Caribbean
+ABW,Latin America & Caribbean
+BHS,Latin America & Caribbean
+BRB,Latin America & Caribbean
+BES,Latin America & Caribbean
+VGB,Latin America & Caribbean
+CYM,Latin America & Caribbean
+CUB,Latin America & Caribbean
+CUW,Latin America & Caribbean
+DMA,Latin America & Caribbean
+DOM,Latin America & Caribbean
+GRD,Latin America & Caribbean
+GLP,Latin America & Caribbean
+HTI,Latin America & Caribbean
+JAM,Latin America & Caribbean
+MTQ,Latin America & Caribbean
+MSR,Latin America & Caribbean
+PRI,Latin America & Caribbean
+BLM,Latin America & Caribbean
+KNA,Latin America & Caribbean
+LCA,Latin America & Caribbean
+MAF,Latin America & Caribbean
+VCT,Latin America & Caribbean
+SXM,Latin America & Caribbean
+TTO,Latin America & Caribbean
+TCA,Latin America & Caribbean
+VIR,Latin America & Caribbean
+BLZ,Latin America & Caribbean
+CRI,Latin America & Caribbean
+SLV,Latin America & Caribbean
+GTM,Latin America & Caribbean
+HND,Latin America & Caribbean
+MEX,Latin America & Caribbean
+NIC,Latin America & Caribbean
+PAN,Latin America & Caribbean
+ARG,Latin America & Caribbean
+BOL,Latin America & Caribbean
+BVT,Latin America & Caribbean
+BRA,Latin America & Caribbean
+CHL,Latin America & Caribbean
+COL,Latin America & Caribbean
+ECU,Latin America & Caribbean
+FLK,Latin America & Caribbean
+GUF,Latin America & Caribbean
+GUY,Latin America & Caribbean
+PRY,Latin America & Caribbean
+PER,Latin America & Caribbean
+SGS,Latin America & Caribbean
+SUR,Latin America & Caribbean
+URY,Latin America & Caribbean
+VEN,Latin America & Caribbean
+# Northern America -> North America & Oceania
+BMU,North America & Oceania
+CAN,North America & Oceania
+GRL,North America & Oceania
+SPM,North America & Oceania
+USA,North America & Oceania
+# Antarctica -> North America & Oceania (no better fit)
+ATA,North America & Oceania
+# Central Asia -> South & Central Asia
+KAZ,South & Central Asia
+KGZ,South & Central Asia
+TJK,South & Central Asia
+TKM,South & Central Asia
+UZB,South & Central Asia
+# Eastern Asia -> East Asia
+CHN,East Asia
+HKG,East Asia
+MAC,East Asia
+TWN,East Asia
+PRK,East Asia
+JPN,East Asia
+MNG,East Asia
+KOR,East Asia
+# South-eastern Asia -> East Asia (per Wirsenius)
+BRN,East Asia
+KHM,East Asia
+IDN,East Asia
+LAO,East Asia
+MYS,East Asia
+MMR,East Asia
+PHL,East Asia
+SGP,East Asia
+THA,East Asia
+TLS,East Asia
+VNM,East Asia
+# Southern Asia -> South & Central Asia
+AFG,South & Central Asia
+BGD,South & Central Asia
+BTN,South & Central Asia
+IND,South & Central Asia
+IRN,South & Central Asia
+MDV,South & Central Asia
+NPL,South & Central Asia
+PAK,South & Central Asia
+LKA,South & Central Asia
+# Western Asia -> North Africa & West Asia (except Iran which is S&C Asia)
+ARM,North Africa & West Asia
+AZE,North Africa & West Asia
+BHR,North Africa & West Asia
+CYP,North Africa & West Asia
+GEO,North Africa & West Asia
+IRQ,North Africa & West Asia
+ISR,North Africa & West Asia
+JOR,North Africa & West Asia
+KWT,North Africa & West Asia
+LBN,North Africa & West Asia
+OMN,North Africa & West Asia
+QAT,North Africa & West Asia
+SAU,North Africa & West Asia
+PSE,North Africa & West Asia
+SYR,North Africa & West Asia
+TUR,North Africa & West Asia
+ARE,North Africa & West Asia
+YEM,North Africa & West Asia
+# Eastern Europe -> East Europe
+BLR,East Europe
+BGR,East Europe
+CZE,East Europe
+HUN,East Europe
+POL,East Europe
+MDA,East Europe
+ROU,East Europe
+RUS,East Europe
+SVK,East Europe
+UKR,East Europe
+# Northern Europe -> West Europe (except Baltic states -> East Europe)
+ALA,West Europe
+DNK,West Europe
+EST,East Europe
+FRO,West Europe
+FIN,West Europe
+GGY,West Europe
+ISL,West Europe
+IRL,West Europe
+IMN,West Europe
+JEY,West Europe
+LVA,East Europe
+LTU,East Europe
+NOR,West Europe
+SJM,West Europe
+SWE,West Europe
+GBR,West Europe
+# Southern Europe -> mostly East Europe (Balkans) or West Europe
+ALB,East Europe
+AND,West Europe
+BIH,East Europe
+HRV,East Europe
+GIB,West Europe
+GRC,East Europe
+VAT,West Europe
+ITA,West Europe
+MLT,West Europe
+MNE,East Europe
+MKD,East Europe
+PRT,West Europe
+SMR,West Europe
+SRB,East Europe
+SVN,East Europe
+ESP,West Europe
+# Western Europe -> West Europe
+AUT,West Europe
+BEL,West Europe
+FRA,West Europe
+DEU,West Europe
+LIE,West Europe
+LUX,West Europe
+MCO,West Europe
+NLD,West Europe
+CHE,West Europe
+# Oceania -> North America & Oceania
+AUS,North America & Oceania
+CXR,North America & Oceania
+CCK,North America & Oceania
+HMD,North America & Oceania
+NZL,North America & Oceania
+NFK,North America & Oceania
+FJI,North America & Oceania
+NCL,North America & Oceania
+PNG,North America & Oceania
+SLB,North America & Oceania
+VUT,North America & Oceania
+GUM,North America & Oceania
+KIR,North America & Oceania
+MHL,North America & Oceania
+FSM,North America & Oceania
+NRU,North America & Oceania
+MNP,North America & Oceania
+PLW,North America & Oceania
+UMI,North America & Oceania
+ASM,North America & Oceania
+COK,North America & Oceania
+PYF,North America & Oceania
+NIU,North America & Oceania
+PCN,North America & Oceania
+WSM,North America & Oceania
+TKL,North America & Oceania
+TON,North America & Oceania
+TUV,North America & Oceania
+WLF,North America & Oceania

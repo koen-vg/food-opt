@@ -192,13 +192,15 @@ animal_products:
   - eggs
   - dairy-buffalo
   - meat-sheep
-  # Regional feed conversion efficiencies from Wirsenius (2000)
-  # If wirsenius_regions is specified, average over those regions
-  # If null or empty, use global average across all regions
+  # Feed conversion efficiency mode (how much feed is required per unit product)
+  # Source: Wirsenius (2000) regional feed energy requirements
+  # Options:
+  #   - List of regions: average efficiencies across those regions (all countries use same values)
+  #   - null: use country-specific regional efficiencies based on geographic mapping
   # Available regions: East Asia, East Europe, Latin America & Caribbean,
   #   North Africa & West Asia, North America & Oceania, South & Central Asia,
   #   Sub-Saharan Africa, West Europe
-  wirsenius_regions:
+  feed_efficiency_regions:
   - North America & Oceania
   - West Europe
   # Ruminant net-to-metabolizable energy conversion efficiency factors

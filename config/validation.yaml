@@ -14,6 +14,10 @@ validation:
   slack_marginal_cost: 10
   harvest_area_source: "gaez" # "cropgrids"
 
+animal_products:
+  # Use regionalized feed efficiency values
+  feed_efficiency_regions: null
+
 land:
   regional_limit: 1.
 
