@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC0-1.0
+#
+# IPCC N2O emission factors for manure management systems.
+#
+# Sources:
+# - Storage EFs: IPCC 2019 Refinement, Vol 4, Chapter 10, Table 10.21
+# - Pasture deposition EFs: IPCC 2019 Refinement, Vol 4, Chapter 11, Table 11.1 (EF3PRP)
+# - Application EF (EF1): IPCC 2019 Refinement, Vol 4, Chapter 11, Table 11.1
+#
+# Notes:
+# - storage_ef: kg N2O-N per kg N in MMS (direct emissions during storage)
+# - is_pasture: if true, uses EF3PRP instead of storage+application pathway
+# - ef3prp_cattle: EF for cattle/buffalo pasture deposition (0.02)
+# - ef3prp_other: EF for sheep/goats/pigs/poultry pasture deposition (0.01)
+# - For non-pasture systems, application emissions (EF1=0.006) are added separately
+#
+mms_type,storage_ef,is_pasture,ef3prp_cattle,ef3prp_other,notes
+aerobic lagoon,0.0,false,,,Anaerobic lagoon (IPCC Table 10.21)
+aerobic processing,0.005,false,,,Aerobic treatment (IPCC Table 10.21)
+biogas,0.0006,false,,,Anaerobic digester (IPCC Table 10.21)
+burned,0.0,false,,,Burned for fuel - no storage emissions
+compost,0.01,false,,,Composting static pile default (IPCC Table 10.21)
+confinement,0.005,false,,,Assumed solid storage conditions (IPCC Table 10.21)
+daily spread,0.0,false,,,Daily spread - immediate application (IPCC Table 10.21)
+deep litter 1,0.01,false,,,Deep litter cattle/swine (IPCC Table 10.21); poultry uses 0.001
+drylot,0.02,false,,,Dry lot (IPCC Table 10.21)
+lagoon,0.0,false,,,Uncovered anaerobic lagoon (IPCC Table 10.21)
+liquid,0.0,false,,,Liquid/slurry without crust (IPCC Table 10.21)
+liquid crust,0.005,false,,,Liquid/slurry with natural crust (IPCC Table 10.21)
+liquid other,0.0,false,,,Liquid/slurry without crust (IPCC Table 10.21)
+litter,0.001,false,,,Poultry with litter (IPCC Table 10.21)
+manure without litter,0.001,false,,,Poultry without litter (IPCC Table 10.21)
+pasture & paddock,0.0,true,0.02,0.01,Pasture deposition uses EF3PRP (IPCC Table 11.1)
+pit 1 (<2 months),0.002,false,,,Pit storage <1 month (IPCC Table 10.21)
+pit 2 (>2months),0.002,false,,,Pit storage >1 month (IPCC Table 10.21)
+solid,0.005,false,,,Solid storage (IPCC Table 10.21)
+thermal drying,0.0,false,,,Thermal drying - assumed negligible emissions

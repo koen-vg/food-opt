@@ -1,6 +1,7 @@
 # Source: FAO: "Pathways towards lower emissions", 2023, https://doi.org/10.4060/cc9029en
 gas,source,emissions_mtco2eq
-CH4,Enteric fermentation & Manure management,3400
-N2O,Manure: pasture deposition,600
+CH4,Enteric fermentation,2900
+CH4,Manure: managed systems,500
+N2O,Feed,600
 N2O,Manure: managed systems,300
 CO2,Land Use Change,600

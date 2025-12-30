@@ -513,12 +513,18 @@ Applied manure nitrogen produces both direct and indirect N₂O emissions follow
 
 where:
   * **N**\ :sub:`applied` is manure N applied to soil (F\ :sub:`ON`) or deposited on pasture (F\ :sub:`PRP`)
-  * **EF**\ :sub:`1` = 0.010 kg N₂O-N per kg N (direct emission factor, IPCC Table 11.1)
+  * **EF**\ :sub:`pasture` = EF\ :sub:`3PRP` from IPCC Table 11.1 (0.02 for cattle/buffalo, 0.01 for others)
+  * **EF**\ :sub:`managed` = weighted storage EF (Table 10.21) + recovery × application EF (0.006)
   * **Frac**\ :sub:`GASM` = 0.21 kg NH₃-N + NOₓ-N per kg N (volatilization fraction for organic N, IPCC Table 11.3)
   * **EF**\ :sub:`4` = 0.010 kg N₂O-N per kg volatilized N (indirect volatilization/deposition factor, IPCC Table 11.3)
   * **Frac**\ :sub:`LEACH` = 0.24 kg N per kg N (leaching fraction in wet climates, IPCC Table 11.3)
   * **EF**\ :sub:`5` = 0.011 kg N₂O-N per kg leached N (indirect leaching/runoff factor, IPCC Table 11.3)
   * **44/28** converts N₂O-N to N₂O (molecular weight ratio)
+
+The direct emission factors are calculated from Manure Management System (MMS) distributions
+from GLEAM, combined with IPCC emission factors for each MMS type. This accounts for the
+different N₂O characteristics of different management systems (pasture deposition, solid storage,
+liquid systems, deep litter, etc.).
 
 Configuration
 """""""""""""
@@ -532,7 +538,7 @@ Manure nitrogen management is configured under ``fertilizer`` and ``emissions.fe
 
    emissions:
      fertilizer:
-       manure_n2o_factor: 0.010      # kg N₂O-N per kg manure N (direct, EF1)
+       # Note: Direct N2O factors are computed from MMS distributions (see calculate_manure_emissions.py)
        indirect_ef4: 0.010           # kg N₂O-N per kg volatilized N
        indirect_ef5: 0.011           # kg N₂O-N per kg leached N
        frac_gasm: 0.21               # Fraction of organic N volatilized
@@ -541,28 +547,35 @@ Manure nitrogen management is configured under ``fertilizer`` and ``emissions.fe
 Implementation
 """"""""""""""
 
-Manure nitrogen is implemented in ``workflow/scripts/build_model/utils.py`` within the ``_calculate_manure_n_outputs()`` function:
+Manure N₂O emission factors are preprocessed in ``workflow/scripts/calculate_manure_emissions.py``:
 
-1. For each animal production link, calculate:
+1. For each (product, feed_category) combination, calculate MMS-weighted emission factors:
 
-   * N excretion from feed N content (GLEAM) minus product N content (protein ÷ 6.25)
-   * Manure N available as fertilizer:
+   * Load MMS distributions from GLEAM (``data/gleam_tables/manure_management_systems_fraction.csv``)
+   * Map feed categories to Livestock Production Systems (LPS):
 
-     - For ``ruminant_grassland``: 0 (manure deposited on pasture, F\ :sub:`PRP`)
-     - For other feed categories: N excretion × recovery fraction (F\ :sub:`ON`)
+     - ``ruminant_grassland`` → Grassland LPS (high pasture fraction)
+     - Other ruminant categories → Mixed LPS (moderate pasture fraction)
+     - Monogastrics → Industrial/Intermediate LPS (low pasture fraction)
 
-   * Total N₂O emissions (direct + indirect):
+   * Calculate weighted N₂O factors from ``data/ipcc_manure_n2o_emission_factors.csv``:
 
-     - Direct: N\ :sub:`applied` × EF\ :sub:`1` × 44/28
-     - Indirect volatilization: N\ :sub:`applied` × Frac\ :sub:`GASM` × EF\ :sub:`4` × 44/28
-     - Indirect leaching: N\ :sub:`applied` × Frac\ :sub:`LEACH` × EF\ :sub:`5` × 44/28
+     - **pasture_fraction**: Share of manure deposited on pasture
+     - **pasture_n2o_ef**: EF\ :sub:`3PRP` (0.02 for cattle, 0.01 for others)
+     - **managed_n2o_ef**: Storage EF + (recovery × application EF)
 
-   where N\ :sub:`applied` is:
+2. In ``workflow/scripts/build_model/utils.py``, the ``_calculate_manure_n_outputs()`` function:
 
-     - For ``ruminant_grassland``: All excreted N (pasture deposition)
-     - For other feed categories: Collected manure N (after recovery losses)
+   * Calculates N excretion from feed N content (GLEAM) minus product N content (protein ÷ 6.25)
+   * Splits excreted N between pasture and managed fractions using MMS-based ``pasture_fraction``
+   * Applies appropriate emission factors to each fraction:
 
-2. Attach outputs to the link:
+     - Pasture: N × pasture_n2o_ef + indirect emissions
+     - Managed: N × managed_n2o_ef + indirect emissions
+
+   * Computes ``pasture_n2o_share`` for plotting breakdown
+
+3. Attach outputs to the link:
 
    * ``bus3``: ``fertilizer_{country}`` (manure N contributing to fertilizer pool)
    * ``bus4``: ``n2o`` (total N₂O emissions including direct and indirect)

@@ -57,7 +57,6 @@ emissions:
     rainfed_wetland_rice_ch4_scaling_factor: 0.54 # IPCC 2019 Refinement, Vol 4, Chapter 5, Table 5.12. Scaling factor for "Regular rainfed" water regime.
   fertilizer:
     synthetic_n2o_factor: 0.010 # kg N2O-N per kg N input (IPCC 2019 Refinement, Table 11.1 aggregated default)
-    manure_n2o_factor: 0.010 # kg N2O-N per kg manure N applied (IPCC 2019 Refinement, Table 11.1 aggregated default)
     # Indirect N2O emission parameters (IPCC 2019 Refinement, Chapter 11.2.2, Table 11.3)
     indirect_ef4: 0.010 # kg N2O-N per kg (NH3-N + NOx-N) volatilized and deposited (EF4)
     indirect_ef5: 0.011 # kg N2O-N per kg N leached/runoff (EF5)

@@ -159,8 +159,8 @@ if __name__ == "__main__":
     # Read feed requirements for animal products (feed pools -> foods)
     feed_to_products = read_csv(snakemake.input.feed_to_products)
 
-    # Read manure CH4 emission factors
-    manure_ch4_emissions = read_csv(snakemake.input.manure_ch4_emissions)
+    # Read manure emission factors (CH4 and N2O)
+    manure_emissions = read_csv(snakemake.input.manure_emissions)
 
     # Read food loss & waste fractions per country and food group
     food_loss_waste = read_csv(snakemake.input.food_loss_waste)
@@ -622,7 +622,7 @@ if __name__ == "__main__":
         feed_to_products,
         ruminant_feed_categories,
         monogastric_feed_categories,
-        manure_ch4_emissions,
+        manure_emissions,
         nutrition_data,
         snakemake.params.fertilizer,
         snakemake.params.emissions,

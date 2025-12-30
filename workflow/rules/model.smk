@@ -66,7 +66,7 @@ rule build_model:
         monogastric_feed_categories="processing/{name}/monogastric_feed_categories.csv",
         monogastric_feed_mapping="processing/{name}/monogastric_feed_mapping.csv",
         feed_to_products="processing/{name}/feed_to_animal_products.csv",
-        manure_ch4_emissions="processing/{name}/manure_ch4_emission_factors.csv",
+        manure_emissions="processing/{name}/manure_emission_factors.csv",
         food_groups="data/food_groups.csv",
         nutrition="data/nutrition.csv",
         regions="processing/{name}/regions.geojson",

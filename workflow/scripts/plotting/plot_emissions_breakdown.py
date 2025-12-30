@@ -166,40 +166,54 @@ def extract_emissions_by_source(
             carrier,
         )
 
-    # --- Split manure N2O into pasture vs collected application ---------------
-    # The energy balance groups all manure-related N2O under the carrier of the
-    # feed→animal links (categorised as "Manure management & application"). To
-    # compare directly with FAOSTAT, we split pasture-deposited manure (animals
-    # fed from ruminant_grassland) from collected manure that is applied as
-    # fertilizer. We compute the pasture share directly from the link flows so
-    # that scaling stays consistent with the GWP applied above.
+    # --- Split manure N2O into pasture vs managed using link-level shares ------
+    # Each animal production link has a pasture_n2o_share attribute that gives
+    # the fraction of its N2O coming from pasture deposition vs managed systems.
+    # This is based on MMS (Manure Management System) distributions from GLEAM.
     if "Manure management & application" in emissions.get("N2O", {}):
-        try:
-            links_df = n.links.static
-            grass_mask = links_df.index.str.contains("ruminant_grassland") & (
-                links_df.carrier.str.startswith("produce_")
-            )
+        links_df = n.links.static
+        produce_mask = links_df.carrier.str.startswith("produce_")
+        pasture_share = (
+            links_df.loc[produce_mask, "pasture_n2o_share"].fillna(0.0).astype(float)
+        )
 
-            if grass_mask.any():
-                p4 = n.links_t.p4.loc[:, grass_mask]
-                weights = n.snapshot_weightings["objective"]
-                grass_t_n2o = -(p4.multiply(weights, axis=0).sum().sum())
-                grass_mtco2eq = grass_t_n2o * n2o_gwp * 1e-6
+        p4 = n.links_t.p4.loc[:, produce_mask]
+        weights = n.snapshot_weightings["objective"]
+        pasture_t_n2o = -(
+            p4.multiply(pasture_share, axis=1).multiply(weights, axis=0).sum().sum()
+        )
+        pasture_mtco2eq = pasture_t_n2o * n2o_gwp * 1e-6
 
-                total_manure = emissions["N2O"].get(
-                    "Manure management & application", 0.0
-                )
-                collected_mtco2eq = max(total_manure - grass_mtco2eq, 0.0)
+        total_mtco2eq = emissions["N2O"].get("Manure management & application", 0.0)
+        managed_mtco2eq = max(total_mtco2eq - pasture_mtco2eq, 0.0)
 
-                emissions["N2O"].pop("Manure management & application", None)
-                emissions["N2O"]["Manure: pasture deposition"] = grass_mtco2eq
-                emissions["N2O"]["Manure: managed systems"] = collected_mtco2eq
-            else:
-                logger.info(
-                    "No grassland manure links found; keeping aggregate manure category"
-                )
-        except Exception as e:
-            logger.warning("Failed to split grassland manure N2O: %s", e)
+        emissions["N2O"].pop("Manure management & application", None)
+        emissions["N2O"]["Manure: pasture deposition"] = pasture_mtco2eq
+        emissions["N2O"]["Manure: managed systems"] = managed_mtco2eq
+
+    # --- Split CH4 into enteric vs manure using link-level shares -------------
+    if "Enteric fermentation & Manure management" in emissions.get("CH4", {}):
+        links_df = n.links.static
+        produce_mask = links_df.carrier.str.startswith("produce_")
+        manure_share = (
+            links_df.loc[produce_mask, "manure_ch4_share"].fillna(0.0).astype(float)
+        )
+
+        p2 = n.links_t.p2.loc[:, produce_mask]
+        weights = n.snapshot_weightings["objective"]
+        manure_t_ch4 = -(
+            p2.multiply(manure_share, axis=1).multiply(weights, axis=0).sum().sum()
+        )
+        manure_mtco2eq = manure_t_ch4 * ch4_gwp * 1e-6
+
+        total_mtco2eq = emissions["CH4"].get(
+            "Enteric fermentation & Manure management", 0.0
+        )
+        enteric_mtco2eq = max(total_mtco2eq - manure_mtco2eq, 0.0)
+
+        emissions["CH4"].pop("Enteric fermentation & Manure management", None)
+        emissions["CH4"]["Enteric fermentation"] = enteric_mtco2eq
+        emissions["CH4"]["Manure: managed systems"] = manure_mtco2eq
 
     return emissions
 
@@ -241,7 +255,7 @@ def process_faostat_emissions(
         "Drained organic soils": "Drained organic soils",
         "Drained organic soils (CO2)": "Drained organic soils",  # Handle variants
         "Drained organic soils (N2O)": "Drained organic soils",
-        "Enteric Fermentation": "Enteric fermentation & Manure management",
+        "Enteric Fermentation": "Enteric fermentation",
         "Manure Management": "Manure: managed systems",
         "Manure applied to Soils": "Manure: managed systems",
         "Manure left on Pasture": "Manure: pasture deposition",

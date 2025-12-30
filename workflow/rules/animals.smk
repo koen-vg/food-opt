@@ -69,8 +69,9 @@ rule calculate_manure_emissions:
         b0_data="data/ipcc_manure_methane_producing_capacity.csv",
         mcf_data="data/ipcc_manure_methane_conversion_factors.csv",
         mms_fractions="data/gleam_tables/manure_management_systems_fraction.csv",
+        n2o_efs="data/ipcc_manure_n2o_emission_factors.csv",
     output:
-        "processing/{name}/manure_ch4_emission_factors.csv",
+        "processing/{name}/manure_emission_factors.csv",
     log:
         "logs/{name}/calculate_manure_emissions.log",
     script:

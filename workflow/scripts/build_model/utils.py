@@ -239,14 +239,17 @@ def _calculate_manure_n_outputs(
     ruminant_categories: pd.DataFrame,
     monogastric_categories: pd.DataFrame,
     nutrition: pd.DataFrame,
+    manure_emissions: pd.DataFrame,
     manure_n_to_fertilizer: float,
-    manure_n2o_factor: float,
     indirect_ef4: float,
     indirect_ef5: float,
     frac_gasm: float,
     frac_leach: float,
 ) -> tuple[float, float]:
     """Calculate manure N fertilizer and N₂O outputs per tonne feed intake.
+
+    Uses MMS-weighted N2O emission factors that account for the distribution of
+    manure across different management systems (pasture, storage, etc.).
 
     Includes direct and indirect (volatilization and leaching) N₂O emissions
     following IPCC 2019 Refinement methodology (Chapter 11, Equations 11.1, 11.9, 11.10).
@@ -265,10 +268,14 @@ def _calculate_manure_n_outputs(
         Monogastric feed categories with N_g_per_kg_DM
     nutrition : pd.DataFrame
         Nutrition data indexed by (food, nutrient)
+    manure_emissions : pd.DataFrame
+        MMS-weighted emission factors with columns:
+        - product, feed_category: identifiers
+        - pasture_fraction: fraction of manure deposited on pasture
+        - pasture_n2o_ef: EF3PRP (kg N2O-N per kg N) for pasture deposition
+        - managed_n2o_ef: combined storage + application EF for managed manure
     manure_n_to_fertilizer : float
-        Fraction of excreted N available as fertilizer
-    manure_n2o_factor : float
-        kg N2O-N per kg manure N applied (direct emissions, EF1)
+        Fraction of managed N available as fertilizer after losses
     indirect_ef4 : float
         kg N2O-N per kg (NH3-N + NOx-N) volatilized (indirect volatilization/deposition)
     indirect_ef5 : float
@@ -280,8 +287,10 @@ def _calculate_manure_n_outputs(
 
     Returns
     -------
-    tuple[float, float]
-        (N fertilizer t/t feed, total N2O emissions t/t feed including direct and indirect)
+    tuple[float, float, float]
+        (N fertilizer t/t feed, total N2O emissions t/t feed, pasture N2O share)
+        The pasture N2O share is the fraction of total N2O from pasture deposition
+        (vs managed systems), useful for plotting breakdowns.
     """
     # Get feed N content (g N/kg DM)
     category_name = feed_category.split("_", 1)[
@@ -316,49 +325,74 @@ def _calculate_manure_n_outputs(
     # N excreted = N in feed - N in product
     n_excreted_t_per_t_feed = feed_n_t_per_t_feed - product_n_t_per_t_feed
 
-    # Special handling for grassland: manure deposited on pasture, not collected
-    if feed_category.endswith("_grassland"):
-        # No N available as fertilizer (deposited on pasture)
-        n_fertilizer_t_per_t_feed = 0.0
-
-        # N2O from pasture deposition (F_PRP in IPCC terminology)
-        # All excreted N is subject to emissions
-        n_applied = n_excreted_t_per_t_feed
-
-        # Direct N2O (Equation 11.1)
-        n2o_direct_n = n_applied * manure_n2o_factor
-
-        # Indirect N2O from volatilization (Equation 11.9)
-        n2o_indirect_vol_n = n_applied * frac_gasm * indirect_ef4
-
-        # Indirect N2O from leaching (Equation 11.10)
-        n2o_indirect_leach_n = n_applied * frac_leach * indirect_ef5
-
-        # Total N2O-N and convert to N2O
-        n2o_n_t_per_t_feed = n2o_direct_n + n2o_indirect_vol_n + n2o_indirect_leach_n
-        n2o_t_per_t_feed = n2o_n_t_per_t_feed * (44.0 / 28.0)
+    # Look up MMS-based N2O factors for this product and feed category
+    mask = (manure_emissions["product"] == product) & (
+        manure_emissions["feed_category"] == feed_category
+    )
+    if mask.sum() == 0:
+        # Fallback: try without feed_category (for products with single category)
+        mask = manure_emissions["product"] == product
+        if mask.sum() == 0:
+            logger.warning(
+                f"No manure emission data for {product}/{feed_category}, using defaults"
+            )
+            pasture_fraction = 1.0 if feed_category.endswith("_grassland") else 0.0
+            pasture_n2o_ef = 0.02 if "cattle" in product or "dairy" in product else 0.01
+            managed_n2o_ef = 0.0095  # storage (0.005) + application (0.75 * 0.006)
+        else:
+            row = manure_emissions[mask].iloc[0]
+            pasture_fraction = row["pasture_fraction"]
+            pasture_n2o_ef = row["pasture_n2o_ef"]
+            managed_n2o_ef = row["managed_n2o_ef"]
     else:
-        # N available as fertilizer (after collection losses)
-        n_fertilizer_t_per_t_feed = n_excreted_t_per_t_feed * manure_n_to_fertilizer
+        row = manure_emissions[mask].iloc[0]
+        pasture_fraction = row["pasture_fraction"]
+        pasture_n2o_ef = row["pasture_n2o_ef"]
+        managed_n2o_ef = row["managed_n2o_ef"]
 
-        # N2O from applied organic fertilizer (F_ON in IPCC terminology)
-        # Only the collected/applied N is subject to emissions
-        n_applied = n_fertilizer_t_per_t_feed
+    # Split N between pasture and managed fractions
+    n_pasture = n_excreted_t_per_t_feed * pasture_fraction
+    n_managed = n_excreted_t_per_t_feed * (1 - pasture_fraction)
 
-        # Direct N2O (Equation 11.1)
-        n2o_direct_n = n_applied * manure_n2o_factor
+    # N available as fertilizer (only from managed fraction, after losses)
+    n_fertilizer_t_per_t_feed = n_managed * manure_n_to_fertilizer
 
-        # Indirect N2O from volatilization (Equation 11.9)
-        n2o_indirect_vol_n = n_applied * frac_gasm * indirect_ef4
+    # === Pasture N2O emissions (F_PRP in IPCC terminology) ===
+    # Direct N2O (EF3PRP)
+    n2o_pasture_direct_n = n_pasture * pasture_n2o_ef
 
-        # Indirect N2O from leaching (Equation 11.10)
-        n2o_indirect_leach_n = n_applied * frac_leach * indirect_ef5
+    # Indirect N2O from volatilization (Equation 11.9)
+    n2o_pasture_vol_n = n_pasture * frac_gasm * indirect_ef4
 
-        # Total N2O-N and convert to N2O
-        n2o_n_t_per_t_feed = n2o_direct_n + n2o_indirect_vol_n + n2o_indirect_leach_n
-        n2o_t_per_t_feed = n2o_n_t_per_t_feed * (44.0 / 28.0)
+    # Indirect N2O from leaching (Equation 11.10)
+    n2o_pasture_leach_n = n_pasture * frac_leach * indirect_ef5
 
-    return n_fertilizer_t_per_t_feed, n2o_t_per_t_feed
+    # === Managed N2O emissions (storage + application) ===
+    # Direct N2O (storage + application EF)
+    # Note: managed_n2o_ef already includes storage EF + (recovery * application EF)
+    n2o_managed_direct_n = n_managed * managed_n2o_ef
+
+    # Indirect N2O (applies to the applied portion)
+    n_applied = n_fertilizer_t_per_t_feed
+    n2o_managed_vol_n = n_applied * frac_gasm * indirect_ef4
+    n2o_managed_leach_n = n_applied * frac_leach * indirect_ef5
+
+    # Total pasture N2O-N
+    n2o_pasture_n = n2o_pasture_direct_n + n2o_pasture_vol_n + n2o_pasture_leach_n
+
+    # Total N2O-N and convert to N2O
+    n2o_n_t_per_t_feed = (
+        n2o_pasture_n + n2o_managed_direct_n + n2o_managed_vol_n + n2o_managed_leach_n
+    )
+    n2o_t_per_t_feed = n2o_n_t_per_t_feed * (44.0 / 28.0)
+
+    # Calculate pasture share of N2O for plotting breakdown
+    if n2o_n_t_per_t_feed > 0:
+        pasture_n2o_share = n2o_pasture_n / n2o_n_t_per_t_feed
+    else:
+        pasture_n2o_share = 0.0
+
+    return n_fertilizer_t_per_t_feed, n2o_t_per_t_feed, pasture_n2o_share
 
 
 def _calculate_ch4_per_feed_intake(
@@ -367,8 +401,8 @@ def _calculate_ch4_per_feed_intake(
     country: str,
     enteric_my_lookup: dict[str, float],
     manure_emissions: pd.DataFrame,
-) -> float:
-    """Calculate total CH4 emissions (tCH4/t feed DM) from enteric + manure sources.
+) -> tuple[float, float]:
+    """Calculate CH4 emissions (tCH4/t feed DM) split into total and manure.
 
     Note: This is calculated per tonne of feed intake (bus0), not per product output.
 
@@ -388,11 +422,12 @@ def _calculate_ch4_per_feed_intake(
 
     Returns
     -------
-    float
-        Total CH4 emissions in tCH4/t feed DM (enteric + manure)
+    tuple[float, float]
+        (total CH4, manure CH4) in tCH4/t feed DM
     """
     # Initialize total CH4 per tonne feed
     total_ch4_per_t_feed = 0.0
+    manure_ch4_per_t_feed = 0.0
 
     # Add enteric fermentation CH4 (ruminants only)
     if feed_category.startswith("ruminant_"):
@@ -414,9 +449,9 @@ def _calculate_ch4_per_feed_intake(
         ]
 
         if not manure_row.empty:
-            # Convert from kg CH4/kg DM to t CH4/t DM
-            manure_kg_per_kg = manure_row["manure_ch4_kg_per_kg_DMI"].values[0]
-            manure_t_per_t = manure_kg_per_kg / 1000.0
+            # manure_ch4_kg_per_kg_DMI is in kg CH4/kg DM = t CH4/t DM (ratio is invariant)
+            manure_t_per_t = manure_row["manure_ch4_kg_per_kg_DMI"].values[0]
             total_ch4_per_t_feed += manure_t_per_t
+            manure_ch4_per_t_feed += manure_t_per_t
 
-    return total_ch4_per_t_feed  # t CH4 / t feed DM
+    return total_ch4_per_t_feed, manure_ch4_per_t_feed

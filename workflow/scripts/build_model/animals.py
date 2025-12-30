@@ -32,6 +32,9 @@ def add_feed_slack_generators(
     - Generators provide positive slack (add feed when production is insufficient)
     - Stores absorb negative slack (consume feed when production exceeds requirements)
 
+    Note: Positive slack is only added for ruminant grassland feeds to prevent the model
+    from filling feed gaps with high-protein feeds (which would overestimate N2O emissions).
+
     Parameters
     ----------
     n : pypsa.Network
@@ -46,23 +49,31 @@ def add_feed_slack_generators(
         logger.info("No feed buses found; skipping feed slack")
         return
 
+    # Only add positive slack for ruminant grassland (to avoid inflating N2O via protein feed)
+    grassland_buses = [bus for bus in feed_buses if "ruminant_grassland" in bus]
+
     # Add carriers for slack
     n.carriers.add(
         ["slack_positive_feed", "slack_negative_feed"],
         unit="Mt",
     )
 
-    # Add positive slack generators (provide feed when insufficient)
-    gen_pos_names = [f"slack_positive_feed_{bus}" for bus in feed_buses]
-    n.generators.add(
-        gen_pos_names,
-        bus=feed_buses,
-        carrier="slack_positive_feed",
-        p_nom_extendable=True,
-        marginal_cost=marginal_cost,
-    )
+    # Add positive slack generators only for grassland (provide feed when insufficient)
+    if grassland_buses:
+        gen_pos_names = [f"slack_positive_feed_{bus}" for bus in grassland_buses]
+        n.generators.add(
+            gen_pos_names,
+            bus=grassland_buses,
+            carrier="slack_positive_feed",
+            p_nom_extendable=True,
+            marginal_cost=marginal_cost,
+        )
+        logger.info(
+            "Added %d positive feed slack generators (grassland only)",
+            len(gen_pos_names),
+        )
 
-    # Add negative slack stores (absorb excess feed)
+    # Add negative slack stores for all feed buses (absorb excess feed)
     gen_neg_names = [f"slack_negative_feed_{bus}" for bus in feed_buses]
     n.generators.add(
         gen_neg_names,
@@ -75,8 +86,8 @@ def add_feed_slack_generators(
     )
 
     logger.info(
-        "Added %d feed slack generators for validation feasibility",
-        2 * len(gen_pos_names),
+        "Added %d negative feed slack stores for validation feasibility",
+        len(gen_neg_names),
     )
 
 
@@ -118,6 +129,7 @@ def add_feed_to_animal_product_links(
     - bus2: CH4 emissions (enteric + manure)
     - bus3: Manure N available as fertilizer
     - bus4: N2O emissions from manure N application
+    - manure_ch4_share: Fraction of CH4 from manure management (for plotting)
 
     Parameters
     ----------
@@ -137,7 +149,7 @@ def add_feed_to_animal_product_links(
     nutrition : pd.DataFrame
         Nutrition data (indexed by food, nutrient) with protein content
     fertilizer_config : dict
-        Fertilizer configuration with manure_n_to_fertilizer and manure_n2o_factor
+        Fertilizer configuration with manure_n_to_fertilizer
     countries : list
         List of country codes
     food_to_group : dict[str, str]
@@ -185,7 +197,6 @@ def add_feed_to_animal_product_links(
 
     # Get config parameters
     manure_n_to_fert = fertilizer_config["manure_n_to_fertilizer"]
-    manure_n2o_factor = emissions_config["fertilizer"]["manure_n2o_factor"]
     indirect_ef4 = emissions_config["fertilizer"]["indirect_ef4"]
     indirect_ef5 = emissions_config["fertilizer"]["indirect_ef5"]
     frac_gasm = emissions_config["fertilizer"]["frac_gasm"]
@@ -204,6 +215,8 @@ def add_feed_to_animal_product_links(
     all_marginal_cost = []
     all_country = []
     all_product = []
+    all_manure_ch4_share = []
+    all_pasture_n2o_share = []
 
     skipped_count = 0
     for _, row in df.iterrows():
@@ -220,28 +233,34 @@ def add_feed_to_animal_product_links(
 
         # Calculate total CH4 (enteric + manure) per tonne feed intake
         # This is relative to bus0 (feed), so it can be used directly as efficiency2
-        ch4_per_t_feed = _calculate_ch4_per_feed_intake(
+        ch4_per_t_feed, manure_ch4_per_t_feed = _calculate_ch4_per_feed_intake(
             product=row["product"],
             feed_category=row["feed_category"],
             country=country,
             enteric_my_lookup=enteric_my_lookup,
             manure_emissions=manure_emissions,
         )
+        if ch4_per_t_feed > 0:
+            manure_ch4_share = manure_ch4_per_t_feed / ch4_per_t_feed
+        else:
+            manure_ch4_share = 0.0
 
         # Calculate manure N fertilizer and N2O outputs per tonne feed intake
-        n_fert_per_t_feed, n2o_per_t_feed = _calculate_manure_n_outputs(
-            product=row["product"],
-            feed_category=row["feed_category"],
-            efficiency=row["efficiency"],
-            ruminant_categories=ruminant_feed_categories,
-            monogastric_categories=monogastric_feed_categories,
-            nutrition=nutrition,
-            manure_n_to_fertilizer=manure_n_to_fert,
-            manure_n2o_factor=manure_n2o_factor,
-            indirect_ef4=indirect_ef4,
-            indirect_ef5=indirect_ef5,
-            frac_gasm=frac_gasm,
-            frac_leach=frac_leach,
+        n_fert_per_t_feed, n2o_per_t_feed, pasture_n2o_share = (
+            _calculate_manure_n_outputs(
+                product=row["product"],
+                feed_category=row["feed_category"],
+                efficiency=row["efficiency"],
+                ruminant_categories=ruminant_feed_categories,
+                monogastric_categories=monogastric_feed_categories,
+                nutrition=nutrition,
+                manure_emissions=manure_emissions,
+                manure_n_to_fertilizer=manure_n_to_fert,
+                indirect_ef4=indirect_ef4,
+                indirect_ef5=indirect_ef5,
+                frac_gasm=frac_gasm,
+                frac_leach=frac_leach,
+            )
         )
 
         # Calculate marginal cost (cost per Mt feed input)
@@ -282,6 +301,8 @@ def add_feed_to_animal_product_links(
         all_marginal_cost.append(marginal_cost)
         all_country.append(country)
         all_product.append(row["product"])
+        all_manure_ch4_share.append(manure_ch4_share)
+        all_pasture_n2o_share.append(pasture_n2o_share)
 
     # All animal production links now have multiple outputs:
     # bus1: animal product, bus2: CH4, bus3: manure N fertilizer (country-specific), bus4: N2O
@@ -301,6 +322,8 @@ def add_feed_to_animal_product_links(
         efficiency4=all_n2o,
         country=all_country,
         product=all_product,
+        manure_ch4_share=all_manure_ch4_share,
+        pasture_n2o_share=all_pasture_n2o_share,
     )
 
     logger.info(
