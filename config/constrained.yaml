@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+name: "constrained"
+scenario_defs: "config/constrained_scenarios.yaml"
+
+# Scenario presets loosen production stability bounds from "today" toward
+# unconstrained optimization.
