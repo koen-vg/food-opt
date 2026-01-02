@@ -58,6 +58,9 @@ def main() -> None:
     output_path = Path(snakemake.output[0])  # type: ignore[name-defined]
     production_year = int(snakemake.params.production_year)  # type: ignore[name-defined]
     countries = list(snakemake.params.countries)  # type: ignore[name-defined]
+    carcass_to_retail = dict(  # type: ignore[name-defined]
+        snakemake.params.carcass_to_retail_meat
+    )
 
     dataset = "QCL"  # Crops and livestock products
 
@@ -253,6 +256,30 @@ def main() -> None:
     # Convert tonnes to Mt for consistency with model units
     result["production_mt"] = result["production_tonnes"] * 1e-6
     result = result.drop(columns=["production_tonnes"])
+
+    # Convert carcass-weight meat production to retail-weight using config factors
+    meat_mask = result["product"].astype(str).str.startswith("meat-")
+    if meat_mask.any():
+        result["carcass_to_retail"] = (
+            result["product"].map(carcass_to_retail).astype(float)
+        )
+        missing = meat_mask & result["carcass_to_retail"].isna()
+        if missing.any():
+            missing_products = sorted(result.loc[missing, "product"].unique())
+            logger.warning(
+                "Missing carcass-to-retail factors for meat products: %s",
+                ", ".join(missing_products),
+            )
+            result.loc[missing, "carcass_to_retail"] = 1.0
+        result.loc[meat_mask, "production_mt"] = (
+            result.loc[meat_mask, "production_mt"]
+            * result.loc[meat_mask, "carcass_to_retail"]
+        )
+        logger.info(
+            "Applied carcass-to-retail conversion for %d meat rows",
+            int(meat_mask.sum()),
+        )
+        result = result.drop(columns=["carcass_to_retail"])
 
     # Log summary statistics
     logger.info("Retrieved country-level production data:")

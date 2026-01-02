@@ -235,6 +235,7 @@ rule retrieve_faostat_animal_production:
     params:
         production_year=config["validation"]["production_year"],
         countries=config["countries"],
+        carcass_to_retail_meat=config["animal_products"]["carcass_to_retail_meat"],
     output:
         "processing/{name}/faostat_animal_production.csv",
     log:
