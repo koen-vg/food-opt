@@ -14,9 +14,16 @@ validation:
   slack_marginal_cost: 10
   harvest_area_source: "gaez" # "cropgrids"
 
+water:
+  # Use current irrigation water withdrawals for validation
+  supply_scenario: current_use
+
 animal_products:
   # Use regionalized feed efficiency values
   feed_efficiency_regions: null
+
+grazing:
+  pasture_utilization_rate: 0.60
 
 land:
   regional_limit: 1.

@@ -34,6 +34,17 @@ validation:
 land:
   regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
 
+# --- section: water ---
+water:
+  # Water supply scenario determines which dataset is used for regional water limits:
+  # - "sustainable": Water Footprint Network blue water availability by basin (Hoekstra & Mekonnen 2011)
+  #                  Represents sustainable water extraction limits.
+  # - "current_use": Huang et al. (2018) gridded irrigation water withdrawals
+  #                  Represents actual/current agricultural water use, useful for validation.
+  supply_scenario: sustainable
+  # Reference year for Huang irrigation data (only used when supply_scenario is "current_use")
+  huang_reference_year: 2010
+
 # --- section: fertilizer ---
 fertilizer:
   limit: 200_000_000  # t-N (200 Mt-N total limit in synthetic fertilizer application)

@@ -251,10 +251,15 @@ Changing this value will automatically:
 Water Constraints
 -----------------
 
-For irrigated crops, water availability is a key constraint. The model tracks blue water availability by basin and growing season.
+For irrigated crops, water availability is a key constraint. The model supports two water supply scenarios, selected via ``config.water.supply_scenario``:
 
-Basin-Level Availability
-~~~~~~~~~~~~~~~~~~~~~~~~
+* ``sustainable``: Water Footprint Network blue water availability by basin, representing sustainable extraction limits.
+* ``current_use``: Huang et al. monthly irrigation withdrawals, representing present-day agricultural water use (useful for validation).
+
+Both scenarios are processed into the same regional monthly and growing-season CSVs. ``workflow/rules/water.smk`` selects the configured scenario and writes the unified outputs under ``processing/{name}/water/`` for model building.
+
+Sustainable Basin-Level Availability
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The model uses the Water Footprint Network's monthly blue water availability dataset for 405 GRDC river basins [hoekstra2011]_.
 
@@ -269,10 +274,27 @@ Processing steps (``workflow/scripts/process_blue_water_availability.py``):
 
    Annual blue water availability by GRDC river basin (mm/year). The map shows area-normalized yearly water availability across 405 major river basins globally. Higher availability is shown in darker blue, allowing direct comparison between basins of different sizes. While we normalize by area for better visualisation here, food-opt tracks total water amount availability internally.
 
+Current-Use Irrigation Withdrawals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When ``water.supply_scenario`` is set to ``current_use``, the workflow uses Huang et al. (2018) gridded monthly irrigation withdrawals (0.5 degree resolution, 1971-2010) [huang2018]_. ``workflow/scripts/process_huang_irrigation_water.py`` aggregates these withdrawals to regions and computes growing-season totals using the same crop-weighted method as the sustainable dataset.
+
+Outputs:
+
+* ``processing/{name}/water/current_use/monthly_region_water.csv``
+* ``processing/{name}/water/current_use/region_growing_season_water.csv``
+
 Regional Water Assignment
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Blue water availability is allocated to optimization regions based on spatial overlap with basins (``workflow/scripts/build_region_water_availability.py``):
+Blue water availability is allocated to optimization regions using the dataset-specific processing scripts:
+
+* ``workflow/scripts/build_region_water_availability.py`` for ``sustainable``
+* ``workflow/scripts/process_huang_irrigation_water.py`` for ``current_use``
+
+Both produce the same output schema so the model can remain unchanged.
+
+For the sustainable dataset, the allocation steps are:
 
 1. **Spatial join**: Intersect region polygons with basin polygons
 2. **Area weighting**: Allocate basin water proportional to overlap area
@@ -490,3 +512,4 @@ References
 -----------
 
 .. [hoekstra2011] Hoekstra, A.Y. and Mekonnen, M.M. (2011) *Global water scarcity: monthly blue water footprint compared to blue water availability for the world's major river basins*, Value of Water Research Report Series No. 53, UNESCO-IHE, Delft, the Netherlands. http://www.waterfootprint.org/Reports/Report53-GlobalBlueWaterScarcity.pdf
+.. [huang2018] Huang, Z., Hejazi, M., Li, X., Tang, Q., Vernon, C., Leng, G., Liu, Y., Doll, P., Eisner, S., Gerten, D., Hanasaki, N., and Wada, Y. (2018). Reconstruction of global gridded monthly sectoral water withdrawals for 1971-2010 and analysis of their spatiotemporal patterns. *Hydrology and Earth System Sciences*, 22, 2117-2133. https://doi.org/10.5194/hess-22-2117-2018

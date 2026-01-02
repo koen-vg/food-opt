@@ -192,15 +192,26 @@ Controls regional resolution and land classification.
   * More regions → higher spatial resolution, longer solve time
   * Fewer resource classes → faster solving, less yield heterogeneity
 
-Land, Fertilizer, and Residues
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Land, Water, Fertilizer, and Residues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Limits on land, fertilizer availability, and residue management.
 
 .. literalinclude:: ../config/default.yaml
    :language: yaml
    :start-after: # --- section: land ---
+   :end-before: # --- section: water ---
+
+Water Supply
+~~~~~~~~~~~~
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: water ---
    :end-before: # --- section: fertilizer ---
+
+* ``water.supply_scenario`` selects the water availability dataset: ``sustainable`` (Water Footprint Network blue water availability) or ``current_use`` (Huang et al. irrigation withdrawals). Use ``current_use`` for validation or benchmarking against present-day withdrawals.
+* ``water.huang_reference_year`` selects the year (1971-2010) used for the Huang monthly withdrawals when ``supply_scenario`` is ``current_use``.
 
 .. literalinclude:: ../config/default.yaml
    :language: yaml

@@ -590,6 +590,23 @@ Water Footprint Network — Monthly Blue Water Availability
 
 **Usage**: Constraining irrigated crop production by basin-level water availability
 
+Huang et al. — Gridded Irrigation Water Withdrawals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: Huang et al. (2018), HESS
+
+**Description**: Monthly gridded irrigation water withdrawals (0.5 degree resolution) for 1971-2010. Used to represent current agricultural water use in validation scenarios.
+
+**Format**: NetCDF (7z bundle)
+
+**Access**: https://zenodo.org/records/1209296
+
+**License**: Open access; citation requested (see below)
+
+**Citation**: Huang, Z., Hejazi, M., Li, X., Tang, Q., Vernon, C., Leng, G., Liu, Y., Doll, P., Eisner, S., Gerten, D., Hanasaki, N., and Wada, Y. (2018). Reconstruction of global gridded monthly sectoral water withdrawals for 1971-2010 and analysis of their spatiotemporal patterns. *Hydrology and Earth System Sciences*, 22, 2117-2133.
+
+**Usage**: Aggregated to regions by ``workflow/scripts/process_huang_irrigation_water.py`` when ``config.water.supply_scenario`` is ``current_use``.
+
 Food Processing Data
 --------------------
 

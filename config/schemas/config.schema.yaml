@@ -14,6 +14,7 @@ required:
   - downloads
   - validation
   - land
+  - water
   - fertilizer
   - residues
   - emissions
@@ -156,6 +157,24 @@ properties:
         minimum: 0
         maximum: 1
         description: "Fraction of each region's potential cropland that is made available"
+
+  water:
+    type: object
+    required: [supply_scenario, huang_reference_year]
+    additionalProperties: false
+    properties:
+      supply_scenario:
+        type: string
+        enum: [sustainable, current_use]
+        description: |
+          Water supply scenario determining which dataset is used for regional water limits:
+          - 'sustainable': Water Footprint Network blue water availability (Hoekstra & Mekonnen 2011)
+          - 'current_use': Huang et al. (2018) gridded irrigation water withdrawals
+      huang_reference_year:
+        type: integer
+        minimum: 1971
+        maximum: 2010
+        description: "Reference year for Huang irrigation data (only used when supply_scenario is 'current_use')"
 
   fertilizer:
     type: object

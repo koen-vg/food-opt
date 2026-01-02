@@ -97,7 +97,19 @@ Brief descriptions of key external datasets used by this project, with links and
 - Download: https://www.waterfootprint.org/resources/appendix/Report53_Appendix.zip
 - Version/format: Appendix VII of Hoekstra & Mekonnen (2011); data distributed as an ESRI shapefile (`Monthly_WS_GRDC_405_basins.*`) with basin metadata, plus an Excel workbook (`Report53-Appendices-VI-IX.xls`, sheet “Appendix-VII”) containing monthly availability in Mm³/month.
 - License/terms (summary): No explicit license accompanies the dataset. The authors request citation as below; users should evaluate whether their use qualifies as fair use (research is probably allowed) and contact the UNESCO-IHE Institute for Water Education for commercial applications.
-- Suggested citation (from the dataset readme): Hoekstra, A.Y. and Mekonnen, M.M. (2011) *Global water scarcity: monthly blue water footprint compared to blue water availability for the world’s major river basins*, Value of Water Research Report Series No. 53, UNESCO-IHE, Delft, the Netherlands. http://www.waterfootprint.org/Reports/Report53-GlobalBlueWaterScarcity.pdf
+- Suggested citation (from the dataset readme): Hoekstra, A.Y. and Mekonnen, M.M. (2011) *Global water scarcity: monthly blue water footprint compared to blue water availability for the world's major river basins*, Value of Water Research Report Series No. 53, UNESCO-IHE, Delft, the Netherlands. http://www.waterfootprint.org/Reports/Report53-GlobalBlueWaterScarcity.pdf
+
+## Huang et al. — Global Gridded Monthly Sectoral Water Withdrawals
+
+- Description: Reconstructed global monthly gridded (0.5°) sectoral water withdrawal dataset for 1971–2010, distinguishing six water use sectors: irrigation, domestic, electricity generation (cooling of thermal power plants), livestock, mining, and manufacturing. This project uses the **irrigation** sector data to represent current agricultural water withdrawals for validation scenarios (as opposed to sustainable water availability from the Water Footprint Network dataset above).
+- Website: https://hess.copernicus.org/articles/22/2117/2018/
+- Download: https://zenodo.org/records/1209296
+- Version/format: v2 (Zenodo); 7z-compressed NetCDF bundle (`irrigation water use v2.7z`, ~296 MB) with multiple model variants for irrigation withdrawals/consumption. We extract the irrigation withdrawal WaterGAP file (`withd_irr_watergap.nc`) for processing.
+- Coverage: Global; monthly data for 1971-2010. For validation, the final available year (2010) is used as a proxy for current irrigation water use.
+- Variables: Monthly irrigation water withdrawal per grid cell.
+- License/terms (summary): Open access dataset. Authors request citation as below.
+- Citation: Huang, Z., Hejazi, M., Li, X., Tang, Q., Vernon, C., Leng, G., Liu, Y., Döll, P., Eisner, S., Gerten, D., Hanasaki, N., and Wada, Y. (2018). Reconstruction of global gridded monthly sectoral water withdrawals for 1971–2010 and analysis of their spatiotemporal patterns. *Hydrology and Earth System Sciences*, 22, 2117-2133. https://doi.org/10.5194/hess-22-2117-2018
+- Workflow integration: Retrieved via the `download_huang_irrigation_water` rule (Zenodo download, 7z extraction). The `process_huang_irrigation_water` rule aggregates gridded monthly data to model regions by area-weighted summation. Outputs: `processing/{name}/water/current_use/monthly_region_water.csv` and `processing/{name}/water/current_use/region_growing_season_water.csv`, which are selected into `processing/{name}/water/*` when `config['water']['supply_scenario']` is `"current_use"` (default for validation configs).
 
 ## UN WPP — World Population Prospects 2024 (UN DESA)
 

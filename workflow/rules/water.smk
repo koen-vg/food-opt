@@ -7,6 +7,10 @@ Water and fertilizer-related data preparation rules.
 
 Includes fertilizer application rates, blue water availability,
 and regional water resource calculations.
+
+Water supply scenario:
+- "sustainable": Uses Water Footprint Network blue water availability (Hoekstra & Mekonnen 2011)
+- "current_use": Uses Huang et al. (2018) gridded irrigation water withdrawals
 """
 
 
@@ -66,16 +70,73 @@ def crop_yield_file_list(w):
     return list(yield_inputs(w).values())
 
 
-rule build_region_water_availability:
+# Rule for sustainable water availability (Water Footprint Network data)
+rule build_region_water_sustainable:
     input:
         shapefile=rules.extract_waterfootprint_appendix.output.shapefile,
         regions="processing/{name}/regions.geojson",
         monthly="processing/{name}/water/blue_water_availability.csv",
         crop_yields=crop_yield_file_list,
     output:
+        monthly_region="processing/{name}/water/sustainable/monthly_region_water.csv",
+        region_growing="processing/{name}/water/sustainable/region_growing_season_water.csv",
+    log:
+        "logs/{name}/build_region_water_sustainable.log",
+    script:
+        "../scripts/build_region_water_availability.py"
+
+
+# Rule for current water use (Huang et al. 2018 gridded irrigation data)
+rule build_region_water_current_use:
+    input:
+        nc="data/downloads/huang_irrigation_water.nc",
+        regions="processing/{name}/regions.geojson",
+        crop_yields=crop_yield_file_list,
+    params:
+        reference_year=config["water"]["huang_reference_year"],
+    output:
+        monthly_region="processing/{name}/water/current_use/monthly_region_water.csv",
+        region_growing="processing/{name}/water/current_use/region_growing_season_water.csv",
+    log:
+        "logs/{name}/build_region_water_current_use.log",
+    script:
+        "../scripts/process_huang_irrigation_water.py"
+
+
+def water_monthly_input(w):
+    """Select monthly water input based on config."""
+    scenario = config["water"]["supply_scenario"]
+    return f"processing/{w.name}/water/{scenario}/monthly_region_water.csv"
+
+
+def water_growing_input(w):
+    """Select growing season water input based on config."""
+    scenario = config["water"]["supply_scenario"]
+    return f"processing/{w.name}/water/{scenario}/region_growing_season_water.csv"
+
+
+# Unified rule that creates symlinks to the selected water data source
+# This maintains backward compatibility with existing downstream rules
+rule select_water_scenario:
+    input:
+        monthly=water_monthly_input,
+        growing=water_growing_input,
+    output:
         monthly_region="processing/{name}/water/monthly_region_water.csv",
         region_growing="processing/{name}/water/region_growing_season_water.csv",
     log:
-        "logs/{name}/build_region_water_availability.log",
-    script:
-        "../scripts/build_region_water_availability.py"
+        "logs/{name}/select_water_scenario.log",
+    run:
+        import shutil
+        from pathlib import Path
+
+        Path(output.monthly_region).parent.mkdir(parents=True, exist_ok=True)
+
+        # Copy files (Snakemake handles symlinks poorly across rules)
+        shutil.copy(input.monthly, output.monthly_region)
+        shutil.copy(input.growing, output.region_growing)
+
+        with open(log[0], "w") as f:
+            f.write(f"Water supply scenario: {config['water']['supply_scenario']}\n")
+            f.write(f"Copied {input.monthly} -> {output.monthly_region}\n")
+            f.write(f"Copied {input.growing} -> {output.region_growing}\n")

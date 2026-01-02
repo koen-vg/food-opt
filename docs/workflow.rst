@@ -87,6 +87,29 @@ Data Preparation Rules
   * **Script**: ``workflow/scripts/build_grassland_yields.py``
   * **Purpose**: Aggregate grassland yields for grazing production
 
+**process_blue_water_availability**
+  * **Input**: Water Footprint Network shapefile + Excel workbook
+  * **Output**: ``processing/{name}/water/blue_water_availability.csv``
+  * **Script**: ``workflow/scripts/process_blue_water_availability.py``
+  * **Purpose**: Build monthly basin-level blue water availability
+
+**build_region_water_sustainable**
+  * **Input**: Blue water availability, regions, crop yields
+  * **Output**: ``processing/{name}/water/sustainable/monthly_region_water.csv``, ``processing/{name}/water/sustainable/region_growing_season_water.csv``
+  * **Script**: ``workflow/scripts/build_region_water_availability.py``
+  * **Purpose**: Allocate basin availability to regions and growing seasons
+
+**build_region_water_current_use**
+  * **Input**: Huang irrigation withdrawals, regions, crop yields
+  * **Output**: ``processing/{name}/water/current_use/monthly_region_water.csv``, ``processing/{name}/water/current_use/region_growing_season_water.csv``
+  * **Script**: ``workflow/scripts/process_huang_irrigation_water.py``
+  * **Purpose**: Aggregate current irrigation withdrawals to regions and growing seasons
+
+**select_water_scenario**
+  * **Input**: Scenario-specific water outputs
+  * **Output**: ``processing/{name}/water/monthly_region_water.csv``, ``processing/{name}/water/region_growing_season_water.csv``
+  * **Purpose**: Copy the configured water supply scenario into the unified paths used by the model
+
 **build_current_grassland_area**
   * **Input**: Resource classes, land-cover fractions (``processing/{name}/luc/lc_masks.nc``), regions
   * **Output**: ``processing/{name}/luc/current_grassland_area_by_class.csv``

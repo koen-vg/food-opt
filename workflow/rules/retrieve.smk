@@ -460,6 +460,39 @@ rule download_waterfootprint_appendix:
         """
 
 
+rule download_huang_irrigation_water:
+    output:
+        temp("data/downloads/huang_irrigation_water_v2.7z"),
+    params:
+        url="https://zenodo.org/records/1209296/files/irrigation%20water%20use%20v2.7z?download=1",
+    log:
+        "logs/shared/download_huang_irrigation_water.log",
+    shell:
+        r"""
+        mkdir -p "$(dirname {output})"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
+        """
+
+
+rule extract_huang_irrigation_water:
+    input:
+        "data/downloads/huang_irrigation_water_v2.7z",
+    output:
+        protected("data/downloads/huang_irrigation_water.nc"),
+    params:
+        filename="withd_irr_watergap.nc",
+    log:
+        "logs/shared/extract_huang_irrigation_water.log",
+    shell:
+        r"""
+        # Extract the NetCDF file from the 7z archive
+        # Extract the selected irrigation withdrawal file from the archive
+        7z e -y -o"$(dirname {output})" "{input}" "{params.filename}" > {log} 2>&1
+        # Rename the extracted file to a simpler name
+        mv "$(dirname {output})/{params.filename}" "{output}" >> {log} 2>&1
+        """
+
+
 rule download_fao_nutrient_conversion_table:
     output:
         protected("data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx"),

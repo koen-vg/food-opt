@@ -81,6 +81,11 @@ Water Resources
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: workflow.scripts.process_huang_irrigation_water
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Utility Modules
 ---------------
 
