@@ -206,7 +206,7 @@ properties:
 
   residues:
     type: object
-    required: [max_feed_fraction]
+    required: [max_feed_fraction, max_feed_fraction_by_region]
     additionalProperties: false
     properties:
       max_feed_fraction:
@@ -214,6 +214,15 @@ properties:
         minimum: 0
         maximum: 1
         description: "Maximum fraction of residues that can be removed for animal feed"
+      max_feed_fraction_by_region:
+        type: object
+        additionalProperties: false
+        patternProperties:
+          ".*":
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "Override fraction by ISO3 country code or M49 region/sub-region name"
 
   emissions:
     type: object

@@ -151,7 +151,7 @@ Residue Management Constraints
 
 To ensure soil health and prevent degradation, the model limits the fraction of crop residues that can be removed for animal feed. The remainder must be left on the field and incorporated into the soil.
 
-* **Maximum removal for feed**: 30% of generated residues (configurable via ``residues.max_feed_fraction``)
+* **Maximum removal for feed**: 30% of generated residues (configurable via ``residues.max_feed_fraction``; override per ISO3 country or M49 region/sub-region via ``residues.max_feed_fraction_by_region`` with country > sub-region > region)
 * **Minimum soil incorporation**: 70% of generated residues
 
 This constraint is implemented as:

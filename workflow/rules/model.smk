@@ -141,6 +141,7 @@ def solve_model_inputs(w):
     """
     inputs = {
         "network": f"results/{w.name}/build/model_scen-{w.scenario}.nc",
+        "m49": "data/M49-codes.csv",
         "health_risk_breakpoints": f"processing/{w.name}/health/risk_breakpoints.csv",
         "health_cluster_cause": f"processing/{w.name}/health/cluster_cause_baseline.csv",
         "health_cause_log": f"processing/{w.name}/health/cause_log_breakpoints.csv",

@@ -333,7 +333,7 @@ To maintain soil health and prevent land degradation, the model constrains the f
 
 **Constraint formulation**:
 
-* **Maximum feed removal**: 30% of generated residues (configurable via ``residues.max_feed_fraction``)
+* **Maximum feed removal**: 30% of generated residues (configurable via ``residues.max_feed_fraction``; override per ISO3 country or M49 region/sub-region via ``residues.max_feed_fraction_by_region`` with country > sub-region > region)
 * **Minimum soil incorporation**: 70% of generated residues
 
 The optimization model implements this as a constraint between residue feed use and soil incorporation for each residue type and country:

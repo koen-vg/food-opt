@@ -15,14 +15,18 @@ validation:
   harvest_area_source: "gaez" # "cropgrids"
 
 water:
-  # Use current irrigation water withdrawals for validation
   supply_scenario: current_use
+
+residues:
+  max_feed_fraction_by_region:
+    Asia: 0.70
 
 animal_products:
   # Use regionalized feed efficiency values
   feed_efficiency_regions: null
 
 grazing:
+  # Slightly higher utilization rate matches grassland supply with feed demand
   pasture_utilization_rate: 0.60
 
 land:

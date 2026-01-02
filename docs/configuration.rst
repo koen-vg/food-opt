@@ -223,6 +223,9 @@ Water Supply
    :start-after: # --- section: residues ---
    :end-before: # --- section: emissions ---
 
+* ``residues.max_feed_fraction_by_region`` overrides the global fraction for ISO3 countries or UN M49 regions/sub-regions.
+* Precedence is: country overrides sub-region overrides region.
+
 GAEZ Data Parameters
 ~~~~~~~~~~~~~~~~~~~~
 

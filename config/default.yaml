@@ -57,6 +57,7 @@ fertilizer:
 # --- section: residues ---
 residues:
   max_feed_fraction: 0.30 # Maximum fraction of residues that can be removed for animal feed (remainder must be incorporated into soil)
+  max_feed_fraction_by_region: {} # Overrides by ISO3 country code or M49 region/sub-region name (country overrides sub-region overrides region)
 
 # --- section: emissions ---
 emissions:

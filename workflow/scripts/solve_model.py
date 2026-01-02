@@ -329,7 +329,68 @@ def add_ghg_pricing_to_objective(n: pypsa.Network, ghg_price_usd_per_t: float) -
     n.stores.static.at["ghg", "marginal_cost_storage"] = ghg_price_bnusd_per_mt
 
 
-def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> None:
+def build_residue_feed_fraction_by_country(
+    config: dict, m49_path: str
+) -> dict[str, float]:
+    """Build per-country residue feed fraction overrides from config."""
+    overrides = config["residues"]["max_feed_fraction_by_region"]
+    if not overrides:
+        return {}
+
+    countries = [str(country).upper() for country in config["countries"]]
+
+    m49_df = pd.read_csv(m49_path, sep=";", encoding="utf-8-sig", comment="#")
+    m49_df = m49_df[m49_df["ISO-alpha3 Code"].notna()]
+    m49_df["iso3"] = m49_df["ISO-alpha3 Code"].astype(str).str.upper()
+    m49_df = m49_df[m49_df["iso3"].isin(countries)]
+
+    region_to_countries = m49_df.groupby("Region Name")["iso3"].apply(list).to_dict()
+    subregion_to_countries = (
+        m49_df.groupby("Sub-region Name")["iso3"].apply(list).to_dict()
+    )
+
+    region_overrides = {
+        key: overrides[key] for key in overrides if key in region_to_countries
+    }
+    subregion_overrides = {
+        key: overrides[key] for key in overrides if key in subregion_to_countries
+    }
+    country_overrides = {key: overrides[key] for key in overrides if key in countries}
+
+    unknown = (
+        set(overrides)
+        - set(region_overrides)
+        - set(subregion_overrides)
+        - set(country_overrides)
+    )
+    if unknown:
+        unknown_text = ", ".join(sorted(unknown))
+        raise ValueError(
+            f"Unknown residues.max_feed_fraction_by_region keys: {unknown_text}"
+        )
+
+    per_country: dict[str, float] = {}
+    for region, value in region_overrides.items():
+        for country in region_to_countries[region]:
+            per_country[country] = float(value)
+    for subregion, value in subregion_overrides.items():
+        for country in subregion_to_countries[subregion]:
+            per_country[country] = float(value)
+    for country, value in country_overrides.items():
+        per_country[country] = float(value)
+
+    return per_country
+
+
+def _residue_bus_country(residue_bus: str) -> str:
+    return residue_bus.rsplit("_", 1)[-1].upper()
+
+
+def add_residue_feed_constraints(
+    n: pypsa.Network,
+    max_feed_fraction: float,
+    max_feed_fraction_by_country: dict[str, float],
+) -> None:
     """Add constraints limiting residue removal for animal feed.
 
     Constrains the fraction of residues that can be removed for feed vs.
@@ -348,6 +409,8 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
         The network containing the model.
     max_feed_fraction : float
         Maximum fraction of residues that can be used for feed (e.g., 0.30 for 30%).
+    max_feed_fraction_by_country : dict[str, float]
+        Overrides keyed by ISO3 country code.
     """
 
     m = n.model
@@ -371,9 +434,6 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
             "No residue feed limit constraints added (missing feed or incorporation links)"
         )
         return
-
-    # Add constraints for each residue bus
-    ratio = max_feed_fraction / (1.0 - max_feed_fraction)
 
     # Identify common residue buses
     feed_buses = set(feed_links_df["bus0"].unique())
@@ -418,7 +478,17 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
     # Group incorp vars by residue bus and sum (handles alignment)
     incorp_flow = incorp_vars.groupby(incorp_bus_map).sum()
 
-    # 6. Add constraints
+    ratios = []
+    for bus in common_buses:
+        country = _residue_bus_country(bus)
+        max_fraction = max_feed_fraction_by_country.get(country, max_feed_fraction)
+        ratios.append(max_fraction / (1.0 - max_fraction))
+
+    ratio = xr.DataArray(
+        ratios, coords={"residue_bus": common_buses}, dims="residue_bus"
+    )
+
+    # Add constraints
     constr_name = "residue_feed_limit"
     m.add_constraints(
         feed_sum <= ratio * incorp_flow,
@@ -433,6 +503,12 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
         constant=0.0,  # RHS is dynamic (depends on incorp_flow), use 0 as placeholder
         type="residue_feed",
     )
+
+    if max_feed_fraction_by_country:
+        logger.info(
+            "Applied residue feed fraction overrides for %d countries",
+            len(max_feed_fraction_by_country),
+        )
 
     logger.info(
         "Added %d residue feed limit constraints (max %.0f%% for feed)",
@@ -1530,7 +1606,10 @@ if __name__ == "__main__":
 
     # Add residue feed limit constraints
     max_feed_fraction = float(snakemake.config["residues"]["max_feed_fraction"])
-    add_residue_feed_constraints(n, max_feed_fraction)
+    max_feed_fraction_by_country = build_residue_feed_fraction_by_country(
+        snakemake.config, snakemake.input.m49
+    )
+    add_residue_feed_constraints(n, max_feed_fraction, max_feed_fraction_by_country)
 
     # Add animal production constraints in validation mode
     use_actual_production = bool(
