@@ -79,6 +79,8 @@ if __name__ == "__main__":
     validation_cfg = snakemake.config["validation"]  # type: ignore[attr-defined]
     use_actual_production = bool(validation_cfg["use_actual_production"])
     enforce_baseline = bool(validation_cfg["enforce_gdd_baseline"])
+    # Enable land slack if explicitly requested or when using actual production
+    enable_land_slack = bool(validation_cfg["land_slack"]) or use_actual_production
     validation_slack_cost = float(
         validation_cfg["slack_marginal_cost"]
     )  # Already in bn USD
@@ -460,7 +462,7 @@ if __name__ == "__main__":
         luc_lef_lookup,
         reg_limit=reg_limit,
         land_slack_cost=validation_slack_cost,  # Use unified validation slack cost
-        use_actual_production=use_actual_production,
+        enable_land_slack=enable_land_slack,
     )
 
     # Marginal land buses (grazing-only)
@@ -478,7 +480,7 @@ if __name__ == "__main__":
             p_nom_extendable=[True] * len(marginal_bus_names),
             p_nom_max=(reg_limit * grazing_only_area_series.values / 1e6),
         )
-        if use_actual_production:
+        if enable_land_slack:
             primary_resources._add_land_slack_generators(
                 n, marginal_bus_names, validation_slack_cost
             )

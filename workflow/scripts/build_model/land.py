@@ -21,7 +21,7 @@ def add_land_components(
     *,
     reg_limit: float,
     land_slack_cost: float,
-    use_actual_production: bool,
+    enable_land_slack: bool,
 ) -> None:
     """Add land buses/generators that distinguish existing vs. new cropland.
 
@@ -38,9 +38,9 @@ def add_land_components(
     reg_limit : float
         Regional land scaling from config['land']['regional_limit'].
     land_slack_cost : float
-        Marginal cost (bnUSD/Mha) for slack generators when production is fixed.
-    use_actual_production : bool
-        Whether validation mode fixes land usage, requiring slack generators.
+        Marginal cost (bnUSD/Mha) for slack generators.
+    enable_land_slack : bool
+        Whether to add slack generators that allow exceeding regional land limits.
     """
 
     if total_land_area.empty:
@@ -199,5 +199,5 @@ def add_land_components(
             p_nom_max=expansion_cap_mha,
         )
 
-    if use_actual_production:
+    if enable_land_slack:
         primary_resources._add_land_slack_generators(n, pool_bus_names, land_slack_cost)

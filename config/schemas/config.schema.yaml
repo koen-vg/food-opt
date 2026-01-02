@@ -78,6 +78,7 @@ properties:
       - use_actual_yields
       - use_actual_production
       - enforce_gdd_baseline
+      - land_slack
       - slack_marginal_cost
       - harvest_area_source
       - production_year
@@ -89,10 +90,13 @@ properties:
         description: "Use current-day (actual) yields as opposed to potential yields"
       use_actual_production:
         type: boolean
-        descroption: "Use current-day crop harvested areas as well as animal production"
+        description: "Use current-day crop harvested areas as well as animal production"
       enforce_gdd_baseline:
         type: boolean
         description: "Set food consumption equal to current day values"
+      land_slack:
+        type: boolean
+        description: "Enable land slack generators (allows exceeding regional land limits at cost)"
       slack_marginal_cost:
         type: number
         minimum: 0

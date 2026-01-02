@@ -17,6 +17,7 @@ validation:
   use_actual_yields: false
   use_actual_production: false
   enforce_gdd_baseline: false # Set food consumption equal to current day values
+  land_slack: false # Enable land slack generators (allows exceeding regional land limits at cost)
   slack_marginal_cost: 1. # bn USD per Mt/Mha for validation slack (food groups, feed, land)
   harvest_area_source: gaez  # Options: gaez (RES06), cropgrids
   production_year: 2018 # To match with GDD baseline year
