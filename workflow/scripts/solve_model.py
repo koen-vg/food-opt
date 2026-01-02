@@ -628,7 +628,8 @@ def _add_crop_stability_constraints(
     delta = crops_cfg["max_relative_deviation"]
 
     # Filter to crop production links using the crop column
-    crop_mask = links_df["crop"].notna()
+    # Note: some links have empty string instead of NaN, so check for both
+    crop_mask = links_df["crop"].notna() & (links_df["crop"] != "")
     crop_links = links_df[crop_mask].copy()
 
     if crop_links.empty:
@@ -775,7 +776,8 @@ def _add_animal_stability_constraints(
         flw_multipliers[key] = (1.0 - loss_frac) * (1.0 - waste_frac)
 
     # Filter to animal production links using product column
-    prod_mask = links_df["product"].notna()
+    # Note: some links have empty string instead of NaN, so check for both
+    prod_mask = links_df["product"].notna() & (links_df["product"] != "")
     prod_links = links_df[prod_mask]
 
     if prod_links.empty:
