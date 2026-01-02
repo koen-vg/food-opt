@@ -121,7 +121,7 @@ def add_macronutrient_constraints(
             constr_name = f"macronutrient_{label}_{nutrient}"
 
             if operator == "==":
-                m.add_constraints(lhs == rhs, name=constr_name)
+                m.add_constraints(lhs == rhs, name=f"GlobalConstraint-{constr_name}")
                 n.global_constraints.add(
                     f"{constr_name}_" + nutrient_stores.index,
                     sense="==",
@@ -131,9 +131,9 @@ def add_macronutrient_constraints(
                 break
 
             if operator == ">=":
-                m.add_constraints(lhs >= rhs, name=constr_name)
+                m.add_constraints(lhs >= rhs, name=f"GlobalConstraint-{constr_name}")
             else:
-                m.add_constraints(lhs <= rhs, name=constr_name)
+                m.add_constraints(lhs <= rhs, name=f"GlobalConstraint-{constr_name}")
 
             n.global_constraints.add(
                 f"{constr_name}_" + nutrient_stores.index,
@@ -220,7 +220,7 @@ def add_food_group_constraints(
             constr_name = f"food_group_{label}_{group}"
 
             if operator == "==":
-                m.add_constraints(lhs == rhs, name=constr_name)
+                m.add_constraints(lhs == rhs, name=f"GlobalConstraint-{constr_name}")
                 n.global_constraints.add(
                     f"{constr_name}_" + group_stores.index,
                     sense="==",
@@ -230,9 +230,9 @@ def add_food_group_constraints(
                 break
 
             if operator == ">=":
-                m.add_constraints(lhs >= rhs, name=constr_name)
+                m.add_constraints(lhs >= rhs, name=f"GlobalConstraint-{constr_name}")
             else:
-                m.add_constraints(lhs <= rhs, name=constr_name)
+                m.add_constraints(lhs <= rhs, name=f"GlobalConstraint-{constr_name}")
 
             n.global_constraints.add(
                 f"{constr_name}_" + group_stores.index,
@@ -419,9 +419,19 @@ def add_residue_feed_constraints(n: pypsa.Network, max_feed_fraction: float) -> 
     incorp_flow = incorp_vars.groupby(incorp_bus_map).sum()
 
     # 6. Add constraints
+    constr_name = "residue_feed_limit"
     m.add_constraints(
         feed_sum <= ratio * incorp_flow,
-        name="residue_feed_limit",
+        name=f"GlobalConstraint-{constr_name}",
+    )
+
+    # Add GlobalConstraints for shadow price tracking
+    gc_names = [f"{constr_name}_{bus}" for bus in common_buses]
+    n.global_constraints.add(
+        gc_names,
+        sense="<=",
+        constant=0.0,  # RHS is dynamic (depends on incorp_flow), use 0 as placeholder
+        type="residue_feed",
     )
 
     logger.info(
@@ -535,7 +545,17 @@ def add_animal_production_constraints(
         dims="group",
     )
 
-    m.add_constraints(lhs == rhs, name="animal_production_target")
+    constr_name = "animal_production_target"
+    m.add_constraints(lhs == rhs, name=f"GlobalConstraint-{constr_name}")
+
+    # Add GlobalConstraints for shadow price tracking
+    gc_names = [f"{constr_name}_{prod}_{country}" for prod, country in common_index]
+    n.global_constraints.add(
+        gc_names,
+        sense="==",
+        constant=rhs.values,
+        type="production_target",
+    )
 
     logger.info(
         "Added %d country-level animal production constraints (FLW-adjusted)",
@@ -586,24 +606,25 @@ def add_production_stability_constraints(
     # --- CROP PRODUCTION BOUNDS ---
     crops_cfg = stability_cfg["crops"]
     if crops_cfg["enabled"] and crop_baseline is not None:
-        _add_crop_stability_constraints(m, link_p, links_df, crop_baseline, crops_cfg)
+        _add_crop_stability_constraints(n, link_p, links_df, crop_baseline, crops_cfg)
 
     # --- ANIMAL PRODUCTION BOUNDS ---
     animals_cfg = stability_cfg["animals"]
     if animals_cfg["enabled"] and animal_baseline is not None:
         _add_animal_stability_constraints(
-            m, link_p, links_df, animal_baseline, animals_cfg, food_to_group, loss_waste
+            n, link_p, links_df, animal_baseline, animals_cfg, food_to_group, loss_waste
         )
 
 
 def _add_crop_stability_constraints(
-    m: "linopy.Model",
+    n: pypsa.Network,
     link_p,
     links_df: pd.DataFrame,
     crop_baseline: pd.DataFrame,
     crops_cfg: dict,
 ) -> None:
     """Add crop production stability bounds."""
+    m = n.model
     delta = crops_cfg["max_relative_deviation"]
 
     # Filter to crop production links using the crop column
@@ -663,7 +684,15 @@ def _add_crop_stability_constraints(
     if zero_mask.any():
         zero_index = common_index[zero_mask]
         lhs_zero = total_production.sel(group=zero_index)
-        m.add_constraints(lhs_zero == 0, name="crop_production_zero_baseline")
+        constr_name = "crop_production_zero"
+        m.add_constraints(lhs_zero == 0, name=f"GlobalConstraint-{constr_name}")
+        gc_names = [f"{constr_name}_{crop}_{country}" for crop, country in zero_index]
+        n.global_constraints.add(
+            gc_names,
+            sense="==",
+            constant=0.0,
+            type="production_stability",
+        )
         logger.info(
             "Added %d crop production constraints for zero-baseline (crop, country) pairs",
             int(zero_mask.sum()),
@@ -675,8 +704,33 @@ def _add_crop_stability_constraints(
         lower_nonzero = rhs_lower.sel(group=nonzero_index)
         upper_nonzero = rhs_upper.sel(group=nonzero_index)
 
-        m.add_constraints(lhs_nonzero >= lower_nonzero, name="crop_production_min")
-        m.add_constraints(lhs_nonzero <= upper_nonzero, name="crop_production_max")
+        constr_name_min = "crop_production_min"
+        constr_name_max = "crop_production_max"
+        m.add_constraints(
+            lhs_nonzero >= lower_nonzero, name=f"GlobalConstraint-{constr_name_min}"
+        )
+        m.add_constraints(
+            lhs_nonzero <= upper_nonzero, name=f"GlobalConstraint-{constr_name_max}"
+        )
+
+        gc_names_min = [
+            f"{constr_name_min}_{crop}_{country}" for crop, country in nonzero_index
+        ]
+        gc_names_max = [
+            f"{constr_name_max}_{crop}_{country}" for crop, country in nonzero_index
+        ]
+        n.global_constraints.add(
+            gc_names_min,
+            sense=">=",
+            constant=lower_nonzero.values,
+            type="production_stability",
+        )
+        n.global_constraints.add(
+            gc_names_max,
+            sense="<=",
+            constant=upper_nonzero.values,
+            type="production_stability",
+        )
 
         logger.info(
             "Added %d crop production stability constraints (delta=%.0f%%)",
@@ -696,7 +750,7 @@ def _add_crop_stability_constraints(
 
 
 def _add_animal_stability_constraints(
-    m: "linopy.Model",
+    n: pypsa.Network,
     link_p,
     links_df: pd.DataFrame,
     animal_baseline: pd.DataFrame,
@@ -709,6 +763,7 @@ def _add_animal_stability_constraints(
     Reuses the aggregation logic from add_animal_production_constraints()
     but applies inequality bounds instead of equality.
     """
+    m = n.model
     delta = animals_cfg["max_relative_deviation"]
 
     # Build FLW lookup (same as add_animal_production_constraints)
@@ -781,7 +836,15 @@ def _add_animal_stability_constraints(
     if zero_mask.any():
         zero_index = common_index[zero_mask]
         lhs_zero = total_production.sel(group=zero_index)
-        m.add_constraints(lhs_zero == 0, name="animal_production_zero_baseline")
+        constr_name = "animal_production_zero"
+        m.add_constraints(lhs_zero == 0, name=f"GlobalConstraint-{constr_name}")
+        gc_names = [f"{constr_name}_{prod}_{country}" for prod, country in zero_index]
+        n.global_constraints.add(
+            gc_names,
+            sense="==",
+            constant=0.0,
+            type="production_stability",
+        )
         logger.info(
             "Added %d animal production constraints for zero-baseline (product, country) pairs",
             int(zero_mask.sum()),
@@ -793,8 +856,33 @@ def _add_animal_stability_constraints(
         lower_nonzero = rhs_lower.sel(group=nonzero_index)
         upper_nonzero = rhs_upper.sel(group=nonzero_index)
 
-        m.add_constraints(lhs_nonzero >= lower_nonzero, name="animal_production_min")
-        m.add_constraints(lhs_nonzero <= upper_nonzero, name="animal_production_max")
+        constr_name_min = "animal_production_min"
+        constr_name_max = "animal_production_max"
+        m.add_constraints(
+            lhs_nonzero >= lower_nonzero, name=f"GlobalConstraint-{constr_name_min}"
+        )
+        m.add_constraints(
+            lhs_nonzero <= upper_nonzero, name=f"GlobalConstraint-{constr_name_max}"
+        )
+
+        gc_names_min = [
+            f"{constr_name_min}_{prod}_{country}" for prod, country in nonzero_index
+        ]
+        gc_names_max = [
+            f"{constr_name_max}_{prod}_{country}" for prod, country in nonzero_index
+        ]
+        n.global_constraints.add(
+            gc_names_min,
+            sense=">=",
+            constant=lower_nonzero.values,
+            type="production_stability",
+        )
+        n.global_constraints.add(
+            gc_names_max,
+            sense="<=",
+            constant=upper_nonzero.values,
+            type="production_stability",
+        )
 
         logger.info(
             "Added %d animal production stability constraints (delta=%.0f%%)",
@@ -1462,6 +1550,7 @@ if __name__ == "__main__":
     status, condition = n.model.solve(
         solver_name=solver_name,
         io_api=io_api,
+        calculate_fixed_duals=snakemake.params.calculate_fixed_duals,
         **solver_options,
     )
     result = (status, condition)

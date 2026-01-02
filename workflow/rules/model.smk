@@ -209,6 +209,7 @@ rule solve_model:
         solver_threads=get_solver_threads(config),
         solver_options=solver_options_with_threads(config),
         io_api=config["solving"]["io_api"],
+        calculate_fixed_duals=config["solving"]["calculate_fixed_duals"],
         netcdf_compression=config["solving"].get("netcdf_compression"),
         macronutrients=config["macronutrients"],
         food_group_constraints=config["food_groups"].get("constraints", {}),
