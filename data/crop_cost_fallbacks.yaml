@@ -132,5 +132,8 @@ sugarbeet:
 alfalfa:
   usda_crop: soybean
 
+silage-maize:
+  usda_crop: maize
+
 biomass-sorghum:
   usda_crop: sorghum

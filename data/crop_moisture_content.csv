@@ -44,4 +44,5 @@ olive,0.50,Assumption (typical olive fruit analysis),Approximate moisture for fr
 sugarcane,0.73,Assumption (aligned with 14% sugar extraction),Chooses 27% dry matter share
 sugarbeet,0.76,Assumption (aligned with 10% sugar extraction),Chooses 24% dry matter share
 alfalfa,0.70,GAEZ v5 Module VII table (FDD),
+silage-maize,0.70,GAEZ v5 Module VII table (FDD),Assumed equal to generic fodder crops
 biomass-sorghum,0.70,GAEZ v5 Module VII table (FDD),Assumed equal to generic fodder crops

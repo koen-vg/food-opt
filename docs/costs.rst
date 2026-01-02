@@ -183,8 +183,8 @@ The merging process combines USDA and FADN cost estimates:
 2. **Average Across Sources**: For crops with data from multiple sources, compute the mean cost
 3. **Apply Fallback Mappings**: For crops without direct cost data, use costs from similar crops:
 
-   * Defined in ``data/usda_crop_fallbacks.yaml``
-   * Example: Rye → Wheat costs, Buckwheat → Oat costs
+   * Defined in ``data/crop_cost_fallbacks.yaml``
+   * Example: Rye → Wheat costs, Silage-maize → Maize costs
 
 4. **Default to Zero**: Crops without data or fallbacks receive zero costs (with warnings logged)
 5. **Output**: ``processing/{name}/crop_costs.csv`` containing cost data for all configured crops

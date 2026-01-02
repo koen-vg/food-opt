@@ -121,6 +121,7 @@ crops:
 - sugarbeet
 # Fodder / biomass (also listed in non_food_crops below)
 - alfalfa
+- silage-maize
 - biomass-sorghum
 # Note: mango and taro excluded - missing RES02 (growing season) data for GFDL-ESM4
 
@@ -129,6 +130,7 @@ crops:
 # These are excluded from foods.csv validation but still need yield/land data.
 non_food_crops:
 - alfalfa
+- silage-maize
 - biomass-sorghum
 
 # --- section: multiple_cropping ---
