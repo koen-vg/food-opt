@@ -566,6 +566,7 @@ def add_animal_production_constraints(
 def add_production_stability_constraints(
     n: pypsa.Network,
     crop_baseline: pd.DataFrame | None,
+    crop_to_fao_item: dict[str, str],
     animal_baseline: pd.DataFrame | None,
     stability_cfg: dict,
     food_to_group: dict[str, str],
@@ -586,6 +587,10 @@ def add_production_stability_constraints(
         The network containing the model.
     crop_baseline : pd.DataFrame | None
         FAO crop production with columns: country, crop, production_tonnes.
+    crop_to_fao_item : dict[str, str]
+        Mapping from crop names to FAO item names; used to aggregate crops
+        that share an FAO item (e.g., dryland-rice and wetland-rice both
+        map to "Rice").
     animal_baseline : pd.DataFrame | None
         FAO animal production with columns: country, product, production_mt.
     stability_cfg : dict
@@ -606,7 +611,9 @@ def add_production_stability_constraints(
     # --- CROP PRODUCTION BOUNDS ---
     crops_cfg = stability_cfg["crops"]
     if crops_cfg["enabled"] and crop_baseline is not None:
-        _add_crop_stability_constraints(n, link_p, links_df, crop_baseline, crops_cfg)
+        _add_crop_stability_constraints(
+            n, link_p, links_df, crop_baseline, crop_to_fao_item, crops_cfg
+        )
 
     # --- ANIMAL PRODUCTION BOUNDS ---
     animals_cfg = stability_cfg["animals"]
@@ -621,9 +628,14 @@ def _add_crop_stability_constraints(
     link_p,
     links_df: pd.DataFrame,
     crop_baseline: pd.DataFrame,
+    crop_to_fao_item: dict[str, str],
     crops_cfg: dict,
 ) -> None:
-    """Add crop production stability bounds."""
+    """Add crop production stability bounds.
+
+    Crops that share a FAO item (e.g., dryland-rice and wetland-rice both map
+    to "Rice") are aggregated together for the constraint.
+    """
     m = n.model
     delta = crops_cfg["max_relative_deviation"]
 
@@ -642,25 +654,56 @@ def _add_crop_stability_constraints(
     countries = crop_links["country"].astype(str)
     link_names = crop_links.index
 
+    # Map crops to FAO items; use crop name as fallback for unmapped crops
+    fao_items = crops.map(lambda c: crop_to_fao_item.get(c, c))
+    # Filter out crops with empty/nan FAO item (e.g., alfalfa, biomass-sorghum)
+    valid_mask = (
+        fao_items.notna() & (fao_items != "") & (fao_items.str.lower() != "nan")
+    )
+
+    if not valid_mask.any():
+        logger.info(
+            "No crops with FAO item mappings; skipping crop stability constraints"
+        )
+        return
+
+    fao_items = fao_items[valid_mask]
+    countries_filtered = countries[valid_mask]
+    link_names_filtered = link_names[valid_mask]
+    efficiencies_filtered = crop_links.loc[valid_mask, "efficiency"].values
+
     # Efficiencies (yield: Mt/Mha)
     efficiencies = xr.DataArray(
-        crop_links["efficiency"].values, coords={"name": link_names}, dims="name"
+        efficiencies_filtered, coords={"name": link_names_filtered}, dims="name"
     )
 
     # Production = p * efficiency (p is land in Mha)
-    production_vars = link_p.sel(name=link_names)
+    production_vars = link_p.sel(name=link_names_filtered)
 
+    # Group by (fao_item, country) to aggregate related crops
     grouper = pd.MultiIndex.from_arrays(
-        [crops.values, countries.values], names=["crop", "country"]
+        [fao_items.values, countries_filtered.values], names=["fao_item", "country"]
     )
-    da_grouper = xr.DataArray(grouper, coords={"name": link_names}, dims="name")
+    da_grouper = xr.DataArray(
+        grouper, coords={"name": link_names_filtered}, dims="name"
+    )
 
     total_production = (production_vars * efficiencies).groupby(da_grouper).sum()
 
-    # Convert baseline to Mt and build targets
+    # Convert baseline to Mt and aggregate by FAO item
     baseline_df = crop_baseline.copy()
     baseline_df["production_mt"] = baseline_df["production_tonnes"] * 1e-6
-    target_series = baseline_df.set_index(["crop", "country"])["production_mt"]
+    # Map baseline crops to FAO items
+    baseline_df["fao_item"] = baseline_df["crop"].map(
+        lambda c: crop_to_fao_item.get(c, c)
+    )
+    # Aggregate baseline by (fao_item, country) - this sums the split values back
+    baseline_agg = (
+        baseline_df.groupby(["fao_item", "country"])["production_mt"]
+        .sum()
+        .reset_index()
+    )
+    target_series = baseline_agg.set_index(["fao_item", "country"])["production_mt"]
 
     # Match to model index
     model_index = pd.Index(total_production.coords["group"].values, name="group")
@@ -687,7 +730,9 @@ def _add_crop_stability_constraints(
         lhs_zero = total_production.sel(group=zero_index)
         constr_name = "crop_production_zero"
         m.add_constraints(lhs_zero == 0, name=f"GlobalConstraint-{constr_name}")
-        gc_names = [f"{constr_name}_{crop}_{country}" for crop, country in zero_index]
+        gc_names = [
+            f"{constr_name}_{fao_item}_{country}" for fao_item, country in zero_index
+        ]
         n.global_constraints.add(
             gc_names,
             sense="==",
@@ -695,7 +740,7 @@ def _add_crop_stability_constraints(
             type="production_stability",
         )
         logger.info(
-            "Added %d crop production constraints for zero-baseline (crop, country) pairs",
+            "Added %d crop production constraints for zero-baseline (fao_item, country) pairs",
             int(zero_mask.sum()),
         )
 
@@ -715,10 +760,12 @@ def _add_crop_stability_constraints(
         )
 
         gc_names_min = [
-            f"{constr_name_min}_{crop}_{country}" for crop, country in nonzero_index
+            f"{constr_name_min}_{fao_item}_{country}"
+            for fao_item, country in nonzero_index
         ]
         gc_names_max = [
-            f"{constr_name_max}_{crop}_{country}" for crop, country in nonzero_index
+            f"{constr_name_max}_{fao_item}_{country}"
+            for fao_item, country in nonzero_index
         ]
         n.global_constraints.add(
             gc_names_min,
@@ -739,12 +786,12 @@ def _add_crop_stability_constraints(
             delta * 100,
         )
 
-    # Log missing baselines
+    # Log missing baselines (at FAO item level)
     missing = model_index.difference(target_series.index)
     if len(missing) > 0:
-        examples = [f"{c}/{r}" for c, r in list(missing)[:5]]
+        examples = [f"{item}/{country}" for item, country in list(missing)[:5]]
         logger.warning(
-            "Missing crop baseline data for %d (crop, country) pairs; examples: %s",
+            "Missing crop baseline data for %d (fao_item, country) pairs; examples: %s",
             len(missing),
             ", ".join(examples),
         )
@@ -1507,11 +1554,20 @@ if __name__ == "__main__":
             food_to_group = food_groups_df.set_index("food")["group"].to_dict()
 
         crop_baseline = None
+        crop_to_fao_item: dict[str, str] = {}
         animal_baseline = None
         food_loss_waste_df = pd.DataFrame()
 
         if stability_cfg["crops"]["enabled"]:
             crop_baseline = pd.read_csv(snakemake.input.crop_production_baseline)
+            # Load FAO item mapping to aggregate crops sharing an FAO item
+            fao_map_df = pd.read_csv(snakemake.input.faostat_item_map)
+            crop_to_fao_item = dict(
+                zip(
+                    fao_map_df["crop"].astype(str),
+                    fao_map_df["faostat_item"].astype(str),
+                )
+            )
 
         if stability_cfg["animals"]["enabled"]:
             animal_baseline = pd.read_csv(snakemake.input.animal_production_baseline)
@@ -1520,6 +1576,7 @@ if __name__ == "__main__":
         add_production_stability_constraints(
             n,
             crop_baseline,
+            crop_to_fao_item,
             animal_baseline,
             stability_cfg,
             food_to_group,

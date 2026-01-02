@@ -165,6 +165,8 @@ def solve_model_inputs(w):
             inputs["crop_production_baseline"] = (
                 f"processing/{w.name}/faostat_crop_production.csv"
             )
+            # Include FAO item mapping to aggregate crops sharing an FAO item
+            inputs["faostat_item_map"] = "data/faostat_item_map.csv"
         if stability_cfg["animals"]["enabled"]:
             inputs["animal_production_baseline"] = (
                 f"processing/{w.name}/faostat_animal_production.csv"
