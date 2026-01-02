@@ -77,7 +77,7 @@ jupyter = ">=1.1.1,<2"               # Jupyter notebook interface
 ipython = ">=9.7.0,<10"              # Enhanced Python REPL
 
 # Code quality
-pre-commit = ">=4.5.0,<5"            # Git pre-commit hooks framework
+prek = ">=0.1.0,<2"                  # Git pre-commit hooks runner
 ruff = ">=0.14.6,<0.15"              # Fast Python linter and formatter
 
 # Documentation

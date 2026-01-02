@@ -52,7 +52,7 @@ Provide clear expectations and a safe, efficient workflow so agents can make sma
 ### Available Environments
 
 - `default`: Base environment with HiGHS solver (open-source)
-- `dev`: Development tools (Jupyter, Sphinx, pre-commit, etc.)
+- `dev`: Development tools (Jupyter, Sphinx, prek, etc.)
 - `gurobi`: Includes Gurobi solver (requires license)
 - `dev-gurobi`: Development tools + Gurobi solver
 

@@ -37,10 +37,14 @@ Installation
 
        pixi install --environment dev
 
-4. Set up pre-commit hooks::
+4. Set up prek hooks::
 
-       pixi run --environment dev pre-commit install
+       pixi run --environment dev prek install
 
+   Prek is a lightweight hook runner similar to `pre-commit <https://pre-commit.com/>`_.
+   See `prek <https://github.com/j178/prek>`_ for details. You can also use pre-commit.
+
+   Hooks are defined in ``.pre-commit-config.yaml``.
 Code Conventions
 ----------------
 
@@ -62,9 +66,9 @@ The project uses **ruff** for linting and formatting, enforcing:
 
     pixi run --environment dev ruff format .
 
-**Run from pre-commit** (automatic on ``git commit``)::
+**Run from prek** (automatic on ``git commit``)::
 
-    pixi run --environment dev pre-commit run --all-files
+    pixi run --environment dev prek run --all-files
 
 Specific Conventions
 ~~~~~~~~~~~~~~~~~~~~
@@ -338,7 +342,7 @@ Contributing Guidelines
 Before Submitting a Pull Request
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. **Run linter**: ``pixi run --environment dev ruff check . && pixi run --environment dev ruff format .`` (this is taken care of automatically if you set up ``pre-commit``)
+1. **Run linter**: ``pixi run --environment dev ruff check . && pixi run --environment dev ruff format .`` (this is taken care of automatically if you set up ``prek``)
 2. **Test workflow**: Verify that the default configuration runs successfully
 3. **Update documentation**: If changing user-facing behavior
 4. **Write commit messages**: Descriptive and following conventions
