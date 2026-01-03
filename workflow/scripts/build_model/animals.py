@@ -34,6 +34,8 @@ def add_feed_slack_generators(
 
     Note: Positive slack is only added for ruminant grassland feeds to prevent the model
     from filling feed gaps with high-protein feeds (which would overestimate N2O emissions).
+    Negative slack is only added for non-grassland feeds, since grassland use is capped
+    rather than fixed.
 
     Parameters
     ----------
@@ -73,22 +75,24 @@ def add_feed_slack_generators(
             len(gen_pos_names),
         )
 
-    # Add negative slack stores for all feed buses (absorb excess feed)
-    gen_neg_names = [f"slack_negative_feed_{bus}" for bus in feed_buses]
-    n.generators.add(
-        gen_neg_names,
-        bus=feed_buses,
-        carrier="slack_negative_feed",
-        p_nom_extendable=True,
-        p_min_pu=-1.0,
-        p_max_pu=0.0,
-        marginal_cost=-marginal_cost,
-    )
+    # Add negative slack stores for non-grassland feed buses (absorb excess feed)
+    non_grassland_buses = [bus for bus in feed_buses if "ruminant_grassland" not in bus]
+    if non_grassland_buses:
+        gen_neg_names = [f"slack_negative_feed_{bus}" for bus in non_grassland_buses]
+        n.generators.add(
+            gen_neg_names,
+            bus=non_grassland_buses,
+            carrier="slack_negative_feed",
+            p_nom_extendable=True,
+            p_min_pu=-1.0,
+            p_max_pu=0.0,
+            marginal_cost=-marginal_cost,
+        )
 
-    logger.info(
-        "Added %d negative feed slack stores for validation feasibility",
-        len(gen_neg_names),
-    )
+        logger.info(
+            "Added %d negative feed slack stores for validation feasibility",
+            len(gen_neg_names),
+        )
 
 
 def add_feed_to_animal_product_links(

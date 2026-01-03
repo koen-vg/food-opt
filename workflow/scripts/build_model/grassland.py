@@ -117,7 +117,7 @@ def add_grassland_feed_links(
     pasture_land_area : pd.Series | None, optional
         Available pasture land area, by default None.
     use_actual_production : bool, optional
-        Whether to fix production to observed values, by default False.
+        Whether to cap production at observed values, by default False.
     pasture_utilization_rate : float, optional
         Fraction of grassland biomass actually consumed by animals, by default 1.0.
     """
@@ -247,8 +247,6 @@ def add_grassland_feed_links(
         }
         if use_actual_production:
             params["p_nom"] = available_mha
-            params["p_nom_min"] = available_mha
-            params["p_min_pu"] = 1.0
 
         n.links.add(work["name"].tolist(), **params)
         return True
