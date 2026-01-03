@@ -54,7 +54,7 @@ p7zip = ">=16.02,<17"                # 7z archive extraction for Huang water dat
 snakemake = ">=9.13.7, <10"          # Workflow management system
 
 # Optimization and modeling; own branches of pypsa and linopy with custom features needed by food-opt
-pypsa = { git = "https://github.com/koen-vg/PyPSA.git", tag = "v1.0.4+food.opt" }
+pypsa = { git = "https://github.com/koen-vg/PyPSA.git", tag = "v1.0.6+food.opt" }
 linopy = { git = "https://github.com/koen-vg/linopy.git", tag = "v0.5.7+food.opt" }
 
 # Geospatial processing
