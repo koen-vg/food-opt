@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Optimal Taxes/Subsidies Workflow Scenarios
+# ------------------------------------------
+# Workflow:
+# 1. "optimize": Free consumption with health/GHG objectives - derives optimal consumption
+# 2. "extract_taxes": Fixed consumption (from optimize), production costs only - extracts duals as taxes
+
+optimize:
+  # Stage 1: Free consumption optimization with health/GHG enabled
+  # Resulting consumption patterns represent the health/GHG-optimal diet
+  health:
+    enabled: true
+  emissions:
+    ghg_pricing_enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
+
+extract_taxes:
+  # Stage 2: Production costs only with fixed consumption from Stage 1
+  # Dual variables of consumption constraints = optimal Pigouvian taxes/subsidies
+  # Note: consumption is fixed via solve_with_fixed_consumption.py, not enforce_gdd_baseline
+  health:
+    enabled: false
+  emissions:
+    ghg_pricing_enabled: false

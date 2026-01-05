@@ -17,6 +17,7 @@ from .crop_food_pathways import validate_crop_food_pathways
 from .food_groups import validate_food_groups
 from .gaez_crop_mapping import validate_gaez_crop_mapping
 from .health_map import validate_health_map
+from .optimal_taxes import validate_optimal_taxes
 from .secrets import load_secrets_with_env_fallback
 
 Validator = Callable[[dict, Path], None]
@@ -24,6 +25,7 @@ Validator = Callable[[dict, Path], None]
 _CHECKS: dict[str, Validator] = {
     "config_schema": validate_config_schema,
     "consumer_values": validate_consumer_values,
+    "optimal_taxes": validate_optimal_taxes,
     "country_regions": validate_country_regions,
     "food_groups": validate_food_groups,
     "crop_food_pathways": validate_crop_food_pathways,

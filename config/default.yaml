@@ -34,6 +34,10 @@ validation:
 consumer_values:
   enabled: false  # When true, consumer values are applied to food group stores
 
+# --- section: optimal_taxes ---
+optimal_taxes:
+  enabled: false  # When true, enables the optimal taxes/subsidies workflow
+
 # --- section: land ---
 land:
   regional_limit: 0.7 # fraction of each region's potential cropland that is made available.

@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Optimal Taxes/Subsidies Configuration
+# -------------------------------------
+# This workflow:
+# 1. Runs optimization with health/GHG objectives to derive optimal consumption
+# 2. Fixes consumption to optimal values and solves with production costs only
+# 3. Extracts dual variables as optimal Pigouvian taxes/subsidies
+
+name: "optimal_taxes"
+scenario_defs: "config/optimal_taxes_scenarios.yaml"
+
+# Enable the optimal taxes workflow; this just triggers a special config validation
+optimal_taxes:
+  enabled: true
+
+# Use coarser spatial aggregation for faster processing
+aggregation:
+  regions:
+    target_count: 250
+
+# Health settings for Stage 1 (optimize scenario)
+health:
+  value_per_yll: 50000
+
+# GHG pricing settings for Stage 1 (optimize scenario)
+emissions:
+  ghg_price: 200
+
+biomass:
+  marginal_cost: 0
+
+# Plotting configuration
+plotting:
+  comparison_scenarios: "all"
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2

@@ -14,6 +14,7 @@ required:
   - downloads
   - validation
   - consumer_values
+  - optimal_taxes
   - land
   - water
   - fertilizer
@@ -156,6 +157,15 @@ properties:
       enabled:
         type: boolean
         description: "When true, consumer values are applied to food group stores in the objective"
+
+  optimal_taxes:
+    type: object
+    required: [enabled]
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+        description: "When true, enables the optimal taxes/subsidies workflow"
 
   land:
     type: object

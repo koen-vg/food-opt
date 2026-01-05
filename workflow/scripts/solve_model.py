@@ -351,7 +351,7 @@ def add_consumer_values_to_objective(
     cv_df["store_name"] = "store_" + cv_df["group"] + "_" + cv_df["country"]
 
     # Apply as marginal_cost_storage (negative = reward for consumption)
-    # The dual value represents marginal cost of consumption; negating it
+    # The value represents marginal cost of consumption; negating it
     # creates an incentive to consume up to the equilibrium point.
     n.stores.static.loc[cv_df["store_name"], "marginal_cost_storage"] = -cv_df[
         "value_bnusd_per_mt"
