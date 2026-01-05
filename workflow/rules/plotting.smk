@@ -3,8 +3,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
-import yaml
-
 gaez = config["data"]["gaez"]
 plotting_cfg = config.get("plotting", {})
 crop_color_overrides = plotting_cfg.get("colors", {}).get("crops", {})
@@ -14,14 +12,12 @@ comparison_scenarios = plotting_cfg["comparison_scenarios"]
 
 # Expand "all" to all scenario names from scenario_defs
 if comparison_scenarios == "all":
-    scenario_defs_path = config.get("scenario_defs")
-    if not scenario_defs_path:
+    scenario_names = list_scenarios()
+    if not scenario_names:
         raise ValueError(
             "Cannot use comparison_scenarios='all' without scenario_defs defined in config"
         )
-    with open(scenario_defs_path, "r", encoding="utf-8") as f:
-        scenarios = yaml.safe_load(f)
-    comparison_scenarios = [f"scen-{name}" for name in scenarios.keys()]
+    comparison_scenarios = [f"scen-{name}" for name in scenario_names]
 
 
 def _gaez_actual_yield_raster_path(crop_name: str, water_supply: str) -> str:

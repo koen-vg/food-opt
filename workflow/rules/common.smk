@@ -23,28 +23,39 @@ def _recursive_update(target, source):
     return target
 
 
-def get_effective_config(scenario_name):
-    """Return the configuration with scenario overrides applied."""
+def load_scenario_defs():
+    """Load scenario definitions from the configured scenario_defs path."""
     global _SCENARIO_CACHE
     if _SCENARIO_CACHE is None:
         path = config.get("scenario_defs")
         if path:
             with open(path, "r", encoding="utf-8") as f:
-                _SCENARIO_CACHE = yaml.safe_load(f)
+                _SCENARIO_CACHE = yaml.safe_load(f) or {}
         else:
             _SCENARIO_CACHE = {}
+    return _SCENARIO_CACHE
+
+
+def list_scenarios():
+    """Return the scenario names from scenario_defs."""
+    return list(load_scenario_defs().keys())
+
+
+def get_effective_config(scenario_name):
+    """Return the configuration with scenario overrides applied."""
+    scenario_defs = load_scenario_defs()
 
     # Start with a deep copy of the global config to avoid mutating it
     # We convert config to dict because it might be a Config object
     eff_config = copy.deepcopy(dict(config))
 
     if scenario_name and scenario_name != "default":
-        if scenario_name not in _SCENARIO_CACHE:
+        if scenario_name not in scenario_defs:
             # If scenario is not found, maybe raise warning or error?
             # For now, we assume if it's not in cache, no overrides (or invalid scenario handled elsewhere)
             pass
         else:
-            overrides = _SCENARIO_CACHE[scenario_name]
+            overrides = scenario_defs[scenario_name]
             _recursive_update(eff_config, overrides)
 
     return eff_config

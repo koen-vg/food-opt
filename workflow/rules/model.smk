@@ -152,6 +152,11 @@ def solve_model_inputs(w):
         "baseline_diet": f"processing/{w.name}/dietary_intake.csv",
     }
 
+    # Add consumer values input if enabled for this scenario
+    eff_cfg = get_effective_config(w.scenario)
+    if eff_cfg["consumer_values"]["enabled"]:
+        inputs["consumer_values"] = f"results/{w.name}/consumer_values/values.csv"
+
     # Add validation-specific inputs
     if config.get("validation", {}).get("use_actual_production", False):
         inputs["animal_production"] = (
@@ -217,7 +222,9 @@ rule solve_model:
         macronutrients=config["macronutrients"],
         food_group_constraints=config["food_groups"].get("constraints", {}),
         diet=config["diet"],
-        enforce_baseline=config["validation"]["enforce_gdd_baseline"],
+        enforce_baseline=lambda w: get_effective_config(w.scenario)["validation"][
+            "enforce_gdd_baseline"
+        ],
         production_stability=config["validation"]["production_stability"],
     output:
         network="results/{name}/solved/model_scen-{scenario}.nc",

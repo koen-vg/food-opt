@@ -13,6 +13,7 @@ required:
   - currency_base_year
   - downloads
   - validation
+  - consumer_values
   - land
   - water
   - fertilizer
@@ -146,6 +147,15 @@ properties:
                 minimum: 0
                 maximum: 1
                 description: "Maximum relative deviation from baseline (e.g., 0.2 = ±20%)"
+
+  consumer_values:
+    type: object
+    required: [enabled]
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+        description: "When true, consumer values are applied to food group stores in the objective"
 
   land:
     type: object

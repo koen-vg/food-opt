@@ -11,6 +11,7 @@ from typing import Callable
 from snakemake.logging import logger
 
 from .config_schema import validate_config_schema
+from .consumer_values import validate_consumer_values
 from .country_regions import validate_country_regions
 from .crop_food_pathways import validate_crop_food_pathways
 from .food_groups import validate_food_groups
@@ -22,6 +23,7 @@ Validator = Callable[[dict, Path], None]
 
 _CHECKS: dict[str, Validator] = {
     "config_schema": validate_config_schema,
+    "consumer_values": validate_consumer_values,
     "country_regions": validate_country_regions,
     "food_groups": validate_food_groups,
     "crop_food_pathways": validate_crop_food_pathways,

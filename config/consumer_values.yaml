@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Consumer Values Analysis Configuration
+# --------------------------------------
+# This workflow extracts "consumer values" (dual variables from food group
+# constraints) from a baseline model with fixed consumption, then uses these
+# values in subsequent solves to explore how health/environmental pricing
+# affects consumption while accounting for revealed consumer preferences.
+
+name: "consumer_values"
+scenario_defs: "config/consumer_values_scenarios.yaml"
+
+# Use coarser spatial aggregation for faster processing
+aggregation:
+  regions:
+    target_count: 250
+
+macronutrients:
+  cal:
+    equal: 2400    # kcal/person/day
+
+# Default health and emissions settings (overridden by scenarios)
+health:
+  enabled: false
+  value_per_yll: 150000
+
+emissions:
+  ghg_pricing_enabled: false
+  ghg_price: 200
+
+# Compare all consumer values scenarios in plots
+plotting:
+  comparison_scenarios: "all"
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2

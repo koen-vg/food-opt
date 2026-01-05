@@ -329,6 +329,40 @@ def add_ghg_pricing_to_objective(n: pypsa.Network, ghg_price_usd_per_t: float) -
     n.stores.static.at["ghg", "marginal_cost_storage"] = ghg_price_bnusd_per_mt
 
 
+def add_consumer_values_to_objective(
+    n: pypsa.Network, consumer_values_path: str
+) -> None:
+    """Add consumer values to the objective function for food group stores.
+
+    Consumer values represent the marginal value of consumption for each food
+    group and country, extracted from dual variables of fixed consumption
+    constraints. They are applied as negative marginal costs on food group
+    stores (rewarding consumption) to replicate revealed consumer preferences.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network containing the model.
+    consumer_values_path : str
+        Path to CSV with columns: group, country, value_bnusd_per_mt
+    """
+    cv_df = pd.read_csv(consumer_values_path)
+    cv_df["country"] = cv_df["country"].astype(str).str.upper()
+    cv_df["store_name"] = "store_" + cv_df["group"] + "_" + cv_df["country"]
+
+    # Apply as marginal_cost_storage (negative = reward for consumption)
+    # The dual value represents marginal cost of consumption; negating it
+    # creates an incentive to consume up to the equilibrium point.
+    n.stores.static.loc[cv_df["store_name"], "marginal_cost_storage"] = -cv_df[
+        "value_bnusd_per_mt"
+    ].values
+
+    logger.info(
+        "Applied consumer values to %d food group stores",
+        len(cv_df),
+    )
+
+
 def build_residue_feed_fraction_by_country(
     config: dict, m49_path: str
 ) -> dict[str, float]:
@@ -1554,6 +1588,10 @@ if __name__ == "__main__":
     if snakemake.config["emissions"]["ghg_pricing_enabled"]:
         ghg_price = float(snakemake.params.ghg_price)
         add_ghg_pricing_to_objective(n, ghg_price)
+
+    # Add consumer values to the objective if enabled
+    if snakemake.config["consumer_values"]["enabled"]:
+        add_consumer_values_to_objective(n, snakemake.input.consumer_values)
 
     # Create the linopy model
     logger.info("Creating linopy model...")

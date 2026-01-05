@@ -72,13 +72,31 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
 
     if component == "Store":
         carriers = static["carrier"].astype(str)
+        nutrients = static.get("nutrient", pd.Series(index=index, dtype=object))
+        food_groups = static.get("food_group", pd.Series(index=index, dtype=object))
+
+        def _has_value(value: object) -> bool:
+            return bool(str(value).strip())
+
         categories = []
-        for name, carrier in zip(index, carriers):
+        for name, carrier, nutrient, food_group in zip(
+            index, carriers, nutrients, food_groups
+        ):
             name_str = str(name)
             if carrier == "ghg" or name_str == "ghg":
                 categories.append("GHG storage")
             elif carrier.startswith("yll_"):
                 categories.append(f"Health ({carrier.removeprefix('yll_')})")
+            elif _has_value(food_group) or carrier.startswith("group_"):
+                categories.append("Consumer values (food groups)")
+            elif _has_value(nutrient):
+                categories.append("Macronutrient stores")
+            elif carrier == "water":
+                categories.append("Water storage")
+            elif carrier == "fertilizer":
+                categories.append("Fertilizer storage")
+            elif carrier == "spared_land":
+                categories.append("Spared land")
             else:
                 categories.append("Store")
         return pd.Series(categories, index=index, name="category")

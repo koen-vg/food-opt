@@ -30,6 +30,10 @@ validation:
       enabled: true
       max_relative_deviation: 0.2
 
+# --- section: consumer_values ---
+consumer_values:
+  enabled: false  # When true, consumer values are applied to food group stores
+
 # --- section: land ---
 land:
   regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
