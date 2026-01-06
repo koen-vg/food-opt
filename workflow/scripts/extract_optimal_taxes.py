@@ -74,7 +74,8 @@ def extract_optimal_taxes(n: pypsa.Network) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        Columns: group, country, tax_bnusd_per_mt, tax_usd_per_kg
+        Columns: group, country, tax_bnusd_per_mt, tax_usd_per_kg,
+        adjustment_bnusd_per_mt
         Positive values indicate taxes (discourage consumption),
         negative values indicate subsidies (encourage consumption).
     """
@@ -114,6 +115,7 @@ def extract_optimal_taxes(n: pypsa.Network) -> pd.DataFrame:
                 "country": country,
                 "tax_bnusd_per_mt": tax_bnusd_per_mt,
                 "tax_usd_per_kg": tax_usd_per_kg,
+                "adjustment_bnusd_per_mt": tax_bnusd_per_mt,
             }
         )
 

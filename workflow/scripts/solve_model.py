@@ -329,37 +329,81 @@ def add_ghg_pricing_to_objective(n: pypsa.Network, ghg_price_usd_per_t: float) -
     n.stores.static.at["ghg", "marginal_cost_storage"] = ghg_price_bnusd_per_mt
 
 
-def add_consumer_values_to_objective(
-    n: pypsa.Network, consumer_values_path: str
+def add_food_group_incentives_to_objective(
+    n: pypsa.Network, incentives_paths: list[str]
 ) -> None:
-    """Add consumer values to the objective function for food group stores.
+    """Add food-group incentives/penalties to the objective function.
 
-    Consumer values represent the marginal value of consumption for each food
-    group and country, extracted from dual variables of fixed consumption
-    constraints. They are applied as negative marginal costs on food group
-    stores (rewarding consumption) to replicate revealed consumer preferences.
+    Incentives are applied as adjustments to marginal storage costs of
+    food group stores. Positive values penalize consumption; negative
+    values subsidize consumption.
 
     Parameters
     ----------
     n : pypsa.Network
         The network containing the model.
-    consumer_values_path : str
-        Path to CSV with columns: group, country, value_bnusd_per_mt
+    incentives_paths : list[str]
+        Paths to CSVs with columns: group, country, adjustment_bnusd_per_mt
     """
-    cv_df = pd.read_csv(consumer_values_path)
-    cv_df["country"] = cv_df["country"].astype(str).str.upper()
-    cv_df["store_name"] = "store_" + cv_df["group"] + "_" + cv_df["country"]
+    if not incentives_paths:
+        raise ValueError("food_group_incentives enabled but no sources are configured")
 
-    # Apply as marginal_cost_storage (negative = reward for consumption)
-    # The value represents marginal cost of consumption; negating it
-    # creates an incentive to consume up to the equilibrium point.
-    n.stores.static.loc[cv_df["store_name"], "marginal_cost_storage"] = -cv_df[
-        "value_bnusd_per_mt"
-    ].values
+    combined = []
+    for path in incentives_paths:
+        incentives_df = pd.read_csv(path)
+        required = {"group", "country", "adjustment_bnusd_per_mt"}
+        missing = required - set(incentives_df.columns)
+        if missing:
+            missing_text = ", ".join(sorted(missing))
+            raise ValueError(
+                f"Missing required columns in incentives file {path}: {missing_text}"
+            )
+
+        incentives_df["country"] = incentives_df["country"].astype(str).str.upper()
+        incentives_df["store_name"] = (
+            "store_" + incentives_df["group"] + "_" + incentives_df["country"]
+        )
+        combined.append(incentives_df[["store_name", "adjustment_bnusd_per_mt"]].copy())
+
+    all_incentives = pd.concat(combined, ignore_index=True)
+    summed = (
+        all_incentives.groupby("store_name")["adjustment_bnusd_per_mt"]
+        .sum()
+        .reset_index()
+    )
+
+    if "marginal_cost_storage" not in n.stores.static.columns:
+        n.stores.static["marginal_cost_storage"] = 0.0
+
+    store_index = n.stores.static.index
+    missing_stores = summed[~summed["store_name"].isin(store_index)]
+    if not missing_stores.empty:
+        sample = ", ".join(missing_stores["store_name"].head(5))
+        logger.warning(
+            "Missing %d food group stores for incentives (examples: %s)",
+            len(missing_stores),
+            sample,
+        )
+
+    applicable = summed[summed["store_name"].isin(store_index)]
+    if applicable.empty:
+        logger.info(
+            "No applicable food group incentives found in %d sources",
+            len(incentives_paths),
+        )
+        return
+
+    n.stores.static.loc[applicable["store_name"], "marginal_cost_storage"] = (
+        n.stores.static.loc[applicable["store_name"], "marginal_cost_storage"].astype(
+            float
+        )
+        + applicable["adjustment_bnusd_per_mt"].astype(float).values
+    )
 
     logger.info(
-        "Applied consumer values to %d food group stores",
-        len(cv_df),
+        "Applied food-group incentives to %d stores from %d sources",
+        len(applicable),
+        len(incentives_paths),
     )
 
 
@@ -1589,9 +1633,10 @@ if __name__ == "__main__":
         ghg_price = float(snakemake.params.ghg_price)
         add_ghg_pricing_to_objective(n, ghg_price)
 
-    # Add consumer values to the objective if enabled
-    if snakemake.config["consumer_values"]["enabled"]:
-        add_consumer_values_to_objective(n, snakemake.input.consumer_values)
+    # Add food-group incentives to the objective if enabled
+    if snakemake.config["food_group_incentives"]["enabled"]:
+        incentives_paths = list(snakemake.input.food_group_incentives)
+        add_food_group_incentives_to_objective(n, incentives_paths)
 
     # Create the linopy model
     logger.info("Creating linopy model...")
@@ -1624,6 +1669,11 @@ if __name__ == "__main__":
 
     # Food group baseline equals (optional)
     per_country_equal: dict[str, dict[str, float]] | None = None
+    equal_source = snakemake.config["food_groups"]["equal_by_country_source"]
+    if bool(snakemake.params.enforce_baseline) and equal_source:
+        raise ValueError(
+            "Cannot combine enforce_gdd_baseline with food_groups.equal_by_country_source"
+        )
     if bool(snakemake.params.enforce_baseline):
         baseline_df = pd.read_csv(snakemake.input.baseline_diet)
         per_country_equal = _build_food_group_equals_from_baseline(
@@ -1633,6 +1683,39 @@ if __name__ == "__main__":
             baseline_age=str(snakemake.params.diet["baseline_age"]),
             reference_year=int(snakemake.params.diet["baseline_reference_year"]),
         )
+    elif equal_source:
+        equal_df = pd.read_csv(snakemake.input.food_group_equal)
+        required = {"group", "country", "consumption_g_per_day"}
+        missing = required - set(equal_df.columns)
+        if missing:
+            missing_text = ", ".join(sorted(missing))
+            raise ValueError(
+                f"Missing required columns in food group equality file: {missing_text}"
+            )
+        equal_df["country"] = equal_df["country"].astype(str).str.upper()
+        per_country_equal = {}
+        all_countries = set(population_map.keys())
+        for group, group_df in equal_df.groupby("group"):
+            values = {country: 0.0 for country in all_countries}
+            for _, row in group_df.iterrows():
+                country = str(row["country"]).upper()
+                if country not in values:
+                    logger.warning(
+                        "Unknown country '%s' in food group equality file", country
+                    )
+                    continue
+                values[country] = float(row["consumption_g_per_day"])
+            missing_countries = sorted(all_countries - set(group_df["country"]))
+            if missing_countries:
+                preview = ", ".join(missing_countries[:5])
+                logger.warning(
+                    "Food group '%s' missing %d countries in equality file; "
+                    "setting them to 0 (examples: %s)",
+                    group,
+                    len(missing_countries),
+                    preview,
+                )
+            per_country_equal[str(group)] = values
 
     add_macronutrient_constraints(n, snakemake.params.macronutrients, population_map)
     add_food_group_constraints(

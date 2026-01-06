@@ -9,8 +9,8 @@
 # values in subsequent solves to explore how health/environmental pricing
 # affects consumption while accounting for revealed consumer preferences.
 
-name: "consumer_values"
-scenario_defs: "config/consumer_values_scenarios.yaml"
+name: "consumer_values_with_GHGs"
+scenario_defs: "config/consumer_values_with_GHGs_scenarios.yaml"
 
 # Use coarser spatial aggregation for faster processing
 aggregation:
@@ -43,3 +43,5 @@ solving:
   solver: "gurobi"
   io_api: "direct"
   threads: 2
+  options_gurobi:
+    MIPGap: 0.002 # Apparently this config is difficult to solve

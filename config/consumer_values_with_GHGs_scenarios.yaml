@@ -5,7 +5,7 @@
 # Consumer Values Analysis Scenarios
 # ----------------------------------
 # Workflow:
-# 1. "baseline": Fixed consumption, no health/GHG - used to extract consumer values (duals)
+# 1. "baseline": Fixed consumption, GHG costs - used to extract consumer values (duals)
 # 2. "cv": Consumer values in objective only - verifies consumption matches baseline
 # 3. "cv_H": Consumer values + health objective
 # 4. "cv_G": Consumer values + GHG pricing
@@ -24,7 +24,7 @@ baseline:
   health:
     enabled: false
   emissions:
-    ghg_pricing_enabled: false
+    ghg_pricing_enabled: true
 
 cv:
   # Consumer values in objective, no fixed demands (verification)
@@ -35,7 +35,7 @@ cv:
   health:
     enabled: false
   emissions:
-    ghg_pricing_enabled: false
+    ghg_pricing_enabled: true
 
 cv_H:
   # Consumer values + health
@@ -49,35 +49,35 @@ cv_H:
   health:
     enabled: true
   emissions:
-    ghg_pricing_enabled: false
-
-cv_G:
-  # Consumer values + GHG pricing
-  validation:
-    enforce_gdd_baseline: false
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400
-  health:
-    enabled: false
-  emissions:
     ghg_pricing_enabled: true
 
-cv_HG:
-  # Consumer values + health + GHG
-  validation:
-    enforce_gdd_baseline: false
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400
-  health:
-    enabled: true
-  emissions:
-    ghg_pricing_enabled: true
+# cv_G:
+#   # Consumer values + GHG pricing
+#   validation:
+#     enforce_gdd_baseline: false
+#   food_group_incentives:
+#     enabled: true
+#   macronutrients:
+#     cal:
+#       equal: 2400
+#   health:
+#     enabled: false
+#   emissions:
+#     ghg_pricing_enabled: true
+
+# cv_HG:
+#   # Consumer values + health + GHG
+#   validation:
+#     enforce_gdd_baseline: false
+#   food_group_incentives:
+#     enabled: true
+#   macronutrients:
+#     cal:
+#       equal: 2400
+#   health:
+#     enabled: true
+#   emissions:
+#     ghg_pricing_enabled: true
 
 no_cv:
   # No consumer values, no fixed demands
@@ -91,7 +91,7 @@ no_cv:
   health:
     enabled: false
   emissions:
-    ghg_pricing_enabled: false
+    ghg_pricing_enabled: true
 
 no_cv_H:
   # No consumer values + health
@@ -105,32 +105,32 @@ no_cv_H:
   health:
     enabled: true
   emissions:
-    ghg_pricing_enabled: false
-
-no_cv_G:
-  # No consumer values + GHG pricing
-  validation:
-    enforce_gdd_baseline: false
-  food_group_incentives:
-    enabled: false
-  macronutrients:
-    cal:
-      equal: 2400
-  health:
-    enabled: false
-  emissions:
     ghg_pricing_enabled: true
 
-no_cv_HG:
-  # No consumer values + health + GHG
-  validation:
-    enforce_gdd_baseline: false
-  food_group_incentives:
-    enabled: false
-  macronutrients:
-    cal:
-      equal: 2400
-  health:
-    enabled: true
-  emissions:
-    ghg_pricing_enabled: true
+# no_cv_G:
+#   # No consumer values + GHG pricing
+#   validation:
+#     enforce_gdd_baseline: false
+#   food_group_incentives:
+#     enabled: false
+#   macronutrients:
+#     cal:
+#       equal: 2400
+#   health:
+#     enabled: false
+#   emissions:
+#     ghg_pricing_enabled: true
+
+# no_cv_HG:
+#   # No consumer values + health + GHG
+#   validation:
+#     enforce_gdd_baseline: false
+#   food_group_incentives:
+#     enabled: false
+#   macronutrients:
+#     cal:
+#       equal: 2400
+#   health:
+#     enabled: true
+#   emissions:
+#     ghg_pricing_enabled: true

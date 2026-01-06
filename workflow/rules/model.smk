@@ -152,10 +152,21 @@ def solve_model_inputs(w):
         "baseline_diet": f"processing/{w.name}/dietary_intake.csv",
     }
 
-    # Add consumer values input if enabled for this scenario
+    # Add food-group incentives input if enabled for this scenario
     eff_cfg = get_effective_config(w.scenario)
-    if eff_cfg["consumer_values"]["enabled"]:
-        inputs["consumer_values"] = f"results/{w.name}/consumer_values/values.csv"
+    if eff_cfg["food_group_incentives"]["enabled"]:
+        sources = eff_cfg["food_group_incentives"]["sources"]
+        if not sources:
+            raise ValueError("food_group_incentives enabled but sources is empty")
+        inputs["food_group_incentives"] = [
+            source.format(name=w.name, scenario=w.scenario) for source in sources
+        ]
+    equal_source = eff_cfg["food_groups"]["equal_by_country_source"]
+    if equal_source:
+        inputs["food_group_equal"] = equal_source.format(
+            name=w.name,
+            scenario=w.scenario,
+        )
 
     # Add validation-specific inputs
     if config.get("validation", {}).get("use_actual_production", False):

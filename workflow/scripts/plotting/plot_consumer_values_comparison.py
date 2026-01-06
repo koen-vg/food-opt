@@ -255,8 +255,7 @@ def _plot_consumer_values_distribution(
     fig_height = max(6.0, 0.4 * len(group_order) + 3.0)
     fig, ax = plt.subplots(figsize=(12, fig_height))
 
-    # sns.boxenplot(
-    sns.stripplot(
+    sns.boxenplot(
         data=cv_df,
         x="group",
         y="value_usd_per_kg",
@@ -273,6 +272,7 @@ def _plot_consumer_values_distribution(
     ax.set_ylabel("USD / kg")
     ax.set_title("Consumer Values by Food Group (Across Countries)")
     ax.grid(axis="y", alpha=0.3)
+    ax.set_ylim(bottom=0, top=cv_df["value_usd_per_kg"].max() * 1.1)
 
     fig.tight_layout()
     fig.savefig(output_path, bbox_inches="tight", dpi=300)

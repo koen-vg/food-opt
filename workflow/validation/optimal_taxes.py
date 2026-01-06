@@ -30,7 +30,7 @@ def validate_optimal_taxes(config: dict, project_root: Path) -> None:
         if bool(config["optimal_taxes"]["enabled"]):
             raise ValueError(
                 "optimal_taxes enabled but scenario_defs is not configured; "
-                "required scenarios: 'optimize' and 'extract_taxes'"
+                "required scenarios: 'baseline', 'optimize', 'extract_taxes', 'apply_taxes'"
             )
         return
 
@@ -46,9 +46,10 @@ def validate_optimal_taxes(config: dict, project_root: Path) -> None:
     if not _optimal_taxes_enabled(config, scenario_defs):
         return
 
-    required_scenarios = {"optimize", "extract_taxes"}
+    required_scenarios = {"baseline", "optimize", "extract_taxes", "apply_taxes"}
     missing = required_scenarios - set(scenario_defs.keys())
     if missing:
         raise ValueError(
-            f"optimal_taxes enabled but scenario_defs is missing required scenarios: {missing}"
+            "optimal_taxes enabled but scenario_defs is missing required scenarios: "
+            f"{missing}"
         )

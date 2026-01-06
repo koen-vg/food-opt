@@ -13,7 +13,7 @@ required:
   - currency_base_year
   - downloads
   - validation
-  - consumer_values
+  - food_group_incentives
   - optimal_taxes
   - land
   - water
@@ -47,7 +47,7 @@ additionalProperties: false
 properties:
   name:
     type: string
-    pattern: "^[a-z0-9_-]+$"
+    pattern: "^[a-zA-Z0-9_-]+$"
     description: "Optional config name identifier (overrides default)"
 
   scenario_defs:
@@ -85,6 +85,7 @@ properties:
       - slack_marginal_cost
       - harvest_area_source
       - production_year
+      - enable_inferred_multi_cropping
       - production_stability
     additionalProperties: false
     properties:
@@ -113,6 +114,9 @@ properties:
         minimum: 1990
         maximum: 2024
         description: "Reference year for production data"
+      enable_inferred_multi_cropping:
+        type: boolean
+        description: "Enable explicit multi-cropping links using inferred areas from CROPGRIDS cropping_intensity"
       production_stability:
         type: object
         required: [enabled, crops, animals]
@@ -149,14 +153,19 @@ properties:
                 maximum: 1
                 description: "Maximum relative deviation from baseline (e.g., 0.2 = ±20%)"
 
-  consumer_values:
+  food_group_incentives:
     type: object
-    required: [enabled]
+    required: [enabled, sources]
     additionalProperties: false
     properties:
       enabled:
         type: boolean
-        description: "When true, consumer values are applied to food group stores in the objective"
+        description: "When true, food-group incentives are applied to the objective"
+      sources:
+        type: array
+        items:
+          type: string
+        description: "Paths to food-group incentives CSVs (may include {name} placeholder)"
 
   optimal_taxes:
     type: object
@@ -526,7 +535,7 @@ properties:
 
   food_groups:
     type: object
-    required: [included, constraints]
+    required: [included, constraints, equal_by_country_source]
     additionalProperties: false
     properties:
       included:
@@ -549,6 +558,11 @@ properties:
                 minimum: 0
                 description: "g/person/day"
         description: "Optional per-group constraints with min/max/equal in g/person/day"
+      equal_by_country_source:
+        type:
+          - string
+          - "null"
+        description: "CSV path with group/country equality targets (g/person/day)"
 
   diet:
     type: object

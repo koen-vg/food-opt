@@ -9,6 +9,7 @@ This workflow:
 2. Extracts consumption patterns from the optimized model
 3. Fixes consumption to optimal values and solves with production costs only
 4. Extracts dual variables as optimal Pigouvian taxes/subsidies
+5. Resolves the model with taxes/subsidies applied in the objective
 """
 
 plotting_cfg = config.get("plotting", {})
@@ -32,34 +33,6 @@ rule extract_optimal_consumption:
         "../scripts/extract_optimal_consumption.py"
 
 
-rule solve_with_fixed_consumption:
-    """Solve model with fixed consumption to extract tax dual variables (Stage 2).
-
-    This rule:
-    1. Loads optimal consumption from Stage 1
-    2. Adds equality constraints on food group stores
-    3. Solves with production costs only (no health/GHG objectives)
-    4. The dual variables of consumption constraints represent optimal taxes
-    """
-    input:
-        network="results/{name}/build/model_scen-extract_taxes.nc",
-        optimal_consumption="results/{name}/optimal_taxes/optimal_consumption.csv",
-        population="processing/{name}/population.csv",
-    params:
-        solver=config["solving"]["solver"],
-        solver_threads=config["solving"]["threads"],
-        solver_options=solver_options_with_threads(config),
-        io_api=config["solving"]["io_api"],
-        netcdf_compression=config["solving"].get("netcdf_compression"),
-    threads: config["solving"]["threads"]
-    output:
-        network="results/{name}/optimal_taxes/solved_fixed_consumption.nc",
-    log:
-        "logs/{name}/solve_with_fixed_consumption.log",
-    script:
-        "../scripts/solve_with_fixed_consumption.py"
-
-
 rule extract_optimal_taxes:
     """Extract optimal taxes/subsidies from consumption constraint duals.
 
@@ -68,33 +41,13 @@ rule extract_optimal_taxes:
     tax/subsidy needed to incentivize optimal consumption.
     """
     input:
-        network="results/{name}/optimal_taxes/solved_fixed_consumption.nc",
+        network="results/{name}/solved/model_scen-extract_taxes.nc",
     output:
         taxes="results/{name}/optimal_taxes/taxes.csv",
     log:
         "logs/{name}/extract_optimal_taxes.log",
     script:
         "../scripts/extract_optimal_taxes.py"
-
-
-rule solve_with_taxes_objective:
-    """Solve with taxes/subsidies applied to the objective (no fixed diet)."""
-    input:
-        network="results/{name}/build/model_scen-extract_taxes.nc",
-        taxes="results/{name}/optimal_taxes/taxes.csv",
-    params:
-        solver=config["solving"]["solver"],
-        solver_threads=config["solving"]["threads"],
-        solver_options=solver_options_with_threads(config),
-        io_api=config["solving"]["io_api"],
-        netcdf_compression=config["solving"].get("netcdf_compression"),
-    threads: config["solving"]["threads"]
-    output:
-        network="results/{name}/optimal_taxes/solved_with_taxes.nc",
-    log:
-        "logs/{name}/solve_with_taxes_objective.log",
-    script:
-        "../scripts/solve_with_taxes_objective.py"
 
 
 rule plot_optimal_taxes:
@@ -113,12 +66,12 @@ rule plot_optimal_taxes:
 
 
 rule plot_optimal_taxes_diet_comparison:
-    """Compare global average diet between the two optimal taxes optimizations."""
+    """Compare global average diet across the optimal taxes optimizations."""
     input:
         networks=[
             "results/{name}/solved/model_scen-optimize.nc",
-            "results/{name}/optimal_taxes/solved_fixed_consumption.nc",
-            "results/{name}/optimal_taxes/solved_with_taxes.nc",
+            "results/{name}/solved/model_scen-extract_taxes.nc",
+            "results/{name}/solved/model_scen-apply_taxes.nc",
         ],
         population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",

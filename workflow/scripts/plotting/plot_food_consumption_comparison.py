@@ -115,6 +115,9 @@ def _plot_comparison(
         ax.set_title(title)
         ax.grid(axis="x", alpha=0.3)
 
+    axes[1].set_yticklabels([])
+    axes[1].tick_params(axis="y", length=0)
+
     legend_handles = [
         matplotlib.patches.Patch(color=colors[group], label=group)
         for group in ordered_groups

@@ -21,6 +21,10 @@ validation:
   slack_marginal_cost: 50. # bn USD per Mt/Mha for validation slack (food groups, feed, land)
   harvest_area_source: gaez  # Options: gaez (RES06), cropgrids
   production_year: 2018 # To match with GDD baseline year
+  # Enable explicit multi-cropping links in validation mode using inferred areas from CROPGRIDS.
+  # Requires harvest_area_source: cropgrids. When enabled, areas with cropping_intensity > 1
+  # are allocated to multi-cropping combinations, and single-crop yields are adjusted accordingly.
+  enable_inferred_multi_cropping: false
   production_stability:
     enabled: false
     crops:
@@ -30,9 +34,10 @@ validation:
       enabled: true
       max_relative_deviation: 0.2
 
-# --- section: consumer_values ---
-consumer_values:
-  enabled: false  # When true, consumer values are applied to food group stores
+# --- section: food_group_incentives ---
+food_group_incentives:
+  enabled: false  # When true, food-group incentives are applied to the objective
+  sources: []
 
 # --- section: optimal_taxes ---
 optimal_taxes:
@@ -288,6 +293,7 @@ food_groups:
   - sugar
   # Optional per-group constraints with "min", "max" or "equal" in g/person/day
   constraints: {}
+  equal_by_country_source: null
 
 # --- section: diet ---
 diet:
@@ -394,7 +400,7 @@ health:
   log_rr_points: 100
   omega3_per_100g_fish: 1.5
   ssb_sugar_g_per_100g: 5.7  # ≈50 kcal per 226.8 g sugar-sweetened beverage (SSB) implies ~5.7 g sugar per 100 g
-  value_per_yll: 150000  # USD_2024 per year of life lost
+  value_per_yll: 50000  # USD_2024 per year of life lost
   intake_cap_g_per_day: 1000  # Uniform generous cap on intake grids and clipping
   intake_age_min: 11  # GDD adult band starts at 11; set to 11 to retain adult intake data. Note however that GDB chronic disease risk factors are for adults of >=25 years.
   # Dietary risk factors to consider (must match GDD data items)

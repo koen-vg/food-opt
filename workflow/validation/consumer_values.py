@@ -10,14 +10,22 @@ import yaml
 
 
 def _consumer_values_enabled(config: dict, scenario_defs: dict) -> bool:
-    if bool(config["consumer_values"]["enabled"]):
+    def has_consumer_values_sources(cfg: dict) -> bool:
+        sources = [str(src) for src in cfg.get("sources", [])]
+        return any("consumer_values" in src for src in sources)
+
+    base_cfg = config["food_group_incentives"]
+    if has_consumer_values_sources(base_cfg) and bool(base_cfg["enabled"]):
         return True
 
     for overrides in scenario_defs.values():
         if not isinstance(overrides, dict):
             continue
-        cv_cfg = overrides.get("consumer_values", {})
-        if isinstance(cv_cfg, dict) and bool(cv_cfg.get("enabled", False)):
+        cv_cfg = overrides.get("food_group_incentives", {})
+        if not isinstance(cv_cfg, dict) or not bool(cv_cfg.get("enabled", False)):
+            continue
+        merged_sources = cv_cfg.get("sources", base_cfg.get("sources", []))
+        if any("consumer_values" in str(src) for src in merged_sources):
             return True
 
     return False
@@ -27,9 +35,9 @@ def validate_consumer_values(config: dict, project_root: Path) -> None:
     """Ensure consumer values runs have a baseline scenario defined."""
     scenario_defs_path = config.get("scenario_defs")
     if not scenario_defs_path:
-        if bool(config["consumer_values"]["enabled"]):
+        if _consumer_values_enabled(config, {}):
             raise ValueError(
-                "consumer_values enabled but scenario_defs is not configured; "
+                "consumer values incentives enabled but scenario_defs is not configured; "
                 "a baseline scenario is required"
             )
         return
@@ -48,5 +56,5 @@ def validate_consumer_values(config: dict, project_root: Path) -> None:
 
     if "baseline" not in scenario_defs:
         raise ValueError(
-            "consumer_values enabled but scenario_defs does not define a 'baseline' scenario"
+            "consumer values incentives enabled but scenario_defs does not define a 'baseline' scenario"
         )

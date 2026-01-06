@@ -66,9 +66,9 @@ def extract_consumer_values(n: pypsa.Network) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        DataFrame with columns: group, country, value_bnusd_per_mt
-        The value represents the shadow price of the consumption constraint,
-        i.e., the marginal cost (in bnUSD) of consuming one additional Mt.
+        DataFrame with columns: group, country, value_bnusd_per_mt,
+        adjustment_bnusd_per_mt. The adjustment column is the value with
+        sign flipped for direct use as a marginal cost incentive.
     """
     gc_df = n.global_constraints
 
@@ -110,6 +110,7 @@ def extract_consumer_values(n: pypsa.Network) -> pd.DataFrame:
         )
 
     df = pd.DataFrame.from_records(records)
+    df["adjustment_bnusd_per_mt"] = -df["value_bnusd_per_mt"]
     logger.info(
         "Extracted consumer values for %d (group, country) pairs",
         len(df),
