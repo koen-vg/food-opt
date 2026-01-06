@@ -9,6 +9,8 @@ This file should be included first in the main Snakefile, before any other rule 
 """
 import copy
 import csv
+import hashlib
+import json
 import yaml
 
 _SCENARIO_CACHE = None
@@ -59,6 +61,25 @@ def get_effective_config(scenario_name):
             _recursive_update(eff_config, overrides)
 
     return eff_config
+
+
+def scenario_override_hash(scenario_name):
+    """Return a stable hash of scenario overrides."""
+    # Snakemake does not track scenario_defs changes; this hash exists only to force
+    # correct reruns when scenario definitions are edited.
+    if not scenario_name or scenario_name == "default":
+        overrides = {}
+    else:
+        scenario_defs = load_scenario_defs()
+        overrides = scenario_defs.get(scenario_name, {})
+
+    payload = json.dumps(
+        overrides,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 # Extract configuration name and relevant config sections

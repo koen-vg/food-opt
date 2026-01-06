@@ -125,6 +125,8 @@ rule build_model:
         trade=config["trade"],
         grazing=grazing_cfg,
         health_reference_year=config["health"]["reference_year"],
+        # Only used to force correct reruns when scenario_defs changes.
+        scenario_hash=lambda w: scenario_override_hash(w.scenario),
     output:
         network="results/{name}/build/model_scen-{scenario}.nc",
     log:
@@ -237,6 +239,8 @@ rule solve_model:
             "enforce_gdd_baseline"
         ],
         production_stability=config["validation"]["production_stability"],
+        # Only used to force correct reruns when scenario_defs changes.
+        scenario_hash=lambda w: scenario_override_hash(w.scenario),
     output:
         network="results/{name}/solved/model_scen-{scenario}.nc",
     log:
