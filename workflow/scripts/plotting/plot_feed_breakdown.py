@@ -7,13 +7,14 @@
 import logging
 from pathlib import Path
 
-from color_utils import categorical_colors
 import matplotlib
 import pandas as pd
 import pypsa
 
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
+
+from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 

@@ -51,7 +51,10 @@ p7zip = ">=16.02,<17"                # 7z archive extraction for Huang water dat
 
 [pypi-dependencies]
 # Workflow engine
-snakemake = ">=9.13.7, <10"          # Workflow management system
+snakemake = ">=9.13.7, <10"
+
+# Editable install of workflow package for cross-script imports
+food-opt-workflow = { path = ".", editable = true }
 
 # Optimization and modeling; own branches of pypsa and linopy with custom features needed by food-opt
 pypsa = { git = "https://github.com/koen-vg/PyPSA.git", tag = "v1.0.6+food.opt" }

@@ -16,18 +16,11 @@ from rasterio.enums import Resampling
 from rasterio.warp import reproject
 import xarray as xr
 
-try:  # Prefer package import when executed via Snakemake
-    from workflow.scripts.raster_utils import (
-        calculate_all_cell_areas,
-        raster_bounds,
-        scale_fraction,
-    )
-except ImportError:  # pragma: no cover - fallback when run via snakemake --script
-    from raster_utils import (  # type: ignore
-        calculate_all_cell_areas,
-        raster_bounds,
-        scale_fraction,
-    )
+from workflow.scripts.raster_utils import (
+    calculate_all_cell_areas,
+    raster_bounds,
+    scale_fraction,
+)
 
 
 def _build_dummy_raster(transform: Affine, width: int, height: int):

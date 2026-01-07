@@ -8,18 +8,18 @@
 Shows trade hubs and connections (country-to-hub and hub-to-hub links).
 """
 
-from pathlib import Path
-import sys
-
 import cartopy.crs as ccrs
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.cluster import KMeans
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import COLORS, FIGURE_SIZES, apply_doc_style, save_doc_figure
+from workflow.scripts.doc_figures_config import (
+    COLORS,
+    FIGURE_SIZES,
+    apply_doc_style,
+    save_doc_figure,
+)
 
 
 def compute_hubs_and_assignments(

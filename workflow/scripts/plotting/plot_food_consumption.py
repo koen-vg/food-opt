@@ -15,16 +15,8 @@ import pypsa
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 
-try:  # Prefer package import when available (e.g., during documentation builds)
-    from workflow.scripts.color_utils import categorical_colors
-    from workflow.scripts.constants import (
-        DAYS_PER_YEAR,
-        GRAMS_PER_MEGATONNE,
-        PJ_TO_KCAL,
-    )
-except ImportError:  # Fallback to Snakemake's script-directory loader
-    from color_utils import categorical_colors  # type: ignore
-    from constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO_KCAL
+from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO_KCAL
+from workflow.scripts.plotting.color_utils import categorical_colors
 
 # Alias for backwards compatibility with modules that import from here
 KCAL_PER_PJ = PJ_TO_KCAL

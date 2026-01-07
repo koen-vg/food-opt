@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Minimal pyproject.toml to make workflow.scripts importable as a package.
+# This allows Snakemake scripts in subdirectories to import shared modules
+# using standard Python imports like `from workflow.scripts.constants import ...`
+#
+# All actual dependencies are managed by pixi.toml - this file only handles
+# the editable install of the workflow package itself.
+
+[project]
+name = "food-opt-workflow"
+version = "0.0.1"
+description = "Food systems optimization workflow scripts"
+requires-python = ">=3.13"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["workflow*"]

@@ -5,9 +5,6 @@
 
 """Visualise grazing-only land availability at gridcell and regional scales."""
 
-from pathlib import Path
-import sys
-
 from affine import Affine
 import cartopy.crs as ccrs
 import geopandas as gpd
@@ -18,22 +15,16 @@ import pandas as pd
 import rasterio
 import xarray as xr
 
-# Allow importing shared plotting config when executed by Snakemake
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import COLORMAPS, apply_doc_style, save_doc_figure
-
-try:  # Try absolute import during Snakemake execution
-    from workflow.scripts.raster_utils import (
-        calculate_all_cell_areas,
-        raster_bounds,
-        scale_fraction,
-    )
-except ImportError:  # pragma: no cover - fallback for direct execution
-    from raster_utils import (  # type: ignore
-        calculate_all_cell_areas,
-        raster_bounds,
-        scale_fraction,
-    )
+from workflow.scripts.doc_figures_config import (
+    COLORMAPS,
+    apply_doc_style,
+    save_doc_figure,
+)
+from workflow.scripts.raster_utils import (
+    calculate_all_cell_areas,
+    raster_bounds,
+    scale_fraction,
+)
 
 
 def _load_transform(ds: xr.Dataset) -> Affine:

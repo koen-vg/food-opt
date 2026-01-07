@@ -229,7 +229,7 @@ def main() -> None:
 
     snapshot = "now" if "now" in network.snapshots else network.snapshots[0]
 
-    gdf, gdf_eq = _setup_regions(regions_path)
+    gdf, _gdf_eq = _setup_regions(regions_path)
     water_use = _aggregate_water_use(network, snapshot)
 
     # Align to model regions

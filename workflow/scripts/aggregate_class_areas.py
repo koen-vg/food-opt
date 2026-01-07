@@ -16,10 +16,7 @@ from rasterio.enums import Resampling
 from rasterio.warp import reproject
 import xarray as xr
 
-try:  # Prefer package import when available (e.g., during documentation builds)
-    from workflow.scripts.raster_utils import calculate_all_cell_areas, scale_fraction
-except ImportError:  # Fallback to Snakemake's script-directory loader
-    from raster_utils import calculate_all_cell_areas, scale_fraction  # type: ignore
+from workflow.scripts.raster_utils import calculate_all_cell_areas, scale_fraction
 
 
 def read_raster_float(path: str):

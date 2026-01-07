@@ -13,10 +13,7 @@ matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-try:
-    from workflow.scripts.color_utils import categorical_colors
-except ImportError:
-    from color_utils import categorical_colors  # type: ignore
+from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 

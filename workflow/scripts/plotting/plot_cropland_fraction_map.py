@@ -40,10 +40,6 @@ Notes:
 import logging
 from pathlib import Path
 import re
-import sys
-
-# Add parent directory to path for imports from workflow/scripts/
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter

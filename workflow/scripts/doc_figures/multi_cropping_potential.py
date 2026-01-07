@@ -6,8 +6,6 @@
 """Visualise multiple-cropping zones and regional potential."""
 
 from collections.abc import Sequence
-from pathlib import Path
-import sys
 
 import cartopy.crs as ccrs
 from exactextract import exact_extract
@@ -20,9 +18,11 @@ from pyproj import Geod
 import rasterio
 import rasterio.enums
 
-# Allow importing shared helpers
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import FIGURE_SIZES, apply_doc_style, save_doc_figure
+from workflow.scripts.doc_figures_config import (
+    FIGURE_SIZES,
+    apply_doc_style,
+    save_doc_figure,
+)
 
 ZONE_LABELS = {
     1: "No cropping",

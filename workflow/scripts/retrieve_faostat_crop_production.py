@@ -8,9 +8,10 @@ import logging
 from pathlib import Path
 
 import faostat
-from logging_config import setup_script_logging
 import numpy as np
 import pandas as pd
+
+from workflow.scripts.logging_config import setup_script_logging
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)

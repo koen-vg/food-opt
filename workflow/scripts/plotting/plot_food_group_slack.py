@@ -14,11 +14,7 @@ import pypsa
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 
-try:  # Prefer package import when available (e.g., during documentation builds)
-    from workflow.scripts.color_utils import categorical_colors
-except ImportError:  # Fallback to Snakemake's script-directory loader
-    from color_utils import categorical_colors  # type: ignore
-
+from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 

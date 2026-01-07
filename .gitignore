@@ -9,6 +9,7 @@ notebooks
 logs
 data/downloads/*
 **/__pycache__
+*.egg-info/
 gurobi.log
 /.pixi/
 vendor

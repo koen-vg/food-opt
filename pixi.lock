@@ -357,6 +357,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/86/b4/cfa7aa56807dd2d9db0576c3440b3acd51bae6207338ec5610d4878e5c9b/xarray-2025.11.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/11/c9/cd8538dc2e7727095e0c1d867bad1e40c98f37763e6d995c1939f5fdc7b1/yarl-1.22.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/fd/65/a961f5b88f12dc14e86715403dbeb39a69798d26ce5ddffc596cdeb4e2e5/yte-1.9.0-py3-none-any.whl
+      - pypi: ./
   dev:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -824,6 +825,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/86/b4/cfa7aa56807dd2d9db0576c3440b3acd51bae6207338ec5610d4878e5c9b/xarray-2025.11.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/11/c9/cd8538dc2e7727095e0c1d867bad1e40c98f37763e6d995c1939f5fdc7b1/yarl-1.22.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/fd/65/a961f5b88f12dc14e86715403dbeb39a69798d26ce5ddffc596cdeb4e2e5/yte-1.9.0-py3-none-any.whl
+      - pypi: ./
   dev-gurobi:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -1292,6 +1294,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/86/b4/cfa7aa56807dd2d9db0576c3440b3acd51bae6207338ec5610d4878e5c9b/xarray-2025.11.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/11/c9/cd8538dc2e7727095e0c1d867bad1e40c98f37763e6d995c1939f5fdc7b1/yarl-1.22.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/fd/65/a961f5b88f12dc14e86715403dbeb39a69798d26ce5ddffc596cdeb4e2e5/yte-1.9.0-py3-none-any.whl
+      - pypi: ./
   gurobi:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -1650,6 +1653,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/86/b4/cfa7aa56807dd2d9db0576c3440b3acd51bae6207338ec5610d4878e5c9b/xarray-2025.11.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/11/c9/cd8538dc2e7727095e0c1d867bad1e40c98f37763e6d995c1939f5fdc7b1/yarl-1.22.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/fd/65/a961f5b88f12dc14e86715403dbeb39a69798d26ce5ddffc596cdeb4e2e5/yte-1.9.0-py3-none-any.whl
+      - pypi: ./
 packages:
 - conda: https://conda.anaconda.org/conda-forge/linux-64/_libgcc_mutex-0.1-conda_forge.tar.bz2
   sha256: fe51de6107f9edc7aa4f786a70f4a883943bc9d39b3bb7307c04c41410990726
@@ -2737,6 +2741,12 @@ packages:
   - pkg:pypi/fonttools?source=hash-mapping
   size: 2927817
   timestamp: 1759187293931
+- pypi: ./
+  name: food-opt-workflow
+  version: 0.0.1
+  sha256: aa0670ed87bc491cdd59e59996ec867f25af780b471bb4bd98bf895181f8df82
+  requires_python: '>=3.13'
+  editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/fqdn-1.5.1-pyhd8ed1ab_1.conda
   sha256: 2509992ec2fd38ab27c7cdb42cf6cadc566a1cc0d1021a2673475d9fa87c6276
   md5: d3549fd50d450b6d9e7dddff25dd2110

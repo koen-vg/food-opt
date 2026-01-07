@@ -5,24 +5,21 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 from pathlib import Path
-import sys
-
-# Ensure workflow.scripts is in path for imports
-sys.path.insert(0, str(Path(__file__).parent))
 
 from exactextract import exact_extract
 from exactextract.raster import NumPyRasterSource
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from raster_utils import (
+import xarray as xr
+
+from workflow.scripts.raster_utils import (
     calculate_all_cell_areas,
     load_raster_array,
     raster_bounds,
     read_raster_float,
     scale_fraction,
 )
-import xarray as xr
 
 ZONE_CAPABILITIES: dict[int, dict[str, int | bool]] = {
     0: {"valid": False, "max_cycles": 0, "max_wetland_rice": 0},

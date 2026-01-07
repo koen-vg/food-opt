@@ -15,27 +15,15 @@ import pypsa
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 
-try:  # Prefer package import when available (e.g., during documentation builds)
-    from workflow.scripts.plotting.plot_food_consumption import (
-        DAYS_PER_YEAR,
-        GRAMS_PER_MEGATONNE,
-        KCAL_PER_PJ,
-        _aggregate_group_calories,
-        _aggregate_group_mass,
-        _assign_colors,
-        _select_snapshot,
-    )
-except ImportError:  # Fallback to Snakemake's script-directory loader
-    from plot_food_consumption import (  # type: ignore
-        DAYS_PER_YEAR,
-        GRAMS_PER_MEGATONNE,
-        KCAL_PER_PJ,
-        _aggregate_group_calories,
-        _aggregate_group_mass,
-        _assign_colors,
-        _select_snapshot,
-    )
-
+from workflow.scripts.plotting.plot_food_consumption import (
+    DAYS_PER_YEAR,
+    GRAMS_PER_MEGATONNE,
+    KCAL_PER_PJ,
+    _aggregate_group_calories,
+    _aggregate_group_mass,
+    _assign_colors,
+    _select_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 

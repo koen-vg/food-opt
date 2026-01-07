@@ -30,9 +30,10 @@ Notes
 import logging
 from pathlib import Path
 
-from logging_config import setup_script_logging
 import pandas as pd
 import yaml
+
+from workflow.scripts.logging_config import setup_script_logging
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)

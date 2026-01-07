@@ -95,10 +95,13 @@ To add a new figure:
    ```python
    import matplotlib.pyplot as plt
    from pathlib import Path
-   import sys
 
-   sys.path.insert(0, str(Path(__file__).parent.parent))
-   from doc_figures_config import apply_doc_style, COLORS, FIGURE_SIZES, save_doc_figure
+   from workflow.scripts.doc_figures_config import (
+       apply_doc_style,
+       COLORS,
+       FIGURE_SIZES,
+       save_doc_figure,
+   )
 
    def main(data_path: str, output_path: str):
        apply_doc_style()

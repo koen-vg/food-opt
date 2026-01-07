@@ -15,10 +15,11 @@ import logging
 from math import exp
 from pathlib import Path
 
-from constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 import numpy as np
 import pandas as pd
 import pypsa
+
+from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 
 pypsa.options.api.new_components_api = True
 

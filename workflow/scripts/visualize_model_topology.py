@@ -14,8 +14,9 @@ import logging
 from pathlib import Path
 
 import graphviz
-from logging_config import setup_script_logging
 import pypsa
+
+from workflow.scripts.logging_config import setup_script_logging
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)

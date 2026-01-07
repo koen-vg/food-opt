@@ -14,10 +14,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-try:
-    from workflow.scripts.raster_utils import calculate_all_cell_areas, raster_bounds
-except ImportError:  # Snakemake script execution fallback
-    from raster_utils import calculate_all_cell_areas, raster_bounds  # type: ignore
+from workflow.scripts.raster_utils import calculate_all_cell_areas, raster_bounds
 
 
 def _build_dummy_raster(transform: Affine, width: int, height: int):

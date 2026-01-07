@@ -23,9 +23,10 @@ Interpretation:
 Therefore: tax = -dual (positive tax discourages, negative tax = subsidy encourages)
 """
 
-from logging_config import setup_script_logging
 import pandas as pd
 import pypsa
+
+from workflow.scripts.logging_config import setup_script_logging
 
 # Enable new PyPSA components API
 pypsa.options.api.new_components_api = True

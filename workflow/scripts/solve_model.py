@@ -5,33 +5,20 @@
 from collections import defaultdict
 import itertools
 import math
-from pathlib import Path
-import sys
 
 from linopy.constraints import print_single_constraint
-from logging_config import setup_script_logging
 import numpy as np
 import pandas as pd
 import pypsa
 import xarray as xr
 
-# Ensure project root on sys.path for Snakemake temp copies
-_script_path = Path(__file__).resolve()
-try:
-    _project_root = _script_path.parents[2]
-except IndexError:
-    _project_root = _script_path.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-
-from workflow.scripts import constants  # noqa: E402
-from workflow.scripts.build_model.nutrition import (  # noqa: E402
+from workflow.scripts import constants
+from workflow.scripts.build_model.nutrition import (
     _build_food_group_equals_from_baseline,
 )
-from workflow.scripts.build_model.utils import (  # noqa: E402
-    _per_capita_mass_to_mt_per_year,
-)
-from workflow.scripts.snakemake_utils import apply_scenario_config  # noqa: E402
+from workflow.scripts.build_model.utils import _per_capita_mass_to_mt_per_year
+from workflow.scripts.logging_config import setup_script_logging
+from workflow.scripts.snakemake_utils import apply_scenario_config
 
 try:  # Used for type annotations / documentation; fallback when unavailable
     import linopy  # type: ignore
@@ -1696,7 +1683,7 @@ if __name__ == "__main__":
         per_country_equal = {}
         all_countries = set(population_map.keys())
         for group, group_df in equal_df.groupby("group"):
-            values = {country: 0.0 for country in all_countries}
+            values = dict.fromkeys(all_countries, 0.0)
             for _, row in group_df.iterrows():
                 country = str(row["country"]).upper()
                 if country not in values:

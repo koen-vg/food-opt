@@ -21,29 +21,14 @@ import pandas as pd
 import pypsa
 import seaborn as sns
 
-try:
-    from workflow.scripts.plotting.plot_food_consumption import (
-        DAYS_PER_YEAR,
-        GRAMS_PER_MEGATONNE,
-        _aggregate_group_mass,
-        _assign_colors,
-        _select_snapshot,
-    )
-    from workflow.scripts.plotting.plot_objective_breakdown import (
-        compute_system_costs,
-    )
-except ImportError:
-    from plot_food_consumption import (  # type: ignore
-        DAYS_PER_YEAR,
-        GRAMS_PER_MEGATONNE,
-        _aggregate_group_mass,
-        _assign_colors,
-        _select_snapshot,
-    )
-    from plot_objective_breakdown import (  # type: ignore
-        compute_system_costs,
-    )
-
+from workflow.scripts.plotting.plot_food_consumption import (
+    DAYS_PER_YEAR,
+    GRAMS_PER_MEGATONNE,
+    _aggregate_group_mass,
+    _assign_colors,
+    _select_snapshot,
+)
+from workflow.scripts.plotting.plot_objective_breakdown import compute_system_costs
 
 logger = logging.getLogger(__name__)
 

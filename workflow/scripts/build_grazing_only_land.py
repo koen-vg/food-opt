@@ -16,18 +16,11 @@ import rasterio
 from rasterio.crs import CRS
 import xarray as xr
 
-try:
-    from workflow.scripts.raster_utils import (
-        calculate_all_cell_areas,
-        raster_bounds,
-        scale_fraction,
-    )
-except ImportError:  # pragma: no cover
-    from raster_utils import (  # type: ignore
-        calculate_all_cell_areas,
-        raster_bounds,
-        scale_fraction,
-    )
+from workflow.scripts.raster_utils import (
+    calculate_all_cell_areas,
+    raster_bounds,
+    scale_fraction,
+)
 
 
 def _load_transform(ds: xr.Dataset) -> Affine:

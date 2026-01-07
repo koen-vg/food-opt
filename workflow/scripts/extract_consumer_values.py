@@ -16,9 +16,10 @@ Expects a solved network with:
 
 import logging
 
-from logging_config import setup_script_logging
 import pandas as pd
 import pypsa
+
+from workflow.scripts.logging_config import setup_script_logging
 
 logger = logging.getLogger(__name__)
 

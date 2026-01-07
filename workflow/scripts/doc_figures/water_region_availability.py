@@ -8,17 +8,17 @@
 Shows growing season water availability by optimization region.
 """
 
-from pathlib import Path
-import sys
-
 import cartopy.crs as ccrs
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import COLORMAPS, FIGURE_SIZES, apply_doc_style, save_doc_figure
+from workflow.scripts.doc_figures_config import (
+    COLORMAPS,
+    FIGURE_SIZES,
+    apply_doc_style,
+    save_doc_figure,
+)
 
 
 def main(

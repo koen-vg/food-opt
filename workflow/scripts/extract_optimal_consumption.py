@@ -9,10 +9,11 @@ per-capita g/day format for use as fixed consumption constraints in
 the Stage 2 tax extraction solve.
 """
 
-from constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
-from logging_config import setup_script_logging
 import pandas as pd
 import pypsa
+
+from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+from workflow.scripts.logging_config import setup_script_logging
 
 # Enable new PyPSA components API
 pypsa.options.api.new_components_api = True

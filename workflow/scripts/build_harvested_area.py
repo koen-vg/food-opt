@@ -5,7 +5,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 from pathlib import Path
-import sys
 
 from osgeo import gdal, osr
 
@@ -19,13 +18,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import xarray as xr  # noqa: E402
 
-# Ensure workflow/scripts is on path for raster_utils
-sys.path.insert(0, str(Path(__file__).parent))
-
-from raster_utils import (  # noqa: E402
-    raster_bounds,
-    read_raster_float,
-)
+from workflow.scripts.raster_utils import raster_bounds, read_raster_float  # noqa: E402
 
 RES06_HAR_SCALE_TO_HA = 1_000.0  # rasters store thousand hectares (kha)
 

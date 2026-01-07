@@ -15,7 +15,6 @@ import geopandas as gpd
 import matplotlib
 
 matplotlib.use("pdf")
-from color_utils import categorical_colors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -23,10 +22,8 @@ import numpy as np
 import pandas as pd
 import pypsa
 
-try:
-    from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
-except ImportError:
-    from constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 

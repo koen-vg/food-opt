@@ -8,7 +8,6 @@
 from collections.abc import Iterable
 import logging
 from pathlib import Path
-import sys
 
 import matplotlib
 
@@ -17,8 +16,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pypsa
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 logger = logging.getLogger(__name__)
 

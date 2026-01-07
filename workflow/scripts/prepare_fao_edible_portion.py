@@ -24,8 +24,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from logging_config import setup_script_logging
 from openpyxl import load_workbook
+
+from workflow.scripts.logging_config import setup_script_logging
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)

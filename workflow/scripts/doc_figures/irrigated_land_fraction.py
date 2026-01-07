@@ -8,9 +8,6 @@
 Shows the fraction of land equipped for irrigation from GAEZ v5.
 """
 
-from pathlib import Path
-import sys
-
 import cartopy.crs as ccrs
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -18,9 +15,11 @@ import numpy as np
 import rasterio
 import rasterio.enums
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import FIGURE_SIZES, apply_doc_style, save_doc_figure
+from workflow.scripts.doc_figures_config import (
+    FIGURE_SIZES,
+    apply_doc_style,
+    save_doc_figure,
+)
 
 
 def main(

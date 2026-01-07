@@ -27,8 +27,9 @@ Data source: Report 9 covers the 2017-18 period with data for 64 countries and 3
 
 import logging
 
-from logging_config import setup_script_logging
 import pandas as pd
+
+from workflow.scripts.logging_config import setup_script_logging
 
 # Setup logging
 # Logger will be configured in __main__ block

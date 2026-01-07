@@ -10,26 +10,12 @@ by loading data and calling functions from the build_model package modules.
 
 import functools
 import logging
-from pathlib import Path
-import sys
 
 import geopandas as gpd
-from logging_config import setup_script_logging
 import pandas as pd
 import pypsa
 
-# Ensure the project root is on sys.path so we can import the package, even when
-# Snakemake runs a temporary copy of this script from .snakemake/scripts.
-_script_path = Path(__file__).resolve()
-try:
-    _project_root = _script_path.parents[2]
-except IndexError:
-    _project_root = _script_path.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-
-# Import build_model package modules
-from workflow.scripts.build_model import (  # noqa: E402
+from workflow.scripts.build_model import (
     animals,
     biomass,
     crops,
@@ -43,7 +29,8 @@ from workflow.scripts.build_model import (  # noqa: E402
     trade,
     utils,
 )
-from workflow.scripts.snakemake_utils import apply_scenario_config  # noqa: E402
+from workflow.scripts.logging_config import setup_script_logging
+from workflow.scripts.snakemake_utils import apply_scenario_config
 
 # Enable new PyPSA components API
 pypsa.options.api.new_components_api = True

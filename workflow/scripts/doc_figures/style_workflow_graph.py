@@ -11,15 +11,11 @@ Reads a DOT format graph and applies documentation-consistent styling:
 - Clean, minimal design
 """
 
-from pathlib import Path
-import sys
 import textwrap
 
 import pydot
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import COLORS
+from workflow.scripts.doc_figures_config import COLORS
 
 
 def wrap_label(label: str, max_width: int = 16) -> str:

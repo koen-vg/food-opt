@@ -28,7 +28,6 @@ from pathlib import Path
 from exactextract import exact_extract
 from exactextract.raster import NumPyRasterSource
 import geopandas as gpd
-from logging_config import setup_script_logging
 import numpy as np
 import pandas as pd
 import rasterio
@@ -36,6 +35,8 @@ from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.transform import Affine
 from rasterio.warp import reproject
+
+from workflow.scripts.logging_config import setup_script_logging
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)

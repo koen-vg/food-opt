@@ -7,8 +7,9 @@
 from pathlib import Path
 
 import faostat
-from logging_config import setup_script_logging
 import pandas as pd
+
+from workflow.scripts.logging_config import setup_script_logging
 
 if __name__ == "__main__":
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)

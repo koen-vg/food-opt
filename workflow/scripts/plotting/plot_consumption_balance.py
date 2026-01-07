@@ -8,20 +8,17 @@ import logging
 from pathlib import Path
 
 import matplotlib
+
+matplotlib.use("pdf")
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pypsa
 
-try:
-    from workflow.scripts.color_utils import categorical_colors
-    from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
-except ImportError:
-    from color_utils import categorical_colors
-    from constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+from workflow.scripts.plotting.color_utils import categorical_colors
 
-matplotlib.use("pdf")
 logger = logging.getLogger(__name__)
 EPSILON = 1e-6  # Threshold for considering values as zero
 BAR_WIDTH = 0.35  # Width of each bar (we'll have 2 per cluster)

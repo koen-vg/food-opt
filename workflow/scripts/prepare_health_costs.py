@@ -10,11 +10,12 @@ import math
 from pathlib import Path
 
 import geopandas as gpd
-from logging_config import setup_script_logging
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from sklearn.cluster import KMeans
+
+from workflow.scripts.logging_config import setup_script_logging
 
 AGE_BUCKETS = [
     "<1",

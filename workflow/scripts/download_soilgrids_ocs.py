@@ -16,9 +16,10 @@ usage is supported.
 import logging
 from pathlib import Path
 
-from logging_config import setup_script_logging
 from osgeo import gdal, osr
 import requests
+
+from workflow.scripts.logging_config import setup_script_logging
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)

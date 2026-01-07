@@ -5,9 +5,6 @@
 
 """Visualise land-use change carbon input datasets for documentation."""
 
-from pathlib import Path
-import sys
-
 import cartopy.crs as ccrs
 import geopandas as gpd
 from matplotlib import colors as mcolors
@@ -15,9 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-# Allow relative imports of shared plotting helpers
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from doc_figures_config import (
+from workflow.scripts.doc_figures_config import (
     COLORMAPS,
     FIGURE_SIZES,
     apply_doc_style,

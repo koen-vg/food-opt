@@ -12,10 +12,14 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("pdf")
-from color_utils import categorical_colors
 import numpy as np
 import pandas as pd
-from plot_food_consumption_map import _plot_cluster_pies, _prepare_cluster_geodata
+
+from workflow.scripts.plotting.color_utils import categorical_colors
+from workflow.scripts.plotting.plot_food_consumption_map import (
+    _plot_cluster_pies,
+    _prepare_cluster_geodata,
+)
 
 logger = logging.getLogger(__name__)
 
