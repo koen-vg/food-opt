@@ -118,6 +118,18 @@ rule plot_objective_breakdown:
         "../scripts/plotting/plot_objective_breakdown.py"
 
 
+rule plot_yll_global_by_cause:
+    input:
+        cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
+    output:
+        pdf="results/{name}/plots/scen-{scenario}/yll_global_by_cause.pdf",
+        csv="results/{name}/plots/scen-{scenario}/yll_global_by_cause.csv",
+    log:
+        "logs/{name}/plot_yll_global_by_cause_scen-{scenario}.log",
+    script:
+        "../scripts/plotting/plot_yll_global_by_cause.py"
+
+
 rule plot_health_impacts:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",
@@ -470,3 +482,19 @@ rule plot_consumption_balance:
         "logs/{name}/plot_consumption_balance_scen-{scenario}.log",
     script:
         "../scripts/plotting/plot_consumption_balance.py"
+
+
+rule plot_marginal_damages_global:
+    """Plot consumption-weighted global average GHG and YLL by food group."""
+    input:
+        marginal_damages="results/{name}/analysis/scen-{scenario}/marginal_damages.csv",
+    output:
+        ghg_pdf="results/{name}/plots/scen-{scenario}/marginal_ghg_global.pdf",
+        yll_pdf="results/{name}/plots/scen-{scenario}/marginal_yll_global.pdf",
+        csv="results/{name}/plots/scen-{scenario}/marginal_damages_global.csv",
+    params:
+        group_colors=food_group_colors,
+    log:
+        "logs/{name}/plot_marginal_damages_global_scen-{scenario}.log",
+    script:
+        "../scripts/plotting/plot_marginal_damages_global.py"

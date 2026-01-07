@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+
+rule extract_marginal_damages:
+    """Extract marginal GHG and health damages by food group and country."""
+    input:
+        network="results/{name}/solved/model_scen-{scenario}.nc",
+        food_groups="data/food_groups.csv",
+        risk_breakpoints="processing/{name}/health/risk_breakpoints.csv",
+        health_cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
+        health_cause_log="processing/{name}/health/cause_log_breakpoints.csv",
+        health_clusters="processing/{name}/health/country_clusters.csv",
+        population="processing/{name}/population.csv",
+    params:
+        ghg_price=lambda w: get_effective_config(w.scenario)["emissions"]["ghg_price"],
+        value_per_yll=lambda w: get_effective_config(w.scenario)["health"][
+            "value_per_yll"
+        ],
+        ch4_gwp=config["emissions"]["ch4_to_co2_factor"],
+        n2o_gwp=config["emissions"]["n2o_to_co2_factor"],
+        health_risk_factors=config["health"]["risk_factors"],
+    output:
+        csv="results/{name}/analysis/scen-{scenario}/marginal_damages.csv",
+    log:
+        "logs/{name}/extract_marginal_damages_scen-{scenario}.log",
+    script:
+        "../scripts/analysis/extract_marginal_damages.py"

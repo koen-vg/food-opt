@@ -35,6 +35,7 @@ include: "rules/crops.smk"
 include: "rules/water.smk"
 include: "rules/model.smk"
 include: "rules/plotting.smk"
+include: "rules/analysis.smk"
 include: "rules/consumer_values.smk"
 include: "rules/optimal_taxes.smk"
 include: "rules/yield_gaps.smk"
@@ -73,6 +74,7 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/scen-default/objective_breakdown.pdf",
     "results/{name}/plots/scen-default/objective_breakdown.csv",
     "results/{name}/plots/scen-default/emissions_breakdown.pdf",
+    "results/{name}/plots/scen-default/yll_global_by_cause.pdf",
     # "results/{name}/plots/scen-default/health_risk_map.pdf",
     # "results/{name}/plots/scen-default/health_risk_by_region.csv",
     # "results/{name}/plots/scen-default/health_baseline_map.pdf",
@@ -97,6 +99,10 @@ ALL_RULE_TARGETS = [
     # "results/{name}/plots/scen-default/water_value_map.pdf",   # Current not working
     "results/{name}/plots/scen-default/food_consumption.pdf",
     "results/{name}/plots/scen-default/food_consumption_map.pdf",
+    # marginal damages analysis
+    "results/{name}/plots/scen-default/marginal_ghg_global.pdf",
+    "results/{name}/plots/scen-default/marginal_yll_global.pdf",
+    "results/{name}/plots/scen-default/marginal_damages_global.csv",
 ]
 
 # Dynamically add targets for all comparison scenarios
