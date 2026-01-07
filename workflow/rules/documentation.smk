@@ -41,6 +41,9 @@ DOC_FIGURES = [
     "trade_network",
     # Workflow figures
     "workflow_rulegraph",
+    # Analysis figures
+    "analysis_marginal_ghg",
+    "analysis_marginal_yll",
 ]
 
 
@@ -60,7 +63,7 @@ rule doc_fig_intro_global_coverage:
 rule doc_fig_model_topology:
     """Generate high-level model topology diagram showing material flows."""
     input:
-        model=f"results/{DOC_FIG_NAME}/build/model.nc",
+        model=f"results/{DOC_FIG_NAME}/build/model_scen-default.nc",
     output:
         svg="docs/_static/figures/model_topology.svg",
         png="docs/_static/figures/model_topology.png",
@@ -301,6 +304,21 @@ rule doc_fig_workflow_rulegraph:
         "logs/shared/doc_fig_workflow_rulegraph.log",
     script:
         "../scripts/doc_figures/render_graph.py"
+
+
+rule doc_fig_analysis_marginal_damages:
+    """Generate marginal damages bar charts for documentation."""
+    input:
+        marginal_damages=f"results/{DOC_FIG_NAME}/analysis/scen-default/marginal_damages.csv",
+    output:
+        ghg_svg="docs/_static/figures/analysis_marginal_ghg.svg",
+        ghg_png="docs/_static/figures/analysis_marginal_ghg.png",
+        yll_svg="docs/_static/figures/analysis_marginal_yll.svg",
+        yll_png="docs/_static/figures/analysis_marginal_yll.png",
+    log:
+        "logs/shared/doc_fig_analysis_marginal_damages.log",
+    script:
+        "../scripts/doc_figures/analysis_marginal_damages.py"
 
 
 rule build_docs:
