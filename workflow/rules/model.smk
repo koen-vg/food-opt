@@ -94,7 +94,6 @@ rule build_model:
                 "animals.py",
                 "biomass.py",
                 "health.py",
-                "constants.py",
                 "crops.py",
                 "food.py",
                 "grassland.py",
@@ -106,6 +105,7 @@ rule build_model:
                 "utils.py",
             ],
         ),
+        constants_script="workflow/scripts/constants.py",
     params:
         crops=config["crops"],
         multiple_cropping=config["multiple_cropping"],

@@ -36,3 +36,14 @@ crops:
   - cassava        # Major tropical staple
   - tomato         # Vegetable
   - banana         # Fruit
+
+# Add minimum consumption constraints to showcase animal products in figures
+# Values in g/person/day (modest minima to ensure some production)
+food_groups:
+  constraints:
+    red_meat:
+      min: 20       # ~140g/week
+    dairy:
+      min: 100      # ~1 small serving/day
+    eggs:
+      min: 15       # ~1 egg every 4 days
