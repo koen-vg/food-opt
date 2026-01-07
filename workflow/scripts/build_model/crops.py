@@ -32,7 +32,6 @@ def add_regional_crop_production_links(
     fertilizer_n_rates: Mapping[str, float],
     rice_methane_factor: float,
     rainfed_wetland_rice_ch4_scaling_factor: float,
-    harvest_area_source: str,
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
     harvested_area_data: Mapping[str, pd.DataFrame] | None = None,
     use_actual_production: bool = False,
@@ -93,35 +92,9 @@ def add_regional_crop_production_links(
                 df["harvested_area"] = pd.to_numeric(
                     df.get("harvested_area"), errors="coerce"
                 )
-                df["crop_area"] = pd.to_numeric(df.get("crop_area"), errors="coerce")
-
-                # CROPGRIDS supplies cropping_intensity; GAEZ (RES06) does not. When
-                # missing, fall back to 1.0 so we don't silently inflate yields.
-                if "cropping_intensity" in df.columns:
-                    df["cropping_intensity"] = pd.to_numeric(
-                        df["cropping_intensity"], errors="coerce"
-                    )
-                    df = df[df["cropping_intensity"].notna()]
-                    # Validate: cropping intensity should be >= 1.0
-                    invalid = df["cropping_intensity"] < 1.0
-                    if invalid.any():
-                        n_invalid = invalid.sum()
-                        raise ValueError(
-                            f"Found {n_invalid} rows with cropping_intensity < 1.0 "
-                            f"for {crop} {ws}"
-                        )
-                else:
-                    df["cropping_intensity"] = 1.0
-
-                # CROPGRIDS provides both crop_area (physical land) and harvested_area.
-                # GAEZ only provides harvested_area. Use crop_area when available to
-                # avoid double-counting multi-cropped land.
-                if harvest_area_source == "cropgrids":
-                    area_series = df["crop_area"]
-                else:
-                    area_series = df["harvested_area"]
-
-                df["fixed_area_ha"] = pd.to_numeric(area_series, errors="coerce")
+                df["fixed_area_ha"] = pd.to_numeric(
+                    df.get("harvested_area"), errors="coerce"
+                )
                 df = df[df["fixed_area_ha"] > 0]
 
             # Map regions to countries and filter to allowed countries
@@ -181,9 +154,6 @@ def add_regional_crop_production_links(
 
             # Land bus flows are in Mha; yields (t/ha) numerically equal Mt/Mha so
             # the efficiency terms remain the raw yield values.
-            if use_actual_production:
-                df["yield"] = df["yield"] * df["cropping_intensity"]
-
             link_params = {
                 "name": df.index,
                 # Use the crop's own carrier so no extra carrier is needed
@@ -286,8 +256,6 @@ def add_regional_crop_production_links(
                     rice_methane_factor * scaling_factor * 1e3,  # kg CH4/ha → t CH4/Mha
                     dtype=float,
                 )
-                if use_actual_production and "cropping_intensity" in df:
-                    ch4_emissions = ch4_emissions * df["cropping_intensity"].to_numpy()
                 emission_outputs["ch4"] = ch4_emissions
 
             for bus_name in sorted(emission_outputs.keys()):

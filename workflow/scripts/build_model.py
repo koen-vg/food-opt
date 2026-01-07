@@ -84,10 +84,6 @@ if __name__ == "__main__":
     validation_slack_cost = float(
         validation_cfg["slack_marginal_cost"]
     )  # Already in bn USD
-    harvest_area_source = str(validation_cfg["harvest_area_source"])
-    enable_inferred_multi_cropping = bool(
-        validation_cfg.get("enable_inferred_multi_cropping", False)
-    )
 
     # ═══════════════════════════════════════════════════════════════
     # DATA LOADING
@@ -508,30 +504,16 @@ if __name__ == "__main__":
         fertilizer_n_rates,
         rice_methane_factor=rice_methane_factor,
         rainfed_wetland_rice_ch4_scaling_factor=rainfed_wetland_rice_ch4_scaling_factor,
-        harvest_area_source=harvest_area_source,
         residue_lookup=residue_lookup,
         harvested_area_data=harvested_area_data if use_actual_production else None,
         use_actual_production=use_actual_production,
     )
-    # Multi-cropping can be enabled in two modes:
-    # 1. Standard mode: when not using actual production (optimization)
-    # 2. Inferred mode: in validation with CROPGRIDS data (experimental)
+    # Multi-cropping is disabled when running with actual production
     enable_multiple_cropping = bool(snakemake.params.multiple_cropping) and (
-        (
-            not use_actual_production
-            and not validation_cfg["production_stability"]["enabled"]
-        )
-        or enable_inferred_multi_cropping
+        not use_actual_production
+        and not validation_cfg["production_stability"]["enabled"]
     )
     if enable_multiple_cropping:
-        if enable_inferred_multi_cropping and use_actual_production:
-            logger.info(
-                "Enabling inferred multi-cropping in validation mode (experimental)"
-            )
-            if harvest_area_source != "cropgrids":
-                logger.warning(
-                    "Inferred multi-cropping works best with harvest_area_source=cropgrids"
-                )
         crops.add_multi_cropping_links(
             n,
             multi_cropping_area_df,

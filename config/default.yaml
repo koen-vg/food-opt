@@ -19,12 +19,7 @@ validation:
   enforce_gdd_baseline: false # Set food consumption equal to current day values
   land_slack: false # Enable land slack generators (allows exceeding regional land limits at cost)
   slack_marginal_cost: 50. # bn USD per Mt/Mha for validation slack (food groups, feed, land)
-  harvest_area_source: gaez  # Options: gaez (RES06), cropgrids
   production_year: 2018 # To match with GDD baseline year
-  # Enable explicit multi-cropping links in validation mode using inferred areas from CROPGRIDS.
-  # Requires harvest_area_source: cropgrids. When enabled, areas with cropping_intensity > 1
-  # are allocated to multi-cropping combinations, and single-crop yields are adjusted accordingly.
-  enable_inferred_multi_cropping: false
   production_stability:
     enabled: false
     crops:

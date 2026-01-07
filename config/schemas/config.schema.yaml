@@ -83,9 +83,7 @@ properties:
       - enforce_gdd_baseline
       - land_slack
       - slack_marginal_cost
-      - harvest_area_source
       - production_year
-      - enable_inferred_multi_cropping
       - production_stability
     additionalProperties: false
     properties:
@@ -105,18 +103,11 @@ properties:
         type: number
         minimum: 0
         description: "bn USD per Mt/Mha for validation slack (food groups, feed, land)"
-      harvest_area_source:
-        type: string
-        enum: [gaez, cropgrids]
-        description: "Source for harvest area data"
       production_year:
         type: integer
         minimum: 1990
         maximum: 2024
         description: "Reference year for production data"
-      enable_inferred_multi_cropping:
-        type: boolean
-        description: "Enable explicit multi-cropping links using inferred areas from CROPGRIDS cropping_intensity"
       production_stability:
         type: object
         required: [enabled, crops, animals]

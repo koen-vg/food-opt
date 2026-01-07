@@ -31,19 +31,6 @@ rule extract_adm1:
         """
 
 
-rule download_cropgrids_nc_maps:
-    output:
-        protected("data/downloads/cropgrids_v1_08_nc_maps.zip"),
-    params:
-        article_id=22491997,
-        file_name="CROPGRIDSv1.08_NC_maps.zip",
-        show_progress=config["downloads"]["show_progress"],
-    log:
-        "logs/shared/download_cropgrids_nc_maps.log",
-    script:
-        "../scripts/download_figshare_file.py"
-
-
 rule retrieve_cpi_data:
     params:
         start_year=2015,

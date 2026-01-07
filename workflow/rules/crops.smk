@@ -64,57 +64,6 @@ rule build_crop_yields:
         "../scripts/build_crop_yields.py"
 
 
-rule extract_cropgrids_nc:
-    input:
-        zip_path="data/downloads/cropgrids_v1_08_nc_maps.zip",
-        mapping="data/cropgrids_mapping.csv",
-    output:
-        "processing/shared/cropgrids_nc/CROPGRIDSv1.08_{crop}.nc",
-    log:
-        "logs/shared/extract_cropgrids_{crop}.log",
-    shell:
-        r"""
-        mapped=$(awk -F, -v c="{wildcards.crop}" 'NR>1 && $1==c {{print $2}}' {input.mapping})
-        mkdir -p $(dirname {output})
-        if [ -z "$mapped" ]; then
-          : > {output}
-        else
-          unzip -oj {input.zip_path} "CROPGRIDSv1.08_NC_maps/CROPGRIDSv1.08_${{mapped}}.nc" -d $(dirname {output}) > {log} 2>&1
-          if [ "$mapped" != "{wildcards.crop}" ]; then
-            mv $(dirname {output})/CROPGRIDSv1.08_${{mapped}}.nc {output}
-          fi
-        fi
-        """
-
-
-rule resample_resource_classes_to_cropgrids:
-    input:
-        classes="processing/{name}/resource_classes.nc",
-    output:
-        "processing/{name}/resource_class_fractions_cropgrids.nc",
-    log:
-        "logs/{name}/resample_resource_classes_to_cropgrids.log",
-    script:
-        "../scripts/resample_resource_classes_to_cropgrids.py"
-
-
-rule build_harvested_area_cropgrids:
-    input:
-        cropgrids_nc=lambda w: f"processing/shared/cropgrids_nc/CROPGRIDSv1.08_{w.crop}.nc",
-        mapping="data/cropgrids_mapping.csv",
-        gaez_harvest_r=lambda w: gaez_path("harvested_area", "r", w.crop),
-        gaez_harvest_i=lambda w: gaez_path("harvested_area", "i", w.crop),
-        classes="processing/{name}/resource_classes.nc",
-        regions="processing/{name}/regions.geojson",
-        class_fractions="processing/{name}/resource_class_fractions_cropgrids.nc",
-    output:
-        "processing/{name}/harvested_area/cropgrids/{crop}_{water_supply}.csv",
-    log:
-        "logs/{name}/build_harvested_area_cropgrids_{crop}_{water_supply}.log",
-    script:
-        "../scripts/build_cropgrids_harvested_area.py"
-
-
 rule build_harvested_area_gaez:
     input:
         harvested_area_raster=lambda w: gaez_path(

@@ -236,13 +236,6 @@ roughly 5 000 USD/ha.
    footprint. This means enforced production can exceed FAOSTAT totals until we split
    those shared rasters using external shares.
 
-When ``validation.harvest_area_source: cropgrids`` the workflow uses CROPGRIDS v1.08
-instead of RES06. ``harvarea`` counts all cropping cycles, while ``croparea`` captures
-physical land. The model splits the maps into rainfed/irrigated using GAEZ irrigated
-shares, fixes land use to ``croparea``, and scales yields by the derived cropping
-intensity (``harvarea / croparea``) so multiple cropping boosts production without
-double-counting land.
-
 Workflow Rules
 --------------
 

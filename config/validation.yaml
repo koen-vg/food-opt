@@ -12,7 +12,6 @@ validation:
   use_actual_production: true
   enforce_gdd_baseline: true
   slack_marginal_cost: 10
-  harvest_area_source: "gaez" # "cropgrids"
 
 water:
   supply_scenario: current_use

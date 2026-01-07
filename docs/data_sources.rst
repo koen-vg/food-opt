@@ -50,23 +50,6 @@ GAEZ (Global Agro-Ecological Zones) v5
 
 **Workflow retrieval**: Automatic via Snakemake rules in ``workflow/rules/retrieve.smk``
 
-CROPGRIDS v1.08
-~~~~~~~~~~~~~~~
-
-**Provider**: Tang et al., FAO
-
-**Description**: Global harvested and physical crop area maps for 173 crops around 2020 at 0.05° resolution.
-
-**Resolution**: 0.05° × 0.05° (~5.6 km)
-
-**Access**: https://figshare.com/articles/dataset/CROPGRIDS/22491997
-
-**License**: Creative Commons Attribution 4.0 International (CC BY 4.0)
-
-**Citation**: Tang, H., Nguyen, C., Conchedda, G., Casse, L., Tubiello, F. N., & Maggi, F. (2023). CROPGRIDS. *Scientific Data*, 10(1), 1-16.
-
-**Usage**: Alternative harvested-area source for validation runs. ``harvarea`` stores total harvested area (counts multi-crop cycles); ``croparea`` stores physical cropped area. The model can derive cropping intensity as ``harvarea/croparea`` and split irrigated vs. rainfed using GAEZ irrigated shares.
-
 USDA Cost and Returns Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -709,6 +692,6 @@ Data License Summary
 Most datasets used in this project require attribution. Some disallow redistribution, meaning that food-opt cannot be distributed together with these datasets. Some furthermore prohibit commercial use without prior agreement or a paid-for license.
 
 * **CC0 1.0 (Public Domain)** (USDA FoodData Central): Public domain, no restrictions; attribution requested
-* **CC BY 4.0** (GAEZ, CROPGRIDS, FAOSTAT): Requires attribution
+* **CC BY 4.0** (GAEZ, FAOSTAT): Requires attribution
 * **CC BY 3.0 IGO** (UN WPP): Requires attribution to UN
 * **Academic use only** (GADM, GBD, GDD): Commercial use requires permission or paid licensed.

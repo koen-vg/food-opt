@@ -78,8 +78,6 @@ Validation Options
    :start-after: # --- section: validation ---
    :end-before: # --- section: land ---
 
-* ``validation.harvest_area_source`` chooses the dataset for harvested area in validation runs: ``gaez`` (default, RES06-HAR) or ``cropgrids`` (CROPGRIDS v1.08). The workflow switches aggregation scripts accordingly.
-
 Set ``validation.enforce_gdd_baseline`` to ``true`` to force the optimizer to match
 baseline consumption derived from the processed GDD file. When this flag is active,
 the ``diet.baseline_age`` and ``diet.baseline_reference_year`` settings determine which

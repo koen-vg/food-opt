@@ -41,14 +41,13 @@ def harvested_area_model_inputs(_wildcards):
     else:
         irrigated_crops = list(irr_cfg)
 
-    dataset = config["validation"]["harvest_area_source"]
     inputs = {
-        f"{crop}_harvested_r": f"processing/{{name}}/harvested_area/{dataset}/{crop}_r.csv"
+        f"{crop}_harvested_r": f"processing/{{name}}/harvested_area/gaez/{crop}_r.csv"
         for crop in config["crops"]
     }
     for crop in irrigated_crops:
         inputs[f"{crop}_harvested_i"] = (
-            f"processing/{{name}}/harvested_area/{dataset}/{crop}_i.csv"
+            f"processing/{{name}}/harvested_area/gaez/{crop}_i.csv"
         )
     return inputs
 
