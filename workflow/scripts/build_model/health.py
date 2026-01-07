@@ -20,7 +20,7 @@ from pathlib import Path
 import pandas as pd
 import pypsa
 
-from . import constants
+from .. import constants
 
 logger = logging.getLogger(__name__)
 

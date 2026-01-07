@@ -20,6 +20,7 @@ FOOD_PORTION_TO_MASS_FRACTION = 1e-2  # convert x per 100g to mass fraction
 # Energy: use petajoules throughout to keep magnitudes modest
 # 1 kcal = 4.184 kJ = 4.184e-12 PJ
 KCAL_TO_PJ = 4.184e-12  # convert kilocalories to petajoules
+PJ_TO_KCAL = 1.0 / KCAL_TO_PJ  # convert petajoules to kilocalories
 KCAL_PER_100G_TO_PJ_PER_MEGATONNE = (
     FOOD_PORTION_TO_MASS_FRACTION * GRAMS_PER_MEGATONNE * KCAL_TO_PJ
 )  # kcal/100g to PJ per Mt of food

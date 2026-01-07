@@ -9,10 +9,10 @@ conversion, trade, and nutrition constraints.
 """
 
 # Re-export submodules for convenience
+from .. import constants  # constants moved to parent package
 from . import (
     animals,
     biomass,
-    constants,
     crops,
     food,
     health,

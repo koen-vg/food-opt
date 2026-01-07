@@ -13,7 +13,7 @@ from collections.abc import Iterable, Mapping
 import pandas as pd
 import pypsa
 
-from . import constants
+from .. import constants
 
 
 def add_biomass_infrastructure(

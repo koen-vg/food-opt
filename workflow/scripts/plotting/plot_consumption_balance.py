@@ -16,14 +16,13 @@ import pypsa
 
 try:
     from workflow.scripts.color_utils import categorical_colors
+    from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 except ImportError:
     from color_utils import categorical_colors
+    from constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 
 matplotlib.use("pdf")
 logger = logging.getLogger(__name__)
-
-GRAMS_PER_MEGATONNE = 1e12
-DAYS_PER_YEAR = 365
 EPSILON = 1e-6  # Threshold for considering values as zero
 BAR_WIDTH = 0.35  # Width of each bar (we'll have 2 per cluster)
 BAR_SPACING = 0.05  # Space between the two bars

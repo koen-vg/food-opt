@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 
-from . import constants
+from .. import constants
 
 
 def _add_land_slack_generators(

@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 
-from . import constants
+from .. import constants
 
 logger = logging.getLogger(__name__)
 

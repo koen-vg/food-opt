@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 
-from workflow.scripts.build_model.constants import (
+from workflow.scripts.constants import (
     HA_PER_MHA,
     MEGATONNE_TO_TONNE,
     USD_TO_BNUSD,

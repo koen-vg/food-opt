@@ -14,7 +14,7 @@ import logging
 import pandas as pd
 import pypsa
 
-from . import constants
+from .. import constants
 from .utils import _calculate_ch4_per_feed_intake, _calculate_manure_n_outputs
 
 logger = logging.getLogger(__name__)

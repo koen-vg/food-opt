@@ -15,7 +15,7 @@ import numpy as np
 import pypsa
 from sklearn.cluster import KMeans
 
-from . import constants
+from .. import constants
 
 logger = logging.getLogger(__name__)
 

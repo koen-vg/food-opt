@@ -10,7 +10,8 @@ import numpy as np
 import pandas as pd
 import pypsa
 
-from . import constants, primary_resources
+from .. import constants
+from . import primary_resources
 
 
 def add_land_components(

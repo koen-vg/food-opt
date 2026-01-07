@@ -24,7 +24,7 @@ except IndexError:
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from workflow.scripts.build_model import constants  # noqa: E402
+from workflow.scripts import constants  # noqa: E402
 from workflow.scripts.build_model.nutrition import (  # noqa: E402
     _build_food_group_equals_from_baseline,
 )

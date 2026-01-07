@@ -23,10 +23,13 @@ import numpy as np
 import pandas as pd
 import pypsa
 
+try:
+    from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+except ImportError:
+    from constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+
 logger = logging.getLogger(__name__)
 
-GRAMS_PER_MEGATONNE = 1e12
-DAYS_PER_YEAR = 365
 PLATE_CARREE = ccrs.PlateCarree()
 
 

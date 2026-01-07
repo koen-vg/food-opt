@@ -17,15 +17,19 @@ import matplotlib.pyplot as plt
 
 try:  # Prefer package import when available (e.g., during documentation builds)
     from workflow.scripts.color_utils import categorical_colors
+    from workflow.scripts.constants import (
+        DAYS_PER_YEAR,
+        GRAMS_PER_MEGATONNE,
+        PJ_TO_KCAL,
+    )
 except ImportError:  # Fallback to Snakemake's script-directory loader
     from color_utils import categorical_colors  # type: ignore
+    from constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO_KCAL
 
+# Alias for backwards compatibility with modules that import from here
+KCAL_PER_PJ = PJ_TO_KCAL
 
 logger = logging.getLogger(__name__)
-
-GRAMS_PER_MEGATONNE = 1e12
-KCAL_PER_PJ = 2.388e11  # kcal in one petajoule (1 PJ = 10^15 J ÷ 4184 J/kcal)
-DAYS_PER_YEAR = 365
 
 
 def _select_snapshot(network: pypsa.Network) -> pd.Index | str:

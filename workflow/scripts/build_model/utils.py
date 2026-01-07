@@ -14,7 +14,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from . import constants
+from .. import constants
 
 logger = logging.getLogger(__name__)
 

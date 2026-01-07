@@ -10,7 +10,7 @@ foundation of the PyPSA network model.
 
 import pypsa
 
-from . import constants
+from .. import constants
 from .utils import _carrier_unit_for_nutrient, _nutrient_kind
 
 

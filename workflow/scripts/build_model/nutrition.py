@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 
-from . import constants
+from .. import constants
 from .utils import _nutrition_efficiency_factor
 
 logger = logging.getLogger(__name__)
