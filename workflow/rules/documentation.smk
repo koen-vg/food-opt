@@ -44,6 +44,8 @@ DOC_FIGURES = [
     # Analysis figures
     "analysis_marginal_ghg",
     "analysis_marginal_yll",
+    # Health figures
+    "health_clusters",
 ]
 
 
@@ -319,6 +321,20 @@ rule doc_fig_analysis_marginal_damages:
         "logs/shared/doc_fig_analysis_marginal_damages.log",
     script:
         "../scripts/doc_figures/analysis_marginal_damages.py"
+
+
+rule doc_fig_health_clusters:
+    """Generate health cluster map showing country groupings."""
+    input:
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+        clusters=f"processing/{DOC_FIG_NAME}/health/country_clusters.csv",
+    output:
+        svg="docs/_static/figures/health_clusters.svg",
+        png="docs/_static/figures/health_clusters.png",
+    log:
+        "logs/shared/doc_fig_health_clusters.log",
+    script:
+        "../scripts/doc_figures/health_clusters_map.py"
 
 
 rule build_docs:

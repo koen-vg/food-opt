@@ -137,6 +137,13 @@ The preprocessing script performs these steps:
    reassigns boundary countries from over-populated to under-populated clusters
    until the population coefficient of variation reaches an acceptable level.
    The cluster map is saved as ``processing/{name}/health/country_clusters.csv``.
+
+   .. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/health_clusters.png
+      :width: 100%
+      :alt: Health cluster map
+
+      Health clusters grouping countries based on geographic proximity, GDP per capita similarity, and population balance.
+
 2. **Baseline burden** – combines mortality, population and life expectancy to
    compute years of life lost (YLL) per country and aggregates them to the
    health clusters. For each cause, it also computes a **diet-attributable YLL**
