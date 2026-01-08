@@ -10,18 +10,18 @@
 name: "yll"
 scenario_defs: "config/yll_scenarios.yaml"
 
-# Use coarser spatial aggregation for faster processing
-aggregation:
-  regions:
-    target_count: 250  # Reduced from 400 for faster processing
-
 macronutrients:
   cal:
-    min: 2400    # kcal/person/day
+    equal: 2400    # kcal/person/day
 
-health:
-  enabled: true
-  value_per_yll: 150000  # USD_2024 per year of life lost; overridden by scenarios
+emissions:
+  ghg_pricing_enabled: false
+
+# Consumer values derived from baseline consumption patterns
+food_group_incentives:
+  enabled: false  # overridden by scenarios (enabled after baseline extraction)
+  sources:
+    - "results/{name}/consumer_values/values.csv"
 
 # Compare all YLL scenarios in plots
 plotting:

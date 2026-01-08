@@ -4,51 +4,97 @@
 
 # Value per Year of Life Lost (YLL) Sensitivity Analysis Scenarios
 # ----------------------------------------------------------------
-# Each scenario varies the monetized value per year of life lost
-# (health.value_per_yll) while keeping all other parameters constant.
-# Values span from no monetized health impacts to double the default
-# of 150,000 USD_2024 per YLL.
+# Workflow:
+# 1. "baseline": Fixed consumption, no health pricing - extracts consumer values (duals)
+# 2. "yll_*" scenarios: Consumer values in objective + varying health pricing
+#
+# With consumer values, the yll_0 scenario should closely match baseline consumption.
+# YLL values follow a roughly logarithmic scale from 0 to 200,000 USD/YLL.
+
+baseline:
+  # Fixed consumption to extract consumer values (dual variables)
+  validation:
+    enforce_gdd_baseline: true
+  food_group_incentives:
+    enabled: false
+  health:
+    enabled: false
+  macronutrients: {}
 
 yll_0:
+  food_group_incentives:
+    enabled: true
   health:
     enabled: false
 
+yll_50:
+  food_group_incentives:
+    enabled: true
+  health:
+    value_per_yll: 50
+
+yll_100:
+  food_group_incentives:
+    enabled: true
+  health:
+    value_per_yll: 100
+
+yll_200:
+  food_group_incentives:
+    enabled: true
+  health:
+    value_per_yll: 200
+
+yll_500:
+  food_group_incentives:
+    enabled: true
+  health:
+    value_per_yll: 500
+
+yll_1000:
+  food_group_incentives:
+    enabled: true
+  health:
+    value_per_yll: 1000
+
+yll_2000:
+  food_group_incentives:
+    enabled: true
+  health:
+    value_per_yll: 2000
+
 yll_5000:
+  food_group_incentives:
+    enabled: true
   health:
-    value_per_yll: 12500
+    value_per_yll: 5000
 
-yll_12500:
+yll_10000:
+  food_group_incentives:
+    enabled: true
   health:
-    value_per_yll: 12500
+    value_per_yll: 10000
 
-yll_25000:
+yll_20000:
+  food_group_incentives:
+    enabled: true
   health:
-    value_per_yll: 25000
+    value_per_yll: 20000
 
 yll_50000:
+  food_group_incentives:
+    enabled: true
   health:
     value_per_yll: 50000
 
-yll_75000:
-  health:
-    value_per_yll: 75000
-
 yll_100000:
+  food_group_incentives:
+    enabled: true
   health:
     value_per_yll: 100000
 
-yll_125000:
-  health:
-    value_per_yll: 125000
-
-yll_150000:
-  health:
-    value_per_yll: 150000
-
-yll_175000:
-  health:
-    value_per_yll: 175000
-
 yll_200000:
+  food_group_incentives:
+    enabled: true
   health:
     value_per_yll: 200000
