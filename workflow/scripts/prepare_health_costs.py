@@ -14,6 +14,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 from workflow.scripts.logging_config import setup_script_logging
 
@@ -86,14 +87,54 @@ def _build_country_clusters(
     regions_path: str,
     countries: Iterable[str],
     n_clusters: int,
+    population: pd.DataFrame | None = None,
+    gdp_per_capita: pd.DataFrame | None = None,
+    weights: dict[str, float] | None = None,
 ) -> tuple[pd.Series, dict[int, list[str]]]:
+    """
+    Cluster countries into health regions using multi-objective criteria.
+
+    Objectives (controlled by weights):
+    - geography: Geographic proximity (minimize spatial spread)
+    - gdp: GDP per capita similarity (group similar economies)
+    - population: Population balance (equalize total population across clusters)
+
+    Parameters
+    ----------
+    regions_path : str
+        Path to GeoJSON file with country boundaries
+    countries : Iterable[str]
+        ISO3 country codes to include
+    n_clusters : int
+        Target number of clusters
+    population : pd.DataFrame, optional
+        Population data with columns: country, value (in thousands)
+    gdp_per_capita : pd.DataFrame, optional
+        GDP per capita data with columns: iso3, gdp_per_capita
+    weights : dict, optional
+        Weights for clustering objectives: geography, gdp, population
+
+    Returns
+    -------
+    cluster_series : pd.Series
+        Country ISO3 codes as index, cluster IDs as values
+    cluster_to_countries : dict
+        Mapping from cluster ID to list of country ISO3 codes
+    """
+    if weights is None:
+        weights = {"geography": 1.0, "gdp": 0.0, "population": 0.0}
+
     regions = gpd.read_file(regions_path)
 
+    # Project to equal-area CRS and compute country centroids
     regions_equal_area = regions.to_crs(6933)
     dissolved = regions_equal_area.dissolve(by="country", as_index=True)
     centroids = dissolved.geometry.centroid
+    country_order = list(dissolved.index)
 
+    # Build geographic coordinates
     coords = np.column_stack([centroids.x.values, centroids.y.values])
+
     k = max(1, min(int(n_clusters), len(coords)))
     if k < int(n_clusters):
         logger.info(
@@ -103,8 +144,20 @@ def _build_country_clusters(
     if len(coords) == 1:
         labels = np.array([0])
     else:
+        # Build multi-objective feature matrix
+        features = _build_clustering_features(
+            coords, country_order, gdp_per_capita, weights
+        )
+
         km = KMeans(n_clusters=k, n_init=20, random_state=0)
-        labels = km.fit_predict(coords)
+        labels = km.fit_predict(features)
+
+        # Apply population balance refinement if weight > 0
+        pop_weight = weights["population"]
+        if pop_weight > 0 and population is not None:
+            labels = _refine_population_balance(
+                labels, country_order, population, coords, pop_weight
+            )
 
     dissolved["health_cluster"] = labels
     cluster_series = dissolved["health_cluster"].astype(int)
@@ -112,7 +165,179 @@ def _build_country_clusters(
     cluster_to_countries = {
         int(cluster): sorted(indexes) for cluster, indexes in grouped.items()
     }
+
+    # Log cluster statistics
+    _log_cluster_statistics(
+        cluster_series, cluster_to_countries, population, gdp_per_capita
+    )
+
     return cluster_series, cluster_to_countries
+
+
+def _build_clustering_features(
+    coords: np.ndarray,
+    country_order: list[str],
+    gdp_per_capita: pd.DataFrame | None,
+    weights: dict[str, float],
+) -> np.ndarray:
+    """
+    Build weighted feature matrix for clustering.
+
+    Combines geographic coordinates and GDP per capita with configurable weights.
+    Features are standardized before weighting to ensure comparable scales.
+
+    GDP data is assumed complete (imputation handled in retrieve_gdp_per_capita.py).
+    """
+    w_geo = weights["geography"]
+    w_gdp = weights["gdp"]
+
+    # Standardize geographic coordinates
+    scaler = StandardScaler()
+    coords_scaled = scaler.fit_transform(coords)
+
+    if w_gdp > 0 and gdp_per_capita is not None:
+        # Map GDP to countries in order
+        gdp_map = gdp_per_capita.set_index("iso3")["gdp_per_capita"]
+        gdp_values = np.array([gdp_map[c] for c in country_order])
+
+        # Log-transform to reduce skew (GDP is typically log-normal)
+        gdp_log = np.log1p(gdp_values).reshape(-1, 1)
+        gdp_scaled = scaler.fit_transform(gdp_log)
+
+        # Apply weights (sqrt because K-means minimizes squared distances)
+        # Geography has 2 dimensions, GDP has 1
+        total_weight = 2 * w_geo + w_gdp
+        geo_factor = np.sqrt(w_geo / total_weight)
+        gdp_factor = np.sqrt(w_gdp / total_weight)
+
+        features = np.column_stack(
+            [
+                coords_scaled * geo_factor,
+                gdp_scaled * gdp_factor,
+            ]
+        )
+    else:
+        # Geography only (original behavior)
+        features = coords_scaled
+
+    return features
+
+
+def _refine_population_balance(
+    labels: np.ndarray,
+    country_order: list[str],
+    population: pd.DataFrame,
+    coords: np.ndarray,
+    pop_weight: float,
+    max_iter: int = 100,
+) -> np.ndarray:
+    """
+    Iteratively refine cluster assignments to improve population balance.
+
+    Moves boundary countries from over-populated to under-populated clusters
+    until the population coefficient of variation (CV) is acceptable.
+
+    The target CV is determined by the population weight:
+    - Higher weight = stricter balance requirement (lower target CV)
+    """
+    labels = labels.copy()
+
+    # Get total population per country (sum across years if multiple)
+    pop_by_country = (
+        population[population["age"] == "all-a"].groupby("country")["value"].sum()
+    )
+    country_pop = np.array([pop_by_country.get(c, 0.0) for c in country_order])
+
+    # Target CV based on population weight (higher weight = stricter balance)
+    # Weight 0.3 -> target CV ~0.6, Weight 1.0 -> target CV ~0.3
+    target_cv = max(0.2, 0.8 - 0.5 * pop_weight)
+
+    for iteration in range(max_iter):
+        # Compute cluster populations
+        cluster_ids = np.unique(labels)
+        cluster_pops = {cid: country_pop[labels == cid].sum() for cid in cluster_ids}
+
+        # Compute coefficient of variation
+        pop_values = np.array(list(cluster_pops.values()))
+        if pop_values.mean() == 0:
+            break
+        cv = pop_values.std() / pop_values.mean()
+
+        if cv <= target_cv:
+            logger.info(
+                f"Population balance achieved after {iteration} iterations "
+                f"(CV={cv:.3f}, target={target_cv:.3f})"
+            )
+            break
+
+        # Find most over-populated and under-populated clusters
+        max_cluster = max(cluster_pops, key=cluster_pops.get)
+        min_cluster = min(cluster_pops, key=cluster_pops.get)
+
+        if max_cluster == min_cluster:
+            break
+
+        # Find boundary country in over-populated cluster (furthest from centroid)
+        in_max = np.where(labels == max_cluster)[0]
+        if len(in_max) <= 1:
+            # Can't remove from a single-country cluster
+            break
+
+        cluster_coords = coords[in_max]
+        centroid = cluster_coords.mean(axis=0)
+        dists = np.linalg.norm(cluster_coords - centroid, axis=1)
+        boundary_local_idx = dists.argmax()
+        boundary_idx = in_max[boundary_local_idx]
+
+        # Reassign to under-populated cluster
+        labels[boundary_idx] = min_cluster
+    else:
+        logger.info(
+            f"Population balance refinement reached max iterations "
+            f"(CV={cv:.3f}, target={target_cv:.3f})"
+        )
+
+    return labels
+
+
+def _log_cluster_statistics(
+    cluster_series: pd.Series,
+    cluster_to_countries: dict[int, list[str]],
+    population: pd.DataFrame | None,
+    gdp_per_capita: pd.DataFrame | None,
+) -> None:
+    """Log summary statistics about the clustering result."""
+    n_clusters = len(cluster_to_countries)
+    n_countries = len(cluster_series)
+    logger.info(f"Created {n_clusters} health clusters from {n_countries} countries")
+
+    if population is not None:
+        pop_by_country = (
+            population[population["age"] == "all-a"].groupby("country")["value"].sum()
+        )
+        cluster_pops = []
+        for members in cluster_to_countries.values():
+            cluster_pop = sum(pop_by_country.get(c, 0.0) for c in members)
+            cluster_pops.append(cluster_pop)
+
+        if cluster_pops:
+            pop_arr = np.array(cluster_pops) * 1000  # Convert to persons
+            cv = pop_arr.std() / pop_arr.mean() if pop_arr.mean() > 0 else 0
+            logger.info(
+                f"Cluster population stats: min={pop_arr.min() / 1e6:.1f}M, "
+                f"max={pop_arr.max() / 1e6:.1f}M, CV={cv:.3f}"
+            )
+
+    if gdp_per_capita is not None:
+        gdp_map = gdp_per_capita.set_index("iso3")["gdp_per_capita"]
+        for cluster_id, members in list(cluster_to_countries.items())[:3]:
+            gdp_values = [gdp_map.get(c) for c in members if c in gdp_map.index]
+            if gdp_values:
+                gdp_arr = np.array(gdp_values)
+                logger.info(
+                    f"Cluster {cluster_id}: {len(members)} countries, "
+                    f"GDP/cap ${gdp_arr.mean():,.0f} (std=${gdp_arr.std():,.0f})"
+                )
 
 
 class RelativeRiskTable(dict[tuple[str, str], dict[str, np.ndarray]]):
@@ -217,10 +442,25 @@ def _load_input_data(
     reference_year: int,
 ) -> tuple:
     """Load and perform initial processing of all input datasets."""
+    # Load population data first (needed for clustering)
+    pop = pd.read_csv(snakemake.input["population"])
+    pop["value"] = pd.to_numeric(pop["value"], errors="coerce") / 1_000.0
+
+    # Load GDP per capita data
+    gdp_per_capita = pd.read_csv(snakemake.input["gdp"])
+
+    # Get clustering weights from config
+    health_cfg = snakemake.params["health"]
+    clustering_cfg = health_cfg["clustering"]
+    weights = clustering_cfg["weights"]
+
     cluster_series, cluster_to_countries = _build_country_clusters(
         snakemake.input["regions"],
         cfg_countries,
-        int(snakemake.params["health"]["region_clusters"]),
+        int(health_cfg["region_clusters"]),
+        population=pop,
+        gdp_per_capita=gdp_per_capita,
+        weights=weights,
     )
 
     cluster_map = cluster_series.rename("health_cluster").reset_index()
@@ -234,8 +474,6 @@ def _load_input_data(
         header=None,
         names=["age", "cause", "country", "year", "value"],
     )
-    pop = pd.read_csv(snakemake.input["population"])
-    pop["value"] = pd.to_numeric(pop["value"], errors="coerce") / 1_000.0
     life_exp = _load_life_expectancy(snakemake.input["life_table"])
 
     return (

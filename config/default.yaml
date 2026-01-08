@@ -440,6 +440,13 @@ health:
     red_meat: 0         # TMREL: 0-200 g/day (using conservative lower bound)
     prc_meat: 0         # TMREL: 0 g/day (any intake increases risk)
     sugar: 0            # TMREL: 0 g/day (any refined sugar intake increases risk)
+  # Multi-objective clustering settings for grouping countries into health clusters
+  clustering:
+    gdp_reference_year: 2025  # Reference year for GDP per capita data
+    weights:
+      geography: 1.0    # Weight for geographic proximity
+      gdp: 0.5          # Weight for GDP per capita similarity
+      population: 0.3   # Weight for population balance across clusters
 
 # --- section: aggregation ---
 aggregation:

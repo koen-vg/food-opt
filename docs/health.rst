@@ -121,10 +121,22 @@ Preparation Workflow
 
 The preprocessing script performs these steps:
 
-1. **Health clustering** – dissolves country geometries, computes equal-area
-   centroids and runs K-means to assign each country to one of
-   ``health.region_clusters`` clusters. The cluster map is saved as
-   ``processing/{name}/health/country_clusters.csv``.
+1. **Health clustering** – groups countries into ``health.region_clusters``
+   clusters using a multi-objective approach that balances three criteria:
+
+   - **Geographic proximity**: countries close together tend to cluster together
+     (weight: ``health.clustering.weights.geography``)
+   - **GDP per capita similarity**: countries with similar economic development
+     levels cluster together (weight: ``health.clustering.weights.gdp``)
+   - **Population balance**: clusters are refined to have roughly equal total
+     populations (weight: ``health.clustering.weights.population``)
+
+   The algorithm projects country geometries to an equal-area CRS, computes
+   centroids, and runs weighted K-means on a feature matrix combining geography
+   and log-transformed GDP per capita. An iterative refinement step then
+   reassigns boundary countries from over-populated to under-populated clusters
+   until the population coefficient of variation reaches an acceptable level.
+   The cluster map is saved as ``processing/{name}/health/country_clusters.csv``.
 2. **Baseline burden** – combines mortality, population and life expectancy to
    compute years of life lost (YLL) per country and aggregates them to the
    health clusters. For each cause, it also computes a **diet-attributable YLL**

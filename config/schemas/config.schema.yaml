@@ -719,6 +719,7 @@ properties:
       - causes
       - tmrel_g_per_day
       - risk_cause_map
+      - clustering
     additionalProperties: false
     properties:
       enabled:
@@ -805,6 +806,38 @@ properties:
             type: number
             minimum: 0
             description: "Theoretical minimum risk exposure level (g/day)"
+      clustering:
+        type: object
+        required:
+          - gdp_reference_year
+          - weights
+        additionalProperties: false
+        properties:
+          gdp_reference_year:
+            type: integer
+            minimum: 1990
+            maximum: 2030
+            description: "Reference year for GDP per capita data used in clustering"
+          weights:
+            type: object
+            required:
+              - geography
+              - gdp
+              - population
+            additionalProperties: false
+            properties:
+              geography:
+                type: number
+                minimum: 0
+                description: "Weight for geographic proximity in clustering"
+              gdp:
+                type: number
+                minimum: 0
+                description: "Weight for GDP per capita similarity in clustering"
+              population:
+                type: number
+                minimum: 0
+                description: "Weight for population balance in clustering"
 
   aggregation:
     type: object

@@ -250,3 +250,15 @@ Brief descriptions of key external datasets used by this project, with links and
   - License (LAMASUS): https://creativecommons.org/licenses/by/4.0/
 - Citation: Wögerer, M. (2024). LAMASUS NUTS-level agricultural data derived from public FADN 1989-2009 (SGM) & 2004-2020 (SO) (0.1) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.10939892
 - Workflow integration: Retrieved via the `download_fadn_data` rule (Zenodo direct download) and processed by `retrieve_fadn_costs` script. Costs are allocated to model crops proportionally by output value share within FADN crop categories (e.g., cereals, vegetables), inflation-adjusted using EU HICP, converted to USD, and averaged over 2015-2020. Output: `processing/{name}/fadn_costs.csv` with per-year and per-planting cost components. Costs are merged with USDA data via `merge_crop_costs` rule to provide comprehensive global cost coverage.
+
+## IMF — World Economic Outlook (GDP per Capita)
+
+- Description: International Monetary Fund World Economic Outlook (WEO) database providing GDP per capita estimates (current prices, USD) for countries worldwide. This project uses GDP per capita data to inform multi-objective health clustering, grouping countries with similar economic development levels together.
+- Website: https://www.imf.org/external/datamapper/NGDPDPC@WEO
+- API documentation: https://www.imf.org/external/datamapper/api/help
+- Version/format: Retrieved via IMF DataMapper API (JSON → CSV). Indicator `NGDPDPC` (GDP per capita, current prices, U.S. dollars).
+- Coverage: Global; annual data from 1980 to present with projections.
+- License/terms (summary): IMF data is free to use with attribution. Data may be downloaded, copied, and redistributed provided the IMF is cited as the source. Transformation or adaptation of data must be explicitly stated alongside the source citation.
+  - Terms of use: https://www.imf.org/en/about/copyright-and-terms#data
+- Citation: International Monetary Fund, World Economic Outlook Database. https://www.imf.org/external/datamapper/NGDPDPC@WEO
+- Workflow integration: Retrieved via the `retrieve_gdp_per_capita` rule using the IMF DataMapper API. No API key required. Output: `data/downloads/gdp_per_capita.csv` with columns `iso3`, `gdp_per_capita`, `year`. Used by `prepare_health_costs` for multi-objective country clustering based on geography, GDP similarity, and population balance.

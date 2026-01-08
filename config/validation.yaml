@@ -33,7 +33,7 @@ land:
 
 macronutrients:
   cal:
-    min: 2000
+    min: 2400
 
 health:
   enabled: false

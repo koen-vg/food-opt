@@ -10,6 +10,24 @@ and health cost calculations.
 """
 
 
+rule retrieve_gdp_per_capita:
+    """Retrieve GDP per capita data from IMF World Economic Outlook API.
+
+    Missing data is imputed using UN M49 sub-regional means.
+    """
+    input:
+        m49="data/M49-codes.csv",
+    params:
+        countries=config["countries"],
+        year=config["health"]["clustering"]["gdp_reference_year"],
+    output:
+        gdp="data/downloads/gdp_per_capita.csv",
+    log:
+        "logs/retrieve_gdp_per_capita.log",
+    script:
+        "../scripts/retrieve_gdp_per_capita.py"
+
+
 rule prepare_gbd_mortality:
     input:
         gbd_mortality="data/manually_downloaded/IHME-GBD_2023-dealth-rates.csv",
@@ -122,6 +140,7 @@ rule prepare_health_costs:
         population="processing/{name}/population_age.csv",
         life_table="processing/{name}/health/life_table.csv",
         food_groups="data/food_groups.csv",
+        gdp="data/downloads/gdp_per_capita.csv",
     params:
         countries=config["countries"],
         health=config["health"],
