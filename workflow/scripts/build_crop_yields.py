@@ -104,9 +104,10 @@ if __name__ == "__main__":
     crs = y_src.crs
     crs_wkt = crs.to_wkt() if crs else None
     xmin, ymin, xmax, ymax = raster_bounds(transform, width, height)
-    cell_area_ha = calculate_all_cell_areas(y_src)
+    # Use 1D cell areas and broadcast to save memory
+    cell_area_ha_1d = calculate_all_cell_areas(y_src, repeat=False)
 
-    area_ha = s_frac * cell_area_ha
+    area_ha = s_frac * cell_area_ha_1d[:, np.newaxis]
 
     # Regions
     regions_gdf = gpd.read_file(regions_path)
@@ -114,125 +115,111 @@ if __name__ == "__main__":
         regions_gdf = regions_gdf.to_crs(crs)
     regions_for_extract = regions_gdf.reset_index()
 
-    # Aggregate mean yield and sum area per class
-    import pandas as pd
+    # Create raster sources once (before the loop) to avoid repeated allocations
+    raster_kwargs = {
+        "xmin": xmin,
+        "ymin": ymin,
+        "xmax": xmax,
+        "ymax": ymax,
+        "nodata": np.nan,
+        "srs_wkt": crs_wkt,
+    }
+    y_src_np = NumPyRasterSource(y_tpha, **raster_kwargs)
+    a_src_np = NumPyRasterSource(area_ha.astype(np.float32), **raster_kwargs)
+    water_src_np = NumPyRasterSource(water_m3_per_ha, **raster_kwargs)
+    gs_start_src_np = NumPyRasterSource(gs_start_raw, **raster_kwargs)
+    gs_length_src_np = NumPyRasterSource(gs_length_raw, **raster_kwargs)
 
+    # Aggregate mean yield and sum area per class using weighted extraction
     out = []
     n_classes = (
         int(np.nanmax(class_labels)) + 1 if np.isfinite(class_labels).any() else 0
     )
     for cls in range(n_classes):
-        mask = class_labels == cls
-        if not np.any(mask):
+        # Create binary mask as weight (only allocation per iteration)
+        mask_float = (class_labels == cls).astype(np.float32)
+        if not np.any(mask_float > 0):
             continue
-        y = np.where(mask, y_tpha, np.nan)
-        a = np.where(mask, area_ha, np.nan)
 
-        y_src_np = NumPyRasterSource(
-            y,
+        # Use the mask as weights (0=not this class, 1=this class)
+        # Don't set nodata so 0s are treated as zero weight, not missing data
+        mask_src = NumPyRasterSource(
+            mask_float,
             xmin=xmin,
             ymin=ymin,
             xmax=xmax,
             ymax=ymax,
-            nodata=np.nan,
-            srs_wkt=crs_wkt,
-        )
-        a_src_np = NumPyRasterSource(
-            a,
-            xmin=xmin,
-            ymin=ymin,
-            xmax=xmax,
-            ymax=ymax,
-            nodata=np.nan,
-            srs_wkt=crs_wkt,
-        )
-        water = np.where(mask, water_m3_per_ha, np.nan)
-        water_src_np = NumPyRasterSource(
-            water,
-            xmin=xmin,
-            ymin=ymin,
-            xmax=xmax,
-            ymax=ymax,
-            nodata=np.nan,
-            srs_wkt=crs_wkt,
-        )
-        gs_start = np.where(mask, gs_start_raw, np.nan)
-        gs_start_src_np = NumPyRasterSource(
-            gs_start,
-            xmin=xmin,
-            ymin=ymin,
-            xmax=xmax,
-            ymax=ymax,
-            nodata=np.nan,
-            srs_wkt=crs_wkt,
-        )
-        gs_length = np.where(mask, gs_length_raw, np.nan)
-        gs_length_src_np = NumPyRasterSource(
-            gs_length,
-            xmin=xmin,
-            ymin=ymin,
-            xmax=xmax,
-            ymax=ymax,
-            nodata=np.nan,
             srs_wkt=crs_wkt,
         )
 
+        # Use weighted operations with class mask as weight
         y_stats = exact_extract(
             y_src_np,
             regions_for_extract,
-            ["mean"],
+            ["weighted_mean"],
+            weights=mask_src,
             include_cols=["region"],
             output="pandas",
         )
         a_stats = exact_extract(
             a_src_np,
             regions_for_extract,
-            ["sum"],
+            ["weighted_sum"],
+            weights=mask_src,
             include_cols=["region"],
             output="pandas",
         )
         water_stats = exact_extract(
             water_src_np,
             regions_for_extract,
-            ["mean"],
+            ["weighted_mean"],
+            weights=mask_src,
             include_cols=["region"],
             output="pandas",
         )
         gs_start_stats = exact_extract(
             gs_start_src_np,
             regions_for_extract,
-            ["mean"],
+            ["weighted_mean"],
+            weights=mask_src,
             include_cols=["region"],
             output="pandas",
         )
         gs_length_stats = exact_extract(
             gs_length_src_np,
             regions_for_extract,
-            ["mean"],
+            ["weighted_mean"],
+            weights=mask_src,
             include_cols=["region"],
             output="pandas",
         )
         if y_stats.empty or a_stats.empty:
             continue
         merged = (
-            y_stats.rename(columns={"mean": "yield"})
+            y_stats.rename(columns={"weighted_mean": "yield"})
             .merge(
-                a_stats.rename(columns={"sum": "suitable_area"}),
+                a_stats.rename(columns={"weighted_sum": "suitable_area"}),
                 on="region",
                 how="inner",
             )
             .merge(
-                water_stats.rename(columns={"mean": "water_requirement_m3_per_ha"}),
+                water_stats.rename(
+                    columns={"weighted_mean": "water_requirement_m3_per_ha"}
+                ),
                 on="region",
                 how="left",
             )
             .merge(
-                gs_start_stats.rename(columns={"mean": "growing_season_start_day"}),
+                gs_start_stats.rename(
+                    columns={"weighted_mean": "growing_season_start_day"}
+                ),
                 on="region",
                 how="left",
             )
             .merge(
-                gs_length_stats.rename(columns={"mean": "growing_season_length_days"}),
+                gs_length_stats.rename(
+                    columns={"weighted_mean": "growing_season_length_days"}
+                ),
                 on="region",
                 how="left",
             )
