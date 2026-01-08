@@ -90,7 +90,7 @@ intensity and health impacts by food group:
 
 .. _fig-analysis-ghg:
 
-.. figure:: _static/figures/analysis_marginal_ghg.png
+.. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/analysis_marginal_ghg.png
    :alt: Bar chart showing GHG intensity by food group
    :align: center
    :width: 80%
@@ -101,7 +101,7 @@ intensity and health impacts by food group:
 
 .. _fig-analysis-yll:
 
-.. figure:: _static/figures/analysis_marginal_yll.png
+.. figure:: https://github.com/Sustainable-Solutions-Lab/food-opt/releases/download/doc-figures/analysis_marginal_yll.png
    :alt: Bar chart showing health impact by food group
    :align: center
    :width: 80%

@@ -30,6 +30,7 @@ A global food systems optimization model that explores trade-offs between enviro
    data_sources
    workflow
    results
+   analysis
    api/index
    development
 
