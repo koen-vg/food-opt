@@ -8,6 +8,16 @@
 # all other parameters constant. Prices range from 0 to 400 USD/tCO2-eq
 # to cover the range from no carbon pricing to high social cost of carbon estimates.
 
+baseline:
+  # Fixed consumption to extract consumer values (dual variables)
+  validation:
+    enforce_gdd_baseline: true
+  food_group_incentives:
+    enabled: false
+  macronutrients: {}
+  emissions:
+    ghg_pricing_enabled: false
+
 ghg_0:
   emissions:
     ghg_pricing_enabled: false

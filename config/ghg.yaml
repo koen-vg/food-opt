@@ -9,22 +9,12 @@
 name: "ghg"
 scenario_defs: "config/ghg_scenarios.yaml"
 
-# Use coarser spatial aggregation for faster processing
-aggregation:
-  regions:
-    target_count: 250  # Reduced from 400 for faster processing
-
 macronutrients:
   cal:
-    min: 2400    # kcal/person/day
+    equal: 2400    # kcal/person/day
 
 health:
-  value_per_yll: 40000
-
-# Enable emissions tracking (individual scenarios control ghg_pricing_enabled)
-emissions:
-  ghg_pricing_enabled: true  # This will be overridden by scenarios
-  ghg_price: 200  # Default price, will be overridden by scenarios
+  enabled: false
 
 # Compare all GHG scenarios in plots
 plotting:
