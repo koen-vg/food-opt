@@ -10,10 +10,6 @@
 name: "yll"
 scenario_defs: "config/yll_scenarios.yaml"
 
-macronutrients:
-  cal:
-    equal: 2400    # kcal/person/day
-
 emissions:
   ghg_pricing_enabled: false
 

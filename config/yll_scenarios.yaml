@@ -19,82 +19,121 @@ baseline:
     enabled: false
   health:
     enabled: false
-  macronutrients: {}
+  # Note: no constraint on calory intake
 
 yll_0:
   food_group_incentives:
     enabled: true
   health:
     enabled: false
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_50:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 50
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_100:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 100
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_200:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 200
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_500:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 500
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_1000:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 1000
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_2000:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 2000
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_5000:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 5000
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_10000:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 10000
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_20000:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 20000
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_50000:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 50000
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_100000:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 100000
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 yll_200000:
   food_group_incentives:
     enabled: true
   health:
     value_per_yll: 200000
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
