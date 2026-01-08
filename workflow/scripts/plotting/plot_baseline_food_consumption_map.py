@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Plot baseline (GDD) food consumption by health cluster using pie charts."""
+"""Plot baseline food consumption by health cluster using pie charts."""
 
 from collections.abc import Mapping
 import logging
@@ -38,14 +38,15 @@ def _load_baseline_diet(
     if age:
         df = df[df["age"] == age]
     if df.empty:
-        raise ValueError(f"No GDD diet rows left after filtering age='{age}'")
+        raise ValueError(f"No baseline diet rows left after filtering age='{age}'")
 
     if year is not None:
         year_df = df[df["year"] == year]
         if year_df.empty:
             available_years = sorted(df["year"].dropna().unique())
             raise ValueError(
-                f"No GDD diet rows for year {year}. Available years: {available_years}"
+                "No baseline diet rows for year "
+                f"{year}. Available years: {available_years}"
             )
         df = year_df
 
@@ -180,7 +181,12 @@ def main() -> None:
 
     cluster_gdf, cluster_gdf_eq = _prepare_cluster_geodata(regions_path, iso_to_cluster)
     _plot_cluster_pies(
-        cluster_consumption, cluster_gdf, cluster_gdf_eq, colors, output_pdf
+        cluster_consumption,
+        cluster_gdf,
+        cluster_gdf_eq,
+        colors,
+        output_pdf,
+        radius_scale_factor=0.02,
     )
 
     cluster_consumption.sort_index(axis=0).sort_index(axis=1).to_csv(

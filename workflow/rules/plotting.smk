@@ -345,7 +345,7 @@ rule plot_food_consumption_map:
 
 rule plot_food_consumption_baseline_map:
     input:
-        diet="processing/{name}/gdd_dietary_intake.csv",
+        diet="processing/{name}/dietary_intake.csv",
         population="processing/{name}/population.csv",
         clusters="processing/{name}/health/country_clusters.csv",
         regions="processing/{name}/regions.geojson",

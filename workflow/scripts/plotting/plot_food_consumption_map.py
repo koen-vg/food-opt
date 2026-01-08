@@ -264,6 +264,8 @@ def _plot_cluster_pies(
     cluster_gdf_eq: gpd.GeoDataFrame,
     colors: Mapping[str, str],
     output_path: Path,
+    *,
+    radius_scale_factor: float = 0.025,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -347,7 +349,7 @@ def _plot_cluster_pies(
     scale_extent = max(width, height)
     if not np.isfinite(scale_extent) or scale_extent <= 0:
         scale_extent = 1.0
-    radius_scale = 0.025 * scale_extent
+    radius_scale = radius_scale_factor * scale_extent
     radii = np.sqrt(totals / totals.max()) * radius_scale
 
     ordered_groups = filtered.columns.tolist()
