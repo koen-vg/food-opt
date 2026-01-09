@@ -23,6 +23,7 @@ def add_land_components(
     reg_limit: float,
     land_slack_cost: float,
     enable_land_slack: bool,
+    min_area_ha: float,
 ) -> None:
     """Add land buses/generators that distinguish existing vs. new cropland.
 
@@ -42,6 +43,8 @@ def add_land_components(
         Marginal cost (bnUSD/Mha) for slack generators.
     enable_land_slack : bool
         Whether to add slack generators that allow exceeding regional land limits.
+    min_area_ha : float, optional
+        Minimum area threshold (ha). Entries with area below this are filtered out.
     """
 
     if total_land_area.empty:
@@ -100,6 +103,23 @@ def add_land_components(
     land_index_df = land_index_df[active_mask].copy()
     if land_index_df.empty:
         return
+
+    # Filter small areas for numerical stability
+    if min_area_ha > 0:
+        small_area_mask = land_index_df["area_ha"] < min_area_ha
+        filtered_count = small_area_mask.sum()
+        if filtered_count > 0:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(
+                "Filtered %d land entries with area < %.0f ha",
+                filtered_count,
+                min_area_ha,
+            )
+        land_index_df = land_index_df[~small_area_mask].copy()
+        if land_index_df.empty:
+            return
 
     pool_bus_names = land_index_df["pool_bus"].tolist()
     n.buses.add(pool_bus_names, carrier=["land"] * len(pool_bus_names))

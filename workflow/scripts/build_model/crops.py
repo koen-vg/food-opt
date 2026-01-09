@@ -35,6 +35,8 @@ def add_regional_crop_production_links(
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
     harvested_area_data: Mapping[str, pd.DataFrame] | None = None,
     use_actual_production: bool = False,
+    *,
+    min_yield_t_per_ha: float,
 ) -> None:
     """Add crop production links per region/resource class and water supply.
 
@@ -87,6 +89,20 @@ def add_regional_crop_production_links(
 
             # Filter out rows with zero suitable area or zero yield
             df = df[(df["suitable_area"] > 0) & (df["yield"] > 0)]
+
+            # Filter low yields for numerical stability
+            if min_yield_t_per_ha > 0:
+                low_yield_mask = df["yield"] < min_yield_t_per_ha
+                filtered_count = low_yield_mask.sum()
+                if filtered_count > 0:
+                    logger.info(
+                        "Filtered %d %s %s links with yield < %.4f t/ha",
+                        filtered_count,
+                        crop,
+                        "irrigated" if ws == "i" else "rainfed",
+                        min_yield_t_per_ha,
+                    )
+                df = df[~low_yield_mask]
 
             if use_actual_production:
                 df["harvested_area"] = pd.to_numeric(
@@ -279,6 +295,8 @@ def add_multi_cropping_links(
     crop_costs_per_planting: Mapping[str, float],
     fertilizer_n_rates: Mapping[str, float],
     residue_lookup: Mapping[tuple[str, str, str, int], dict[str, float]] | None = None,
+    *,
+    min_yield_t_per_ha: float,
 ) -> None:
     """Add multi-cropping production links with a vectorised workflow."""
 
@@ -319,6 +337,19 @@ def add_multi_cropping_links(
     )
     cycle_df = cycle_df.dropna(subset=["yield_t_per_ha", "crop"])
     cycle_df = cycle_df[cycle_df["yield_t_per_ha"] > 0]
+
+    # Filter low yields for numerical stability
+    if min_yield_t_per_ha > 0:
+        low_yield_mask = cycle_df["yield_t_per_ha"] < min_yield_t_per_ha
+        filtered_count = low_yield_mask.sum()
+        if filtered_count > 0:
+            logger.info(
+                "Filtered %d multi-cropping cycle entries with yield < %.4f t/ha",
+                filtered_count,
+                min_yield_t_per_ha,
+            )
+        cycle_df = cycle_df[~low_yield_mask]
+
     if cycle_df.empty:
         logger.info("No positive multi-cropping yields; skipping")
         return
@@ -762,6 +793,19 @@ def add_spared_land_links(
     df["sink_bus"] = df.apply(_sink_bus, axis=1)
     df["link_name"] = df.apply(_link_name, axis=1)
     df["area_mha"] = df["area_ha"] / 1e6
+
+    # Filter out links where bus0 doesn't exist (due to area filtering)
+    missing_bus_mask = ~df["bus0"].isin(n.buses.static.index)
+    if missing_bus_mask.any():
+        logger.debug(
+            "Skipping %d spared land links due to missing land_existing buses",
+            int(missing_bus_mask.sum()),
+        )
+        df = df[~missing_bus_mask]
+
+    if df.empty:
+        logger.info("No spared land links after filtering for existing buses")
+        return
 
     # Add carrier and sink buses
     n.carriers.add("spared_land", unit="Mha")

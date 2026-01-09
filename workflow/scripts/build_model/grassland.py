@@ -94,6 +94,8 @@ def add_grassland_feed_links(
     pasture_land_area: pd.Series | None = None,
     use_actual_production: bool = False,
     pasture_utilization_rate: float = 1.0,
+    *,
+    min_yield_t_per_ha: float,
 ) -> None:
     """Add links supplying ruminant feed directly from rainfed land.
 
@@ -124,8 +126,22 @@ def add_grassland_feed_links(
 
     grass_df = grassland.copy()
     grass_df = grass_df[np.isfinite(grass_df["yield"]) & (grass_df["yield"] > 0)]
+
+    # Filter low yields for numerical stability
+    if min_yield_t_per_ha > 0:
+        low_yield_mask = grass_df["yield"] < min_yield_t_per_ha
+        filtered_count = low_yield_mask.sum()
+        if filtered_count > 0:
+            logger.info(
+                "Filtered %d grassland entries with yield < %.4f t/ha",
+                filtered_count,
+                min_yield_t_per_ha,
+            )
+        grass_df = grass_df[~low_yield_mask]
+
     if grass_df.empty:
-        raise ValueError("No valid grassland yield data available.")
+        logger.warning("No valid grassland yield data available; skipping")
+        return
 
     grass_df = grass_df.reset_index()
     grass_df["resource_class"] = grass_df["resource_class"].astype(int)

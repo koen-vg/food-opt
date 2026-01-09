@@ -441,6 +441,10 @@ if __name__ == "__main__":
 
     land_cfg = snakemake.params.land
     reg_limit = float(land_cfg["regional_limit"])
+    filtering_cfg = land_cfg["filtering"]
+    min_crop_yield = float(filtering_cfg["min_crop_yield_t_per_ha"])
+    min_grassland_yield = float(filtering_cfg["min_grassland_yield_t_per_ha"])
+    min_area_ha = float(filtering_cfg["min_area_ha"])
     land.add_land_components(
         n,
         land_class_df,
@@ -449,6 +453,7 @@ if __name__ == "__main__":
         reg_limit=reg_limit,
         land_slack_cost=validation_slack_cost,  # Use unified validation slack cost
         enable_land_slack=enable_land_slack,
+        min_area_ha=min_area_ha,
     )
 
     # Marginal land buses (grazing-only)
@@ -494,6 +499,7 @@ if __name__ == "__main__":
         residue_lookup=residue_lookup,
         harvested_area_data=harvested_area_data if use_actual_production else None,
         use_actual_production=use_actual_production,
+        min_yield_t_per_ha=min_crop_yield,
     )
     # Multi-cropping is disabled when running with actual production
     enable_multiple_cropping = bool(snakemake.params.multiple_cropping) and (
@@ -511,6 +517,7 @@ if __name__ == "__main__":
             crop_costs_per_planting,
             fertilizer_n_rates,
             residue_lookup,
+            min_yield_t_per_ha=min_crop_yield,
         )
     elif use_actual_production:
         logger.info("Skipping multiple cropping links under actual production mode")
@@ -528,6 +535,7 @@ if __name__ == "__main__":
             pasture_utilization_rate=float(
                 snakemake.params.grazing["pasture_utilization_rate"]
             ),
+            min_yield_t_per_ha=min_grassland_yield,
         )
 
     # Food conversion

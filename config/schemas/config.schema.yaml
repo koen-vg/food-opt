@@ -175,7 +175,7 @@ properties:
 
   land:
     type: object
-    required: [regional_limit]
+    required: [regional_limit, filtering]
     additionalProperties: false
     properties:
       regional_limit:
@@ -183,6 +183,23 @@ properties:
         minimum: 0
         maximum: 1
         description: "Fraction of each region's potential cropland that is made available"
+      filtering:
+        type: object
+        required: [min_crop_yield_t_per_ha, min_grassland_yield_t_per_ha, min_area_ha]
+        additionalProperties: false
+        properties:
+          min_crop_yield_t_per_ha:
+            type: number
+            minimum: 0
+            description: "Minimum yield threshold for crop production links (t/ha)"
+          min_grassland_yield_t_per_ha:
+            type: number
+            minimum: 0
+            description: "Minimum yield threshold for grassland feed links (t/ha)"
+          min_area_ha:
+            type: number
+            minimum: 0
+            description: "Minimum land area threshold (ha)"
 
   water:
     type: object
