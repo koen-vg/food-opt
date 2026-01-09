@@ -25,9 +25,11 @@ validation:
     crops:
       enabled: true
       max_relative_deviation: 0.2  # ±20%
+      enable_slack: false  # Allow violating minimum production bounds at penalty cost
     animals:
       enabled: true
       max_relative_deviation: 0.2
+      enable_slack: false  # Allow violating minimum production bounds at penalty cost
 
 # --- section: food_group_incentives ---
 food_group_incentives:

@@ -51,35 +51,71 @@ CATEGORIES = [
 ]
 
 
-def _collect_slack(network: pypsa.Network) -> pd.DataFrame:
+def _collect_production_slack(
+    network: pypsa.Network, slack_cost: float
+) -> list[dict[str, object]]:
+    """Extract production stability slack from network metadata."""
+    records: list[dict[str, object]] = []
+    slack_data = network.meta.get("production_stability_slack", {})
+
+    if "crop" in slack_data:
+        total = sum(slack_data["crop"].values())
+        if total > 1e-6:
+            records.append(
+                {
+                    "category": "Crop production (min)",
+                    "quantity": total,
+                    "unit": "Mt",
+                    "cost_bnusd": total * slack_cost,
+                }
+            )
+
+    if "animal" in slack_data:
+        total = sum(slack_data["animal"].values())
+        if total > 1e-6:
+            records.append(
+                {
+                    "category": "Animal production (min)",
+                    "quantity": total,
+                    "unit": "Mt",
+                    "cost_bnusd": total * slack_cost,
+                }
+            )
+
+    return records
+
+
+def _collect_slack(network: pypsa.Network, slack_cost: float) -> pd.DataFrame:
     """Aggregate slack quantities and costs by category."""
 
     generators = network.generators
     dispatch = network.generators_t.p
 
-    if generators.empty or dispatch.empty:
-        return pd.DataFrame(columns=["quantity", "unit", "cost_bnusd"])
-
     records: list[dict[str, object]] = []
 
-    for label, mask_fn, unit in CATEGORIES:
-        mask = mask_fn(dispatch.columns, generators)
-        if not mask.any():
-            continue
+    # Collect generator-based slack (land, feed, food, water)
+    if not generators.empty and not dispatch.empty:
+        for label, mask_fn, unit in CATEGORIES:
+            mask = mask_fn(dispatch.columns, generators)
+            if not mask.any():
+                continue
 
-        cols = dispatch.loc[:, mask]
-        quantity = cols.abs().sum().sum()
-        marginal_cost = generators.loc[mask, "marginal_cost"]
-        cost_bnusd = (cols.abs() * marginal_cost.abs()).sum().sum()
+            cols = dispatch.loc[:, mask]
+            quantity = cols.abs().sum().sum()
+            marginal_cost = generators.loc[mask, "marginal_cost"]
+            cost_bnusd = (cols.abs() * marginal_cost.abs()).sum().sum()
 
-        records.append(
-            {
-                "category": label,
-                "quantity": quantity,
-                "unit": unit,
-                "cost_bnusd": cost_bnusd,
-            }
-        )
+            records.append(
+                {
+                    "category": label,
+                    "quantity": quantity,
+                    "unit": unit,
+                    "cost_bnusd": cost_bnusd,
+                }
+            )
+
+    # Collect production stability slack from metadata
+    records.extend(_collect_production_slack(network, slack_cost))
 
     if not records:
         return pd.DataFrame(columns=["quantity", "unit", "cost_bnusd"])
@@ -144,7 +180,10 @@ if __name__ == "__main__":
     logger.info("Loading solved network from %s", snakemake.input.network)
     network = pypsa.Network(snakemake.input.network)
 
-    slack_df = _collect_slack(network)
+    # Get slack marginal cost from config (for production slack calculation)
+    slack_cost = float(snakemake.config["validation"]["slack_marginal_cost"])
+
+    slack_df = _collect_slack(network, slack_cost)
 
     _plot(slack_df, Path(snakemake.output.pdf))
     _write_csv(slack_df, Path(snakemake.output.csv))

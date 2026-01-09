@@ -712,6 +712,7 @@ def add_production_stability_constraints(
     stability_cfg: dict,
     food_to_group: dict[str, str],
     loss_waste: pd.DataFrame,
+    slack_marginal_cost: float,
 ) -> None:
     """Add constraints limiting production deviation from baseline levels.
 
@@ -719,6 +720,10 @@ def add_production_stability_constraints(
     ``(1 - delta) * baseline <= production <= (1 + delta) * baseline``
 
     Products with zero baseline are constrained to zero production.
+
+    When ``enable_slack`` is set in the config, the minimum production
+    constraint uses slack variables: ``production + slack >= lower_bound``
+    with a penalty cost of ``slack_marginal_cost`` per Mt shortfall.
 
     Note: Multi-cropping is disabled when production stability is enabled.
 
@@ -741,6 +746,8 @@ def add_production_stability_constraints(
     loss_waste : pd.DataFrame
         Food loss and waste fractions with columns: country, food_group,
         loss_fraction, waste_fraction.
+    slack_marginal_cost : float
+        Penalty cost in bn USD per Mt for production stability slack.
     """
     if not stability_cfg["enabled"]:
         return
@@ -753,14 +760,27 @@ def add_production_stability_constraints(
     crops_cfg = stability_cfg["crops"]
     if crops_cfg["enabled"] and crop_baseline is not None:
         _add_crop_stability_constraints(
-            n, link_p, links_df, crop_baseline, crop_to_fao_item, crops_cfg
+            n,
+            link_p,
+            links_df,
+            crop_baseline,
+            crop_to_fao_item,
+            crops_cfg,
+            slack_marginal_cost,
         )
 
     # --- ANIMAL PRODUCTION BOUNDS ---
     animals_cfg = stability_cfg["animals"]
     if animals_cfg["enabled"] and animal_baseline is not None:
         _add_animal_stability_constraints(
-            n, link_p, links_df, animal_baseline, animals_cfg, food_to_group, loss_waste
+            n,
+            link_p,
+            links_df,
+            animal_baseline,
+            animals_cfg,
+            food_to_group,
+            loss_waste,
+            slack_marginal_cost,
         )
 
 
@@ -771,11 +791,15 @@ def _add_crop_stability_constraints(
     crop_baseline: pd.DataFrame,
     crop_to_fao_item: dict[str, str],
     crops_cfg: dict,
+    slack_marginal_cost: float,
 ) -> None:
     """Add crop production stability bounds.
 
     Crops that share a FAO item (e.g., dryland-rice and wetland-rice both map
     to "Rice") are aggregated together for the constraint.
+
+    When ``enable_slack`` is True, the minimum production constraint uses
+    slack variables: ``production + slack >= lower_bound``.
     """
     m = n.model
     delta = crops_cfg["max_relative_deviation"]
@@ -893,9 +917,41 @@ def _add_crop_stability_constraints(
 
         constr_name_min = "crop_production_min"
         constr_name_max = "crop_production_max"
-        m.add_constraints(
-            lhs_nonzero >= lower_nonzero, name=f"GlobalConstraint-{constr_name_min}"
-        )
+
+        enable_slack = crops_cfg.get("enable_slack", False)
+        if enable_slack:
+            # Add slack variables for minimum production constraint
+            # Slack represents shortfall from the minimum bound
+            # Create coords matching lhs_nonzero's "group" dimension
+            slack_coords = xr.DataArray(
+                np.zeros(len(nonzero_index)),
+                coords={"group": nonzero_index},
+                dims="group",
+            ).coords
+            crop_slack = m.add_variables(
+                lower=0,
+                coords=slack_coords,
+                name="crop_production_slack",
+            )
+            # Constraint: production + slack >= lower_bound
+            m.add_constraints(
+                lhs_nonzero + crop_slack >= lower_nonzero,
+                name=f"GlobalConstraint-{constr_name_min}",
+            )
+            # Add penalty cost to objective (bn USD per Mt)
+            m.objective += slack_marginal_cost * crop_slack.sum()
+            logger.info(
+                "Added crop production slack variables for %d (fao_item, country) pairs "
+                "(cost=%.1f bn USD/Mt)",
+                len(nonzero_index),
+                slack_marginal_cost,
+            )
+        else:
+            # Hard constraint: production >= lower_bound
+            m.add_constraints(
+                lhs_nonzero >= lower_nonzero, name=f"GlobalConstraint-{constr_name_min}"
+            )
+
         m.add_constraints(
             lhs_nonzero <= upper_nonzero, name=f"GlobalConstraint-{constr_name_max}"
         )
@@ -946,11 +1002,15 @@ def _add_animal_stability_constraints(
     animals_cfg: dict,
     food_to_group: dict[str, str],
     loss_waste: pd.DataFrame,
+    slack_marginal_cost: float,
 ) -> None:
     """Add animal production stability bounds.
 
     Reuses the aggregation logic from add_animal_production_constraints()
     but applies inequality bounds instead of equality.
+
+    When ``enable_slack`` is True, the minimum production constraint uses
+    slack variables: ``production + slack >= lower_bound``.
     """
     m = n.model
     delta = animals_cfg["max_relative_deviation"]
@@ -1048,9 +1108,41 @@ def _add_animal_stability_constraints(
 
         constr_name_min = "animal_production_min"
         constr_name_max = "animal_production_max"
-        m.add_constraints(
-            lhs_nonzero >= lower_nonzero, name=f"GlobalConstraint-{constr_name_min}"
-        )
+
+        enable_slack = animals_cfg.get("enable_slack", False)
+        if enable_slack:
+            # Add slack variables for minimum production constraint
+            # Slack represents shortfall from the minimum bound
+            # Create coords matching lhs_nonzero's "group" dimension
+            slack_coords = xr.DataArray(
+                np.zeros(len(nonzero_index)),
+                coords={"group": nonzero_index},
+                dims="group",
+            ).coords
+            animal_slack = m.add_variables(
+                lower=0,
+                coords=slack_coords,
+                name="animal_production_slack",
+            )
+            # Constraint: production + slack >= lower_bound
+            m.add_constraints(
+                lhs_nonzero + animal_slack >= lower_nonzero,
+                name=f"GlobalConstraint-{constr_name_min}",
+            )
+            # Add penalty cost to objective (bn USD per Mt)
+            m.objective += slack_marginal_cost * animal_slack.sum()
+            logger.info(
+                "Added animal production slack variables for %d (product, country) pairs "
+                "(cost=%.1f bn USD/Mt)",
+                len(nonzero_index),
+                slack_marginal_cost,
+            )
+        else:
+            # Hard constraint: production >= lower_bound
+            m.add_constraints(
+                lhs_nonzero >= lower_nonzero, name=f"GlobalConstraint-{constr_name_min}"
+            )
+
         m.add_constraints(
             lhs_nonzero <= upper_nonzero, name=f"GlobalConstraint-{constr_name_max}"
         )
@@ -1598,7 +1690,7 @@ def add_health_objective(
             )
 
             m.add_constraints(
-                store_e.sel(name=store_name) >= yll_expr_myll,
+                store_e.sel(name=store_name) == yll_expr_myll,
                 name=f"health_store_level_c{cluster}_cause{cause}",
             )
             constraints_added += 1
@@ -1760,6 +1852,9 @@ if __name__ == "__main__":
             animal_baseline = pd.read_csv(snakemake.input.animal_production_baseline)
             food_loss_waste_df = pd.read_csv(snakemake.input.food_loss_waste)
 
+        slack_marginal_cost = float(
+            snakemake.config["validation"]["slack_marginal_cost"]
+        )
         add_production_stability_constraints(
             n,
             crop_baseline,
@@ -1768,6 +1863,7 @@ if __name__ == "__main__":
             stability_cfg,
             food_to_group,
             food_loss_waste_df,
+            slack_marginal_cost,
         )
 
     # Add health impacts / store levels if enabled or baseline intake is enforced
@@ -1822,6 +1918,27 @@ if __name__ == "__main__":
         finally:
             if removed:
                 variables_container.data.update(removed)
+
+        # Extract production stability slack values if present
+        production_slack = {}
+        if "crop_production_slack" in n.model.variables:
+            crop_slack_sol = n.model.variables["crop_production_slack"].solution
+            production_slack["crop"] = crop_slack_sol.to_series().to_dict()
+            total_crop_slack = float(crop_slack_sol.sum())
+            if total_crop_slack > 1e-6:
+                logger.info(
+                    "Crop production slack used: %.4f Mt total", total_crop_slack
+                )
+        if "animal_production_slack" in n.model.variables:
+            animal_slack_sol = n.model.variables["animal_production_slack"].solution
+            production_slack["animal"] = animal_slack_sol.to_series().to_dict()
+            total_animal_slack = float(animal_slack_sol.sum())
+            if total_animal_slack > 1e-6:
+                logger.info(
+                    "Animal production slack used: %.4f Mt total", total_animal_slack
+                )
+        if production_slack:
+            n.meta["production_stability_slack"] = production_slack
 
         n.export_to_netcdf(
             snakemake.output.network,

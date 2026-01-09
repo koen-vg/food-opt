@@ -119,7 +119,7 @@ properties:
             description: "Whether to apply production stability bounds"
           crops:
             type: object
-            required: [enabled, max_relative_deviation]
+            required: [enabled, max_relative_deviation, enable_slack]
             additionalProperties: false
             properties:
               enabled:
@@ -130,9 +130,12 @@ properties:
                 minimum: 0
                 maximum: 1
                 description: "Maximum relative deviation from baseline (e.g., 0.2 = ±20%)"
+              enable_slack:
+                type: boolean
+                description: "Allow violating minimum production bounds at penalty cost (slack_marginal_cost)"
           animals:
             type: object
-            required: [enabled, max_relative_deviation]
+            required: [enabled, max_relative_deviation, enable_slack]
             additionalProperties: false
             properties:
               enabled:
@@ -143,6 +146,9 @@ properties:
                 minimum: 0
                 maximum: 1
                 description: "Maximum relative deviation from baseline (e.g., 0.2 = ±20%)"
+              enable_slack:
+                type: boolean
+                description: "Allow violating minimum production bounds at penalty cost (slack_marginal_cost)"
 
   food_group_incentives:
     type: object
