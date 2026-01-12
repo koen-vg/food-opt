@@ -107,23 +107,31 @@ rule build_model:
         ),
         constants_script="workflow/scripts/constants.py",
     params:
-        crops=config["crops"],
-        multiple_cropping=config["multiple_cropping"],
-        countries=config["countries"],
-        land=config["land"],
-        fertilizer=config["fertilizer"],
-        residues=config["residues"],
-        biomass=config["biomass"],
-        emissions=config["emissions"],
-        food_groups=config["food_groups"]["included"],
-        food_group_constraints=config["food_groups"].get("constraints", {}),
-        macronutrients=config["macronutrients"],
-        diet=config["diet"],
-        byproducts=config["byproducts"],
-        animal_products=config["animal_products"],
-        trade=config["trade"],
-        grazing=grazing_cfg,
-        health_reference_year=config["health"]["reference_year"],
+        crops=lambda w: get_effective_config(w.scenario)["crops"],
+        multiple_cropping=lambda w: get_effective_config(w.scenario)[
+            "multiple_cropping"
+        ],
+        countries=lambda w: get_effective_config(w.scenario)["countries"],
+        land=lambda w: get_effective_config(w.scenario)["land"],
+        fertilizer=lambda w: get_effective_config(w.scenario)["fertilizer"],
+        residues=lambda w: get_effective_config(w.scenario)["residues"],
+        biomass=lambda w: get_effective_config(w.scenario)["biomass"],
+        emissions=lambda w: get_effective_config(w.scenario)["emissions"],
+        food_groups=lambda w: get_effective_config(w.scenario)["food_groups"][
+            "included"
+        ],
+        food_group_constraints=lambda w: get_effective_config(w.scenario)[
+            "food_groups"
+        ]["constraints"],
+        macronutrients=lambda w: get_effective_config(w.scenario)["macronutrients"],
+        diet=lambda w: get_effective_config(w.scenario)["diet"],
+        byproducts=lambda w: get_effective_config(w.scenario)["byproducts"],
+        animal_products=lambda w: get_effective_config(w.scenario)["animal_products"],
+        trade=lambda w: get_effective_config(w.scenario)["trade"],
+        grazing=lambda w: get_effective_config(w.scenario)["grazing"],
+        health_reference_year=lambda w: get_effective_config(w.scenario)["health"][
+            "reference_year"
+        ],
         # Only used to force correct reruns when scenario_defs changes.
         scenario_hash=lambda w: scenario_override_hash(w.scenario),
     output:
@@ -177,7 +185,7 @@ def solve_model_inputs(w):
         inputs["food_loss_waste"] = f"processing/{w.name}/food_loss_waste.csv"
 
     # Add production stability inputs
-    stability_cfg = config["validation"]["production_stability"]
+    stability_cfg = eff_cfg["validation"]["production_stability"]
     if stability_cfg["enabled"]:
         if stability_cfg["crops"]["enabled"]:
             inputs["crop_production_baseline"] = (
@@ -220,24 +228,38 @@ def solver_options_with_threads(cfg: dict) -> dict:
 rule solve_model:
     input:
         unpack(solve_model_inputs),
-    threads: get_solver_threads(config)
+    threads: lambda w: get_solver_threads(get_effective_config(w.scenario))
     params:
-        health_risk_factors=config["health"]["risk_factors"],
-        health_risk_cause_map=config["health"]["risk_cause_map"],
-        ghg_price=config["emissions"]["ghg_price"],
-        solver=config["solving"]["solver"],
-        solver_threads=get_solver_threads(config),
-        solver_options=solver_options_with_threads(config),
-        io_api=config["solving"]["io_api"],
-        calculate_fixed_duals=config["solving"]["calculate_fixed_duals"],
-        netcdf_compression=config["solving"].get("netcdf_compression"),
-        macronutrients=config["macronutrients"],
-        food_group_constraints=config["food_groups"].get("constraints", {}),
-        diet=config["diet"],
+        health_risk_factors=lambda w: get_effective_config(w.scenario)["health"][
+            "risk_factors"
+        ],
+        health_risk_cause_map=lambda w: get_effective_config(w.scenario)["health"][
+            "risk_cause_map"
+        ],
+        ghg_price=lambda w: get_effective_config(w.scenario)["emissions"]["ghg_price"],
+        solver=lambda w: get_effective_config(w.scenario)["solving"]["solver"],
+        solver_threads=lambda w: get_solver_threads(get_effective_config(w.scenario)),
+        solver_options=lambda w: solver_options_with_threads(
+            get_effective_config(w.scenario)
+        ),
+        io_api=lambda w: get_effective_config(w.scenario)["solving"]["io_api"],
+        calculate_fixed_duals=lambda w: get_effective_config(w.scenario)["solving"][
+            "calculate_fixed_duals"
+        ],
+        netcdf_compression=lambda w: get_effective_config(w.scenario)["solving"][
+            "netcdf_compression"
+        ],
+        macronutrients=lambda w: get_effective_config(w.scenario)["macronutrients"],
+        food_group_constraints=lambda w: get_effective_config(w.scenario)[
+            "food_groups"
+        ]["constraints"],
+        diet=lambda w: get_effective_config(w.scenario)["diet"],
         enforce_baseline=lambda w: get_effective_config(w.scenario)["validation"][
             "enforce_gdd_baseline"
         ],
-        production_stability=config["validation"]["production_stability"],
+        production_stability=lambda w: get_effective_config(w.scenario)["validation"][
+            "production_stability"
+        ],
         # Only used to force correct reruns when scenario_defs changes.
         scenario_hash=lambda w: scenario_override_hash(w.scenario),
     output:
