@@ -66,7 +66,9 @@ def _build_food_group_equals_from_baseline(
             if pd.isna(value):
                 missing_entries.append(f"{country}:{group}")
                 continue
-            values[country] = float(value)
+            # Floor at 1g/person/day to avoid numerical issues with consumer
+            # values when baseline intake is very small or zero.
+            values[country] = max(1.0, float(value))
         if values:
             result[str(group)] = values
 
