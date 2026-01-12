@@ -1693,10 +1693,20 @@ def add_health_objective(
                 * constants.YLL_TO_MILLION_YLL
             )
 
-            m.add_constraints(
-                store_e.sel(name=store_name) >= yll_expr_myll,
-                name=f"health_store_level_c{cluster}_cause{cause}",
-            )
+            # Add constraints to set store levels to yll_expr_myll. Use equality
+            # when value_per_yll == 0; when value_per_yll > 0, we gain solver
+            # performance by using inequality (store level >= expression), which
+            # remains valid since the objective will minimize the store level.
+            if value_per_yll == 0:
+                m.add_constraints(
+                    store_e.sel(name=store_name) == yll_expr_myll,
+                    name=f"health_store_level_c{cluster}_cause{cause}",
+                )
+            elif value_per_yll > 0:
+                m.add_constraints(
+                    store_e.sel(name=store_name) >= yll_expr_myll,
+                    name=f"health_store_level_c{cluster}_cause{cause}",
+                )
             constraints_added += 1
 
     logger.info("Added %d health store level constraints", constraints_added)
