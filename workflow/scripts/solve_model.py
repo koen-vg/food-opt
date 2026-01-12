@@ -1254,7 +1254,6 @@ def add_health_objective(
     risk_factors: list[str],
     risk_cause_map: dict[str, list[str]],
     solver_name: str,
-    enforce_baseline: bool,
 ) -> None:
     """Link SOS2-based health costs to explicit PyPSA stores.
 
@@ -1344,39 +1343,6 @@ def add_health_objective(
         raise ValueError(f"Risk breakpoints missing required pairs: {text}")
 
     p = m.variables["Link-p"].sel(snapshot="now")
-
-    if enforce_baseline:
-        # Fixed dietary intakes: skip interpolation and pin store levels to the
-        # baseline RR reported in the precomputed health tables.
-        store_e = m.variables["Store-e"].sel(snapshot="now")
-        health_stores = (
-            n.stores.static[
-                n.stores.static["carrier"].notna()
-                & n.stores.static["carrier"].str.startswith("yll_")
-            ]
-            .reset_index()
-            .set_index(["health_cluster", "cause"])
-        )
-        constraints_added = 0
-        if "log_rr_total_baseline" not in cluster_cause.columns:
-            raise ValueError("cluster_cause must contain log_rr_total_baseline")
-        for (cluster, cause), row in cluster_cause_metadata.iterrows():
-            rr_ref = math.exp(float(row["log_rr_total_ref"]))
-            rr_base = math.exp(float(row["log_rr_total_baseline"]))
-            yll_base = float(row["yll_base"])
-            delta = max(0.0, rr_base - rr_ref)
-            store_level = delta * (yll_base / rr_ref) * constants.YLL_TO_MILLION_YLL
-            store_name = health_stores.loc[(int(cluster), str(cause)), "name"]
-            m.add_constraints(
-                store_e.sel(name=store_name) == store_level,
-                name=f"health_store_fixed_c{cluster}_cause{cause}",
-            )
-            constraints_added += 1
-        logger.info(
-            "Health stores fixed to baseline intake: added %d equality constraints",
-            constraints_added,
-        )
-        return
 
     # --- Stage 1: Intake to Log-RR ---
 
@@ -1902,15 +1868,9 @@ if __name__ == "__main__":
             slack_marginal_cost,
         )
 
-    # Add health impacts / store levels if enabled or baseline intake is enforced
+    # Add health impacts if enabled
     health_enabled = bool(snakemake.config["health"]["enabled"])
-    enforce_baseline = bool(snakemake.params.enforce_baseline)
-    if health_enabled and enforce_baseline:
-        raise ValueError(
-            "health.enabled and validation.enforce_gdd_baseline cannot both be true; "
-            "disable one of them in the config."
-        )
-    if health_enabled or enforce_baseline:
+    if health_enabled:
         add_health_objective(
             n,
             snakemake.input.health_risk_breakpoints,
@@ -1923,7 +1883,6 @@ if __name__ == "__main__":
             snakemake.params.health_risk_factors,
             snakemake.params.health_risk_cause_map,
             solver_name,
-            enforce_baseline,
         )
 
     status, condition = n.model.solve(
