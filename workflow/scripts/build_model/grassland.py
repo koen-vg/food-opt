@@ -130,13 +130,6 @@ def add_grassland_feed_links(
     # Filter low yields for numerical stability
     if min_yield_t_per_ha > 0:
         low_yield_mask = grass_df["yield"] < min_yield_t_per_ha
-        filtered_count = low_yield_mask.sum()
-        if filtered_count > 0:
-            logger.info(
-                "Filtered %d grassland entries with yield < %.4f t/ha",
-                filtered_count,
-                min_yield_t_per_ha,
-            )
         grass_df = grass_df[~low_yield_mask]
 
     if grass_df.empty:

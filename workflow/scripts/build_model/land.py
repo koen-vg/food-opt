@@ -107,16 +107,6 @@ def add_land_components(
     # Filter small areas for numerical stability
     if min_area_ha > 0:
         small_area_mask = land_index_df["area_ha"] < min_area_ha
-        filtered_count = small_area_mask.sum()
-        if filtered_count > 0:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.info(
-                "Filtered %d land entries with area < %.0f ha",
-                filtered_count,
-                min_area_ha,
-            )
         land_index_df = land_index_df[~small_area_mask].copy()
         if land_index_df.empty:
             return

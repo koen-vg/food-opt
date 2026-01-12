@@ -93,15 +93,6 @@ def add_regional_crop_production_links(
             # Filter low yields for numerical stability
             if min_yield_t_per_ha > 0:
                 low_yield_mask = df["yield"] < min_yield_t_per_ha
-                filtered_count = low_yield_mask.sum()
-                if filtered_count > 0:
-                    logger.info(
-                        "Filtered %d %s %s links with yield < %.4f t/ha",
-                        filtered_count,
-                        crop,
-                        "irrigated" if ws == "i" else "rainfed",
-                        min_yield_t_per_ha,
-                    )
                 df = df[~low_yield_mask]
 
             if use_actual_production:
@@ -341,13 +332,6 @@ def add_multi_cropping_links(
     # Filter low yields for numerical stability
     if min_yield_t_per_ha > 0:
         low_yield_mask = cycle_df["yield_t_per_ha"] < min_yield_t_per_ha
-        filtered_count = low_yield_mask.sum()
-        if filtered_count > 0:
-            logger.info(
-                "Filtered %d multi-cropping cycle entries with yield < %.4f t/ha",
-                filtered_count,
-                min_yield_t_per_ha,
-            )
         cycle_df = cycle_df[~low_yield_mask]
 
     if cycle_df.empty:
@@ -761,11 +745,7 @@ def add_spared_land_links(
         axis=1,
     )
 
-    filtered_count = (df["lef"] == 0.0).sum()
     df = df[(df["lef"] != 0.0) & (df["area_ha"] > 0)].copy()
-
-    if filtered_count > 0:
-        logger.debug("Filtered %d spared land entries with zero LEF", filtered_count)
 
     if df.empty:
         logger.info("No eligible spared land entries; skipping spared links")
