@@ -236,6 +236,9 @@ rule solve_model:
         health_risk_cause_map=lambda w: get_effective_config(w.scenario)["health"][
             "risk_cause_map"
         ],
+        health_value_per_yll=lambda w: get_effective_config(w.scenario)["health"][
+            "value_per_yll"
+        ],
         ghg_price=lambda w: get_effective_config(w.scenario)["emissions"]["ghg_price"],
         solver=lambda w: get_effective_config(w.scenario)["solving"]["solver"],
         solver_threads=lambda w: get_solver_threads(get_effective_config(w.scenario)),

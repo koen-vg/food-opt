@@ -1254,6 +1254,7 @@ def add_health_objective(
     risk_factors: list[str],
     risk_cause_map: dict[str, list[str]],
     solver_name: str,
+    value_per_yll: float,
 ) -> None:
     """Link SOS2-based health costs to explicit PyPSA stores.
 
@@ -1433,15 +1434,16 @@ def add_health_objective(
         # Register all variables
         _register_health_variable(m, lambdas_group.name)
 
-        # Add tiny random perturbation to break degeneracy
-        rng = np.random.default_rng(seed=42)
-        n_steps = len(intake_steps)
-        perturbation = xr.DataArray(
-            1e-10 * rng.uniform(size=n_steps),
-            coords={"intake_step": intake_steps},
-            dims=["intake_step"],
-        )
-        m.objective += (perturbation * lambdas_group).sum()
+        # Add tiny random perturbation to break degeneracy (only when health has cost)
+        if value_per_yll > 0:
+            rng = np.random.default_rng(seed=42)
+            n_steps = len(intake_steps)
+            perturbation = xr.DataArray(
+                1e-10 * rng.uniform(size=n_steps),
+                coords={"intake_step": intake_steps},
+                dims=["intake_step"],
+            )
+            m.objective += (perturbation * lambdas_group).sum()
 
         # Single SOS2 constraint call for entire group
         aux_names = _add_sos2_with_fallback(
@@ -1552,6 +1554,7 @@ def add_health_objective(
                     log_rr_totals_dict[key] = log_rr_totals_dict[key] + expr
                 else:
                     log_rr_totals_dict[key] = expr
+
     # Group (cluster, cause) pairs by their log_total coordinate patterns
     # so we can reuse a single SOS2 variable for all pairs that share the same
     # breakpoint grid (one grid per cause).
@@ -1624,15 +1627,16 @@ def add_health_objective(
         # Register all variables
         _register_health_variable(m, lambda_total_group.name)
 
-        # Add tiny random perturbation to break degeneracy
-        rng_total = np.random.default_rng(seed=43)
-        n_total_steps = len(log_total_steps)
-        perturbation_total = xr.DataArray(
-            1e-10 * rng_total.uniform(size=n_total_steps),
-            coords={"log_total_step": log_total_steps},
-            dims=["log_total_step"],
-        )
-        m.objective += (perturbation_total * lambda_total_group).sum()
+        # Add tiny random perturbation to break degeneracy (only when health has cost)
+        if value_per_yll > 0:
+            rng_total = np.random.default_rng(seed=43)
+            n_total_steps = len(log_total_steps)
+            perturbation_total = xr.DataArray(
+                1e-10 * rng_total.uniform(size=n_total_steps),
+                coords={"log_total_step": log_total_steps},
+                dims=["log_total_step"],
+            )
+            m.objective += (perturbation_total * lambda_total_group).sum()
 
         # Single SOS2 constraint call for entire group
         aux_names = _add_sos2_with_fallback(
@@ -1883,6 +1887,7 @@ if __name__ == "__main__":
             snakemake.params.health_risk_factors,
             snakemake.params.health_risk_cause_map,
             solver_name,
+            float(snakemake.params.health_value_per_yll),
         )
 
     status, condition = n.model.solve(
