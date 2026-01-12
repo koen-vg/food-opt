@@ -127,15 +127,26 @@ def _normalize_exposure(raw: str, conversion: float | None) -> float:
 
 
 def _extract_risk_blocks(df: pd.DataFrame) -> dict[str, tuple[int, int]]:
-    """Return mapping from IHME risk name row index to slice bounds."""
+    """Return mapping from IHME risk name row index to slice bounds.
 
-    risk_rows = [
-        idx for idx, val in df[0].items() if isinstance(val, str) and val in RISK_CONFIG
+    All rows starting with "Diet" are treated as block boundaries to avoid
+    including data from unrecognized risk factors in adjacent blocks.
+    """
+    # Find ALL "Diet ..." headers to use as boundaries
+    all_diet_rows = [
+        idx
+        for idx, val in df[0].items()
+        if isinstance(val, str) and val.startswith("Diet")
     ]
+
     bounds: dict[str, tuple[int, int]] = {}
-    for i, idx in enumerate(risk_rows):
-        next_idx = risk_rows[i + 1] if i + 1 < len(risk_rows) else len(df)
-        bounds[df.at[idx, 0]] = (idx + 1, next_idx)
+    for i, idx in enumerate(all_diet_rows):
+        risk_name = df.at[idx, 0]
+        # Only include blocks for risk factors we recognize
+        if risk_name not in RISK_CONFIG:
+            continue
+        next_idx = all_diet_rows[i + 1] if i + 1 < len(all_diet_rows) else len(df)
+        bounds[risk_name] = (idx + 1, next_idx)
     return bounds
 
 

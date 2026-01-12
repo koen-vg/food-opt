@@ -424,7 +424,7 @@ health:
   risk_cause_map:
     fruits: [CHD, Stroke, T2DM]
     vegetables: [CHD, Stroke]
-    nuts_seeds: [CHD, CRC, T2DM]
+    nuts_seeds: [CHD, T2DM]
     legumes: [CHD]
     fish: [CHD]
     red_meat: [CHD, Stroke, T2DM, CRC]
