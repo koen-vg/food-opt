@@ -296,11 +296,12 @@ Biomass
    :start-after: # --- section: biomass ---
    :end-before: # --- section: trade ---
 
-Set ``enabled: true`` to create a per-country ``biomass`` bus that tracks dry-matter
-exports to the energy sector. All foods listed under ``byproducts`` gain optional links
-to this bus, and any crops listed in ``biomass.crops`` can be diverted directly as
-feedstocks. The ``marginal_cost`` parameter (USD\ :sub:`2024` per tonne dry matter) sets
-the price received when biomass leaves the food system.
+Per-country ``biomass`` buses track dry-matter exports to the energy sector. All foods
+listed under ``byproducts`` gain links to this bus, providing a disposal route for
+byproducts that lack feed mappings. Crops listed in ``biomass.crops`` can be diverted
+directly as feedstocks. The ``marginal_cost`` parameter (USD\ :sub:`2024` per tonne dry
+matter) sets the price received when biomass leaves the food system; set to 0 for free
+disposal.
 
 Animal Products
 ~~~~~~~~~~~~~~~

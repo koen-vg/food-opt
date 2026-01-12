@@ -357,7 +357,6 @@ if __name__ == "__main__":
     animal_products_cfg = snakemake.params.animal_products
     animal_product_list = list(animal_products_cfg["include"])
     biomass_cfg = snakemake.params.biomass
-    biomass_enabled = bool(biomass_cfg["enabled"])
     biomass_crop_targets_cfg = [str(crop).strip() for crop in biomass_cfg["crops"]]
     biomass_crop_targets = sorted(
         {crop for crop in biomass_crop_targets_cfg if crop in crop_list}
@@ -406,9 +405,14 @@ if __name__ == "__main__":
         water_bus_regions,
     )
 
-    # Biomass infrastructure (optional)
-    if biomass_cfg["enabled"]:
-        biomass.add_biomass_infrastructure(n, cfg_countries, biomass_cfg)
+    # Biomass infrastructure and routing.
+    # Creates country-level biomass buses and sinks (negative generators) that
+    # allow crops and byproducts to be exported to the energy sector. This also
+    # provides a disposal route for byproducts that lack feed mappings (e.g.
+    # wheat-germ, rice-bran). Set marginal_cost to 0 to make biomass export free.
+    biomass.add_biomass_infrastructure(n, cfg_countries, biomass_cfg)
+    biomass.add_biomass_byproduct_links(n, cfg_countries, snakemake.params.byproducts)
+    biomass.add_biomass_crop_links(n, cfg_countries, biomass_crop_targets)
 
     # Primary resources: water, fertilizer, emissions
     water_slack_cost = validation_slack_cost / 1e3
@@ -550,13 +554,6 @@ if __name__ == "__main__":
         snakemake.params.crops,
         snakemake.params.byproducts,
     )
-
-    # Biomass routing (optional)
-    if biomass_cfg["enabled"]:
-        biomass.add_biomass_byproduct_links(
-            n, cfg_countries, snakemake.params.byproducts
-        )
-        biomass.add_biomass_crop_links(n, cfg_countries, biomass_crop_targets)
 
     # Feed supply
     food.add_feed_supply_links(

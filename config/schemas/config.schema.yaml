@@ -594,12 +594,9 @@ properties:
 
   biomass:
     type: object
-    required: [enabled, crops, marginal_cost]
+    required: [crops, marginal_cost]
     additionalProperties: false
     properties:
-      enabled:
-        type: boolean
-        description: "Whether to enable biomass export to energy sector"
       crops:
         type: array
         uniqueItems: true
@@ -610,7 +607,7 @@ properties:
       marginal_cost:
         type: number
         minimum: 0
-        description: "USD per tonne dry matter exported to the energy sector"
+        description: "Revenue in USD per tonne dry matter exported to energy sector"
 
   trade:
     type: object

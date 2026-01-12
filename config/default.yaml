@@ -303,7 +303,6 @@ diet:
 
 # --- section: biomass ---
 biomass:
-  enabled: true
   crops:
   - maize
   - oil-palm

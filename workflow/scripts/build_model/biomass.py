@@ -4,8 +4,10 @@
 
 """Biomass infrastructure and routing for the food systems model.
 
-This module handles optional biomass exports to the energy sector,
-including infrastructure setup and routing from crops and byproducts.
+This module handles biomass exports to the energy sector, including
+infrastructure setup and routing from crops and byproducts. Biomass
+infrastructure is always present to provide a disposal route for
+byproducts that lack feed mappings; set marginal_cost to 0 for free disposal.
 """
 
 from collections.abc import Iterable, Mapping
@@ -18,8 +20,17 @@ from .. import constants
 
 def add_biomass_infrastructure(
     n: pypsa.Network, countries: Iterable[str], biomass_cfg: Mapping[str, object]
-) -> bool:
-    """Create biomass buses and sinks for optional exports to the energy sector."""
+) -> None:
+    """Create biomass carrier, buses, and energy-sector sinks.
+
+    Adds per-country biomass buses and "negative generators" that consume
+    biomass at a configurable marginal cost. These sinks represent exports
+    to the energy sector (e.g. biofuel production, power generation).
+
+    This function only creates the base infrastructure; routing links from
+    crops and byproducts to biomass buses are added by add_biomass_crop_links
+    and add_biomass_byproduct_links.
+    """
 
     marginal_cost = float(biomass_cfg["marginal_cost"])
     marginal_cost *= constants.USD_TO_BNUSD / constants.TONNE_TO_MEGATONNE
