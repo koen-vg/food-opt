@@ -195,6 +195,10 @@ Running Specific Stages
 
     tools/smk -j4 --configfile config/my_scenario.yaml -- results/my_scenario/solved/model_scen-default.nc
 
+**Solve all scenarios (no plots)**::
+
+    tools/smk -j4 --configfile config/my_scenario.yaml solve_all_scenarios
+
 **Regenerate specific plot**::
 
     tools/smk --configfile config/my_scenario.yaml -- results/my_scenario/plots/scen-default/crop_production.pdf

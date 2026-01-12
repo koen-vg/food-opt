@@ -105,6 +105,12 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/scen-default/marginal_damages_global.csv",
 ]
 
+# Solve all configured scenarios without triggering plotting targets.
+solve_scenarios = ["default", *list_scenarios()]
+SOLVE_ALL_SCENARIOS_TARGETS = [
+    f"results/{{name}}/solved/model_scen-{scenario}.nc" for scenario in solve_scenarios
+]
+
 # Dynamically add targets for all comparison scenarios
 # This ensures all prerequisite files are generated for comparison plots
 # comparison_scenarios is defined in plotting.smk (loaded above via include)
@@ -120,3 +126,8 @@ for scenario_suffix in comparison_scenarios:
 rule all:
     input:
         expand(ALL_RULE_TARGETS, name=[name]),
+
+
+rule solve_all_scenarios:
+    input:
+        expand(SOLVE_ALL_SCENARIOS_TARGETS, name=[name]),
