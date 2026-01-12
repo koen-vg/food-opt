@@ -106,9 +106,8 @@ ALL_RULE_TARGETS = [
 ]
 
 # Solve all configured scenarios without triggering plotting targets.
-solve_scenarios = ["default", *list_scenarios()]
 SOLVE_ALL_SCENARIOS_TARGETS = [
-    f"results/{{name}}/solved/model_scen-{scenario}.nc" for scenario in solve_scenarios
+    f"results/{{name}}/solved/model_scen-{scenario}.nc" for scenario in list_scenarios()
 ]
 
 # Dynamically add targets for all comparison scenarios

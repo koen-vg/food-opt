@@ -51,7 +51,7 @@ def apply_scenario_config(config: dict, scenario_name: str) -> None:
     scenario_name : str
         The scenario name (e.g., "HG", "HighGHG")
     """
-    if not scenario_name or scenario_name == "default":
+    if not scenario_name:
         return
 
     scenarios = load_scenarios(config)
