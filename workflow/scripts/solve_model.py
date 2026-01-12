@@ -4,6 +4,7 @@
 
 from collections import defaultdict
 import itertools
+import logging
 import math
 
 from linopy.constraints import print_single_constraint
@@ -31,6 +32,18 @@ except Exception:  # pragma: no cover - documentation build without linopy
 
 # Enable new PyPSA components API
 pypsa.options.api.new_components_api = True
+
+# Module-level logger (replaced by setup_script_logging when run as __main__)
+logger = logging.getLogger(__name__)
+
+
+class _ShadowPriceLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not (
+            record.name == "pypsa.optimization.optimize"
+            and record.getMessage().startswith("The shadow-prices of the constraints")
+        )
+
 
 # Helpers and state for health objective construction
 HEALTH_AUX_MAP: dict[int, set[str]] = {}
@@ -1701,6 +1714,8 @@ def add_health_objective(
 if __name__ == "__main__":
     # Configure logging to write to Snakemake log file
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+    # Suppress the noisy PyPSA shadow-price info log.
+    logging.getLogger("pypsa.optimization.optimize").addFilter(_ShadowPriceLogFilter())
 
     # Apply scenario config overrides based on wildcard
     apply_scenario_config(snakemake.config, snakemake.wildcards.scenario)
