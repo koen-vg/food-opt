@@ -1250,6 +1250,7 @@ def add_health_objective(
     cluster_summary_path: str,
     clusters_path: str,
     population_totals_path: str,
+    food_groups_path: str,
     risk_factors: list[str],
     risk_cause_map: dict[str, list[str]],
     solver_name: str,
@@ -1283,7 +1284,7 @@ def add_health_objective(
     population_totals = pd.read_csv(population_totals_path)
 
     # Load food→risk factor mapping from food_groups.csv (only GBD risk factors)
-    food_groups_df = pd.read_csv(snakemake.input.food_groups)
+    food_groups_df = pd.read_csv(food_groups_path)
     food_map = food_groups_df[food_groups_df["group"].isin(risk_factors)].copy()
     food_map = food_map.rename(columns={"group": "risk_factor"})
     food_map["share"] = 1.0
@@ -1898,6 +1899,7 @@ if __name__ == "__main__":
             snakemake.input.health_cluster_summary,
             snakemake.input.health_clusters,
             snakemake.input.population,
+            snakemake.input.food_groups,
             snakemake.params.health_risk_factors,
             snakemake.params.health_risk_cause_map,
             solver_name,
