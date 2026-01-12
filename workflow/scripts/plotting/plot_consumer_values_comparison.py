@@ -257,7 +257,10 @@ def _plot_consumer_values_distribution(
     ax.set_ylabel("USD / kg")
     ax.set_title("Consumer Values by Food Group (Across Countries)")
     ax.grid(axis="y", alpha=0.3)
-    ax.set_ylim(bottom=0, top=cv_df["value_usd_per_kg"].max() * 1.1)
+    ax.set_ylim(
+        bottom=cv_df["value_usd_per_kg"].min() * 1.1,
+        top=cv_df["value_usd_per_kg"].max() * 1.1,
+    )
 
     fig.tight_layout()
     fig.savefig(output_path, bbox_inches="tight", dpi=300)

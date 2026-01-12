@@ -132,6 +132,11 @@ def main() -> None:
 
     if df.empty:
         logger.warning("No consumption data to plot.")
+        fig, ax = plt.subplots(figsize=(MIN_FIGURE_WIDTH, FIGURE_HEIGHT))
+        ax.text(0.5, 0.5, "No consumption data", ha="center", va="center")
+        ax.axis("off")
+        fig.savefig(output_pdf, bbox_inches="tight")
+        plt.close(fig)
         return
 
     # Get unique clusters and groups
