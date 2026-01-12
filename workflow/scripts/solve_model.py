@@ -1467,6 +1467,16 @@ def add_health_objective(
         # Register all variables
         _register_health_variable(m, lambdas_group.name)
 
+        # Add tiny random perturbation to break degeneracy
+        rng = np.random.default_rng(seed=42)
+        n_steps = len(intake_steps)
+        perturbation = xr.DataArray(
+            1e-10 * rng.uniform(size=n_steps),
+            coords={"intake_step": intake_steps},
+            dims=["intake_step"],
+        )
+        m.objective += (perturbation * lambdas_group).sum()
+
         # Single SOS2 constraint call for entire group
         aux_names = _add_sos2_with_fallback(
             m, lambdas_group, sos_dim="intake_step", solver_name=solver_name
@@ -1648,6 +1658,16 @@ def add_health_objective(
         # Register all variables
         _register_health_variable(m, lambda_total_group.name)
 
+        # Add tiny random perturbation to break degeneracy
+        rng_total = np.random.default_rng(seed=43)
+        n_total_steps = len(log_total_steps)
+        perturbation_total = xr.DataArray(
+            1e-10 * rng_total.uniform(size=n_total_steps),
+            coords={"log_total_step": log_total_steps},
+            dims=["log_total_step"],
+        )
+        m.objective += (perturbation_total * lambda_total_group).sum()
+
         # Single SOS2 constraint call for entire group
         aux_names = _add_sos2_with_fallback(
             m, lambda_total_group, sos_dim="log_total_step", solver_name=solver_name
@@ -1704,7 +1724,7 @@ def add_health_objective(
             )
 
             m.add_constraints(
-                store_e.sel(name=store_name) == yll_expr_myll,
+                store_e.sel(name=store_name) >= yll_expr_myll,
                 name=f"health_store_level_c{cluster}_cause{cause}",
             )
             constraints_added += 1
