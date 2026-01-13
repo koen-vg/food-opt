@@ -151,6 +151,7 @@ rule prepare_health_costs:
         cluster_summary="processing/{name}/health/cluster_summary.csv",
         clusters="processing/{name}/health/country_clusters.csv",
         cluster_risk_baseline="processing/{name}/health/cluster_risk_baseline.csv",
+        derived_tmrel="processing/{name}/health/derived_tmrel.csv",
     log:
         "logs/{name}/prepare_health_costs.log",
     script:

@@ -108,7 +108,6 @@ rule plot_objective_breakdown:
             get_effective_config(w.scenario)["health"]["value_per_yll"]
         )
         * 1e-9,
-        health_tmrel_g_per_day=config["health"]["tmrel_g_per_day"],
     output:
         breakdown_pdf="results/{name}/plots/scen-{scenario}/objective_breakdown.pdf",
         breakdown_csv="results/{name}/plots/scen-{scenario}/objective_breakdown.csv",
@@ -140,6 +139,7 @@ rule plot_health_impacts:
         health_cluster_summary="processing/{name}/health/cluster_summary.csv",
         health_clusters="processing/{name}/health/country_clusters.csv",
         health_cluster_risk_baseline="processing/{name}/health/cluster_risk_baseline.csv",
+        derived_tmrel="processing/{name}/health/derived_tmrel.csv",
         population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",
     params:
@@ -149,7 +149,6 @@ rule plot_health_impacts:
             get_effective_config(w.scenario)["health"]["value_per_yll"]
         )
         * 1e-9,
-        health_tmrel_g_per_day=config["health"]["tmrel_g_per_day"],
     output:
         health_map_pdf="results/{name}/plots/scen-{scenario}/health_risk_map.pdf",
         health_map_csv="results/{name}/plots/scen-{scenario}/health_risk_by_region.csv",

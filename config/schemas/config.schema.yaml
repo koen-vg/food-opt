@@ -737,7 +737,6 @@ properties:
       - intake_cap_g_per_day
       - risk_factors
       - causes
-      - tmrel_g_per_day
       - risk_cause_map
       - clustering
     additionalProperties: false
@@ -808,24 +807,6 @@ properties:
           items:
             type: string
             pattern: "^[A-Za-z0-9]+$"
-      tmrel_g_per_day:
-        type: object
-        required:
-          - fruits
-          - vegetables
-          - whole_grains
-          - nuts_seeds
-          - legumes
-          - fish
-          - red_meat
-          - prc_meat
-          - sugar
-        additionalProperties: false
-        patternProperties:
-          "^[a-z0-9_]+$":
-            type: number
-            minimum: 0
-            description: "Theoretical minimum risk exposure level (g/day)"
       clustering:
         type: object
         required:

@@ -950,7 +950,7 @@ def main() -> None:
 
     tmrel_g_per_day = _derive_tmrel_from_rr(rr_lookup, risk_to_causes)
     logger.info(
-        "Derived TMREL from RR curves for %d risks (ignoring configured TMREL values)",
+        "Derived TMREL from RR curves for %d risks",
         len(tmrel_g_per_day),
     )
 
@@ -1014,6 +1014,17 @@ def main() -> None:
     cluster_map.to_csv(snakemake.output["clusters"], index=False)
     cluster_risk_baseline.sort_values(["health_cluster", "risk_factor"]).to_csv(
         snakemake.output["cluster_risk_baseline"], index=False
+    )
+
+    # Write derived TMREL values
+    tmrel_df = pd.DataFrame(
+        [
+            {"risk_factor": risk, "tmrel_g_per_day": value}
+            for risk, value in tmrel_g_per_day.items()
+        ]
+    )
+    tmrel_df.sort_values("risk_factor").to_csv(
+        snakemake.output["derived_tmrel"], index=False
     )
 
 

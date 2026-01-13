@@ -116,6 +116,25 @@ The following table reproduces the GBD 2021 dietary risk factor definitions from
 * Milk/dairy measurements use milk equivalents, where cheese and yogurt are converted to their milk equivalent weight
 * See :doc:`current_diets` for detailed mapping between GDD dietary intake data and these risk factors
 
+TMREL Derivation
+~~~~~~~~~~~~~~~~
+
+For simplicity, the model derives TMREL (Theoretical Minimum Risk Exposure Level)
+values directly from the GBD relative risk curves rather than using the published
+TMREL ranges in the table above. For each risk factor, the derived TMREL is the
+intake level that minimizes the sum of log(RR) across all associated disease
+causes, evaluated on the union of exposure points in the empirical RR data.
+
+This approach ensures consistency between the TMREL used in health cost
+calculations and the underlying dose-response curves. For protective foods
+(fruits, vegetables, whole grains, etc.), the derived TMREL corresponds to the
+intake level where the relative risk curve reaches its minimum within the
+empirical data range. For harmful foods (processed meat, sugar, etc.), the
+derived TMREL is typically zero, matching the GBD recommendations.
+
+The derived TMREL values are written to ``processing/{name}/health/derived_tmrel.csv``
+during preprocessing.
+
 Preparation Workflow
 --------------------
 

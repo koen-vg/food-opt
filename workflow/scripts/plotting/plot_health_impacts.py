@@ -754,7 +754,10 @@ def main() -> None:
     food_groups_df = pd.read_csv(snakemake.input.food_groups)
 
     value_per_yll = float(snakemake.params.health_value_per_yll)
-    tmrel_g_per_day: dict[str, float] = dict(snakemake.params.health_tmrel_g_per_day)
+    tmrel_df = pd.read_csv(snakemake.input.derived_tmrel)
+    tmrel_g_per_day: dict[str, float] = dict(
+        zip(tmrel_df["risk_factor"], tmrel_df["tmrel_g_per_day"])
+    )
 
     health_results = compute_health_results(
         n,
