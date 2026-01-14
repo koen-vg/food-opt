@@ -5,8 +5,8 @@
 # GHG Price Sensitivity Analysis Scenarios
 # ----------------------------------------
 # Each scenario varies the GHG price (USD_2024/tCO2-eq) while keeping
-# all other parameters constant. Prices range from 0 to 400 USD/tCO2-eq
-# to cover the range from no carbon pricing to high social cost of carbon estimates.
+# all other parameters constant. Prices range from 0 to 500 USD/tCO2-eq
+# with finer resolution at low values to capture the transition behavior.
 
 baseline:
   # Fixed consumption to extract consumer values (dual variables)
@@ -14,46 +14,87 @@ baseline:
     enforce_gdd_baseline: true
   food_group_incentives:
     enabled: false
-  macronutrients: {}
   emissions:
-    ghg_pricing_enabled: false
+    ghg_price: 0
+  # Note: no constraint on caloric intake
 
 ghg_0:
   emissions:
-    ghg_pricing_enabled: false
     ghg_price: 0
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
+
+ghg_5:
+  emissions:
+    ghg_price: 5
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
+
+ghg_10:
+  emissions:
+    ghg_price: 10
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
+
+ghg_20:
+  emissions:
+    ghg_price: 20
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 ghg_50:
   emissions:
-    ghg_pricing_enabled: true
     ghg_price: 50
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 ghg_100:
   emissions:
-    ghg_pricing_enabled: true
     ghg_price: 100
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 ghg_150:
   emissions:
-    ghg_pricing_enabled: true
     ghg_price: 150
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
 ghg_200:
   emissions:
-    ghg_pricing_enabled: true
     ghg_price: 200
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day
 
-ghg_250:
+ghg_500:
   emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 250
-
-ghg_300:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 300
-
-ghg_400:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 400
+    ghg_price: 500
+  food_group_incentives:
+    enabled: true
+  macronutrients:
+    cal:
+      equal: 2400    # kcal/person/day

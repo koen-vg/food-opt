@@ -10,14 +10,16 @@
 name: "yll"
 scenario_defs: "config/yll_scenarios.yaml"
 
-emissions:
-  ghg_pricing_enabled: false
-
 # Consumer values derived from baseline consumption patterns
 food_group_incentives:
-  enabled: false  # overridden by scenarios (enabled after baseline extraction)
   sources:
     - "results/{name}/consumer_values/values.csv"
+
+emissions:
+  ghg_price: 0
+
+biomass:
+  marginal_cost: 0
 
 # Compare all YLL scenarios in plots
 plotting:
@@ -26,4 +28,9 @@ plotting:
 solving:
   solver: "gurobi"
   io_api: "direct"
-  threads: 2
+  threads: 4
+  options_gurobi:
+    Method: -1
+    MIPGap: 0.001
+    MIPFocus: 2
+    VarBranch: 0
