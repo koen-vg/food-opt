@@ -1564,7 +1564,7 @@ def add_health_objective(
     for (cluster, cause), row in cluster_cause_metadata.iterrows():
         cluster = int(cluster)
         cause = str(cause)
-        yll_base = float(row["yll_base"])
+        yll_total = float(row["yll_total"])
 
         cause_bp = cause_breakpoint_data[cause]
         coords_key = tuple(cause_bp["log_rr_total"].values)
@@ -1577,10 +1577,12 @@ def add_health_objective(
 
         # Store data for later use
         log_rr_total_ref = float(row["log_rr_total_ref"])
+        log_rr_total_baseline = float(row["log_rr_total_baseline"])
         cluster_cause_data[(cluster, cause)] = {
-            "yll_base": yll_base,
+            "yll_total": yll_total,
             "log_rr_total_ref": log_rr_total_ref,
             "rr_ref": math.exp(log_rr_total_ref),
+            "rr_baseline": math.exp(log_rr_total_baseline),
             "cause_bp": cause_bp,
         }
 
@@ -1677,9 +1679,9 @@ def add_health_objective(
 
             store_name = health_stores.loc[(cluster, cause), "name"]
 
-            if data["yll_base"] <= 0:
+            if data["yll_total"] <= 0:
                 logger.warning(
-                    "Health store has non-positive yll_base (cluster=%d, cause=%s); constraint will be non-binding",
+                    "Health store has non-positive yll_total (cluster=%d, cause=%s); constraint will be non-binding",
                     cluster,
                     cause,
                 )
@@ -1687,9 +1689,15 @@ def add_health_objective(
             # Health cost is zero at TMREL (where RR = RR_ref) and increases with
             # deviation from optimal intake. Since TMREL is the theoretical minimum
             # risk level, RR >= RR_ref always, so store levels are non-negative.
+            #
+            # We normalize yll_total by rr_baseline to obtain the "irreducible"
+            # burden at TMREL (YLL_TMREL = YLL_total * RR_ref / RR_baseline).
+            # This ensures that populations with identical underlying susceptibility
+            # incur the same health cost for the same diet, regardless of their
+            # baseline consumption patterns.
             yll_expr_myll = (
                 (rr_interp - data["rr_ref"])
-                * (data["yll_base"] / data["rr_ref"])
+                * (data["yll_total"] / data["rr_baseline"])
                 * constants.YLL_TO_MILLION_YLL
             )
 
