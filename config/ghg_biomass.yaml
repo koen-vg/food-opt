@@ -23,9 +23,8 @@ emissions:
   ghg_pricing_enabled: true
   ghg_price: 100  # Overridden by scenario grid
 
-# Enable biomass production; individual scenarios set prices
+# Biomass production settings; individual scenarios set prices
 biomass:
-  enabled: true
   marginal_cost: 100  # Overridden by scenario grid
 
 # Compare all combined scenarios in plots

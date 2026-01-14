@@ -31,7 +31,6 @@ emissions:
 
 # Biomass production settings (scenarios will override marginal_cost)
 biomass:
-  enabled: true
   marginal_cost: 50  # Default price, will be overridden by scenarios
 
 # Compare all biomass scenarios in plots
