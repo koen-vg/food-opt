@@ -428,15 +428,17 @@ From Diet to Risk Exposure
 
 **Per-capita intake**
 
-During optimisation, consumption flows are tracked on links named
-``consume_<food>_<ISO3>``. For each health cluster :math:`c` and risk factor
-:math:`r`, the solver computes per-capita intake:
+During optimisation, consumption is tracked using food group stores named
+``store_<group>_<ISO3>``. For each health cluster :math:`c` and risk factor
+:math:`r`, the solver computes per-capita intake by summing store levels across
+countries in the cluster:
 
 .. math::
-   I_{c,r} = \frac{10^{6}}{365\,P_c} \sum_{f \in \mathcal{F}_r} \alpha_{f,r} \, q_{c,f}
+   I_{c,r} = \frac{10^{12}}{365\,P_c} \sum_{i \in c} e_{i,r}
 
-where :math:`q_{c,f}` is flow in Mt/year, :math:`\alpha_{f,r}` is the food-to-risk
-attribution share, and :math:`P_c` is cluster population.
+where :math:`e_{i,r}` is the store level for country :math:`i` and food group
+:math:`r` in Mt/year, and :math:`P_c` is the cluster population. The factor
+:math:`10^{12}` converts from megatonnes to grams.
 
 **Linearised relative risk curves**
 

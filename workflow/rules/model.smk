@@ -230,6 +230,7 @@ rule solve_model:
         unpack(solve_model_inputs),
     threads: lambda w: get_solver_threads(get_effective_config(w.scenario))
     params:
+        health_enabled=lambda w: get_effective_config(w.scenario)["health"]["enabled"],
         health_risk_factors=lambda w: get_effective_config(w.scenario)["health"][
             "risk_factors"
         ],

@@ -18,14 +18,14 @@ baseline:
   food_group_incentives:
     enabled: false
   health:
-    enabled: false
-  # Note: no constraint on calory intake
+    value_per_yll: 0
+  # Note: no constraint on caloric intake
 
 yll_0:
   food_group_incentives:
     enabled: true
   health:
-    enabled: false
+    value_per_yll: 0
   macronutrients:
     cal:
       equal: 2400    # kcal/person/day
