@@ -16,6 +16,7 @@ MEGATONNE_TO_TONNE = 1e6  # convert megatonnes to tonnes
 KG_TO_MEGATONNE = 1e-9  # convert kilograms to megatonnes
 GRAMS_PER_MEGATONNE = 1e12  # grams per megatonne of mass
 YLL_TO_MILLION_YLL = 1e-6  # convert years of life lost to million YLL
+PER_100K = 100_000  # epidemiological rate denominator (per 100,000 population)
 FOOD_PORTION_TO_MASS_FRACTION = 1e-2  # convert x per 100g to mass fraction
 # Energy: use petajoules throughout to keep magnitudes modest
 # 1 kcal = 4.184 kJ = 4.184e-12 PJ

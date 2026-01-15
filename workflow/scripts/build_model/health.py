@@ -33,12 +33,15 @@ def _load_health_tables(
 
     if "health_cluster" not in cluster_summary.columns:
         raise ValueError("cluster_summary must contain 'health_cluster'")
-    if not {"health_cluster", "cause", "yll_base", "log_rr_total_ref"}.issubset(
-        cluster_cause.columns
-    ):
-        raise ValueError(
-            "cluster_cause must contain health_cluster, cause, yll_base, log_rr_total_ref"
-        )
+    required_cols = {
+        "health_cluster",
+        "cause",
+        "yll_rate_per_100k",
+        "yll_attrib_rate_per_100k",
+        "log_rr_total_ref",
+    }
+    if not required_cols.issubset(cluster_cause.columns):
+        raise ValueError(f"cluster_cause must contain {sorted(required_cols)}")
 
     cluster_summary["health_cluster"] = cluster_summary["health_cluster"].astype(int)
     cluster_cause["health_cluster"] = cluster_cause["health_cluster"].astype(int)
@@ -62,8 +65,10 @@ def add_health_stores(
     cluster_summary_path
         CSV with at least ``health_cluster`` column.
     cluster_cause_path
-        CSV with columns ``health_cluster``, ``cause``, ``yll_base``,
-        ``log_rr_total_ref``.
+        CSV with columns ``health_cluster``, ``cause``, ``yll_rate_per_100k``,
+        ``yll_attrib_rate_per_100k``, ``log_rr_total_ref``. YLL values are
+        stored as incidence rates per 100,000 population, to be reconstructed
+        using planning-year population during model solving.
     health_cfg
         The ``health`` section from the configuration; must contain
         ``causes`` and ``value_per_yll``.
@@ -108,16 +113,43 @@ def add_health_stores(
         logger.info("No health stores to add (empty cluster_cause table)")
         return
 
-    # Build lists for bulk add
-    clusters = filtered["health_cluster"].astype(int)
-    cause_names = filtered["cause"].astype(str)
+    # Build Series indexed by store names for bulk add
+    store_names = pd.Index(
+        [
+            f"store:yll:{cause}:cluster{cluster:03d}"
+            for cause, cluster in zip(filtered["cause"], filtered["health_cluster"])
+        ]
+    )
 
-    store_names = [
-        f"store:yll:{cause}:cluster{cluster:03d}"
-        for cause, cluster in zip(cause_names, clusters)
-    ]
-    store_buses = [f"health:cluster:{cluster:03d}" for cluster in clusters]
-    carriers = [f"yll_{cause}" for cause in cause_names]
+    # Create Series with store_names as index
+    store_buses = pd.Series(
+        [f"health:cluster:{c:03d}" for c in filtered["health_cluster"]],
+        index=store_names,
+    )
+    carriers = pd.Series(
+        [f"yll_{cause}" for cause in filtered["cause"]],
+        index=store_names,
+    )
+    health_cluster = pd.Series(
+        filtered["health_cluster"].astype(int).values,
+        index=store_names,
+    )
+    cause_col = pd.Series(
+        filtered["cause"].astype(str).values,
+        index=store_names,
+    )
+    yll_rate = pd.Series(
+        filtered["yll_rate_per_100k"].astype(float).values,
+        index=store_names,
+    )
+    yll_attrib_rate = pd.Series(
+        filtered["yll_attrib_rate_per_100k"].astype(float).values,
+        index=store_names,
+    )
+    rr_ref = pd.Series(
+        [math.exp(lr) for lr in filtered["log_rr_total_ref"].astype(float)],
+        index=store_names,
+    )
 
     n.stores.add(
         store_names,
@@ -125,12 +157,11 @@ def add_health_stores(
         carrier=carriers,
         e_nom_extendable=True,
         marginal_cost_storage=cost_per_myll,
-        health_cluster=clusters.tolist(),
-        cause=cause_names.tolist(),
-        yll_base=filtered["yll_base"].astype(float).tolist(),
-        rr_ref=[
-            math.exp(log_rr) for log_rr in filtered["log_rr_total_ref"].astype(float)
-        ],
+        health_cluster=health_cluster,
+        cause=cause_col,
+        yll_rate_per_100k=yll_rate,
+        yll_attrib_rate_per_100k=yll_attrib_rate,
+        rr_ref=rr_ref,
     )
 
     logger.info(

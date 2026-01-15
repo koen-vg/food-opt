@@ -24,6 +24,7 @@ DAYS_PER_YEAR = 365
 KCAL_TO_PJ = 4.184e-12
 PJ_TO_KCAL = 1.0 / KCAL_TO_PJ
 USD_TO_BNUSD = 1e-9
+PER_100K = 100_000  # epidemiological rate denominator (per 100,000 population)
 
 # GWP values (AR5 100-year)
 CH4_GWP = 28.0
@@ -829,7 +830,11 @@ def _extract_health_by_risk_factor_worker(args):
             cause = row["cause"]
             rr_ref = np.exp(row["log_rr_total_ref"])
             rr_baseline = np.exp(row["log_rr_total_baseline"])
-            yll_total = row["yll_total"]
+
+            # Reconstruct absolute YLL from rate using planning-year population
+            yll_rate_per_100k = row["yll_rate_per_100k"]
+            pop = cluster_population[cluster]
+            yll_total = (yll_rate_per_100k / PER_100K) * pop
 
             # Compute EXCESS log(RR) for each risk factor relative to TMREL
             # excess = log(RR(x)) - log(RR(tmrel))

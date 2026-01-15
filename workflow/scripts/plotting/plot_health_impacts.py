@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 
+from workflow.scripts import constants
 from workflow.scripts.population import get_health_cluster_population
 
 logger = logging.getLogger(__name__)
@@ -170,7 +171,7 @@ def compute_health_results(
         cluster = cluster_lookup.get(country.upper())
         if cluster is None:
             continue
-        population = cluster_population.get(int(cluster), 0.0)
+        population = cluster_population[int(cluster)]
         if population <= 0:
             continue
         flow = float(p_now.get(link_name, 0.0))
@@ -202,7 +203,12 @@ def compute_health_results(
         cluster = int(cluster)
         cause = str(cause)
         value = float(value_per_yll_const)
-        yll_base = float(row.get("yll_base", 0.0))
+
+        # Reconstruct absolute YLL from rate using planning-year population
+        yll_attrib_rate = float(row["yll_attrib_rate_per_100k"])
+        pop = cluster_population[cluster]
+        yll_base = (yll_attrib_rate / constants.PER_100K) * pop
+
         if value <= 0 or yll_base <= 0:
             continue
         coeff = value * yll_base
@@ -309,7 +315,7 @@ def compute_baseline_risk_costs(
         cause_tables,
         _food_lookup,
         _cluster_lookup,
-        _cluster_population,
+        cluster_population,
         value_per_yll_const,
     ) = _prepare_health_inputs(n, inputs, risk_factors, value_per_yll, food_groups_df)
 
@@ -339,7 +345,12 @@ def compute_baseline_risk_costs(
     ).iterrows():
         cluster = int(cluster)
         value = float(value_per_yll_const)
-        yll_base = float(row.get("yll_base", 0.0))
+
+        # Reconstruct absolute YLL from rate using planning-year population
+        yll_attrib_rate = float(row["yll_attrib_rate_per_100k"])
+        pop = cluster_population[cluster]
+        yll_base = (yll_attrib_rate / constants.PER_100K) * pop
+
         if value <= 0 or yll_base <= 0:
             continue
         coeff = value * yll_base

@@ -564,9 +564,13 @@ def _build_cause_breakpoints(cause_log_breakpoints: pd.DataFrame) -> dict:
 
 
 def _group_cluster_cause_pairs(
-    cluster_cause_metadata: pd.DataFrame, cause_breakpoints: dict
+    cluster_cause_metadata: pd.DataFrame,
+    cause_breakpoints: dict,
+    cluster_population: dict[int, float],
 ) -> tuple[dict, dict]:
     """Group (cluster, cause) pairs by shared log-RR coordinate patterns.
+
+    Computes absolute YLL from stored rates using planning-year population.
 
     Returns
     -------
@@ -581,7 +585,11 @@ def _group_cluster_cause_pairs(
     for (cluster, cause), row in cluster_cause_metadata.iterrows():
         cluster = int(cluster)
         cause = str(cause)
-        yll_total = float(row["yll_total"])
+
+        # Reconstruct absolute YLL from rate using planning-year population
+        yll_rate_per_100k = float(row["yll_rate_per_100k"])
+        pop = cluster_population[cluster]
+        yll_total = (yll_rate_per_100k / constants.PER_100K) * pop
 
         cause_bp = cause_breakpoints.get(cause)
         if cause_bp is None:
@@ -919,7 +927,7 @@ def add_health_objective(
     # --- Stage 2: log(RR) → YLL Store ---
     cause_breakpoints = _build_cause_breakpoints(cause_log_breakpoints)
     log_total_groups, cluster_cause_data = _group_cluster_cause_pairs(
-        cluster_cause_metadata, cause_breakpoints
+        cluster_cause_metadata, cause_breakpoints, cluster_population
     )
 
     logger.info(

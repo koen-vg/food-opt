@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 
-from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PER_100K
 
 pypsa.options.api.new_components_api = True
 
@@ -378,7 +378,7 @@ def compute_health_marginals(
     all_risks = set(risk_tables.keys())
 
     for cluster in all_clusters:
-        cluster_pop = cluster_population.get(cluster, 0.0)
+        cluster_pop = cluster_population[cluster]
         if cluster_pop <= 0:
             continue
 
@@ -394,8 +394,12 @@ def compute_health_marginals(
                     continue
 
                 row = cluster_cause.loc[(cluster, cause)]
-                yll_base = float(row.get("yll_base", 0.0))
-                log_rr_ref = float(row.get("log_rr_total_ref", 0.0))
+
+                # Reconstruct absolute YLL from rate using planning-year population
+                yll_attrib_rate = float(row["yll_attrib_rate_per_100k"])
+                yll_base = (yll_attrib_rate / PER_100K) * cluster_pop
+
+                log_rr_ref = float(row["log_rr_total_ref"])
                 rr_ref = exp(log_rr_ref)
 
                 if yll_base <= 0 or rr_ref <= 0:
@@ -438,7 +442,7 @@ def compute_health_marginals(
     records = []
 
     for country, cluster in cluster_lookup.items():
-        cluster_pop = cluster_population.get(cluster, 0.0)
+        cluster_pop = cluster_population[cluster]
         if cluster_pop <= 0:
             continue
 

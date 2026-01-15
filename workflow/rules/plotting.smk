@@ -120,6 +120,7 @@ rule plot_objective_breakdown:
 rule plot_yll_global_by_cause:
     input:
         cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
+        cluster_summary="processing/{name}/health/cluster_summary.csv",
     output:
         pdf="results/{name}/plots/scen-{scenario}/yll_global_by_cause.pdf",
         csv="results/{name}/plots/scen-{scenario}/yll_global_by_cause.csv",

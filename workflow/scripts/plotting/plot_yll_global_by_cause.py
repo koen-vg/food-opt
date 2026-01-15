@@ -14,23 +14,38 @@ matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from workflow.scripts.constants import PER_100K
+
 logger = logging.getLogger(__name__)
 
 YLL_TO_MILLION = 1e-6
 
 
-def _prepare_summary(cluster_cause: pd.DataFrame) -> pd.DataFrame:
-    required = {"cause", "yll_base"}
+def _prepare_summary(
+    cluster_cause: pd.DataFrame, cluster_summary: pd.DataFrame
+) -> pd.DataFrame:
+    required = {"cause", "yll_attrib_rate_per_100k", "health_cluster"}
     missing = required - set(cluster_cause.columns)
     if missing:
         raise ValueError(f"Missing required columns in cluster_cause: {missing}")
 
-    summary = (
-        cluster_cause.groupby("cause", as_index=False)["yll_base"]
-        .sum()
-        .sort_values("yll_base", ascending=False)
+    if "reference_population" not in cluster_summary.columns:
+        raise ValueError("cluster_summary must contain 'reference_population'")
+
+    # Merge with reference population to reconstruct absolute YLL
+    pop_lookup = cluster_summary.set_index("health_cluster")["reference_population"]
+    df = cluster_cause.copy()
+    df["reference_population"] = df["health_cluster"].map(pop_lookup)
+    df["yll_absolute"] = (
+        df["yll_attrib_rate_per_100k"] / PER_100K * df["reference_population"]
     )
-    summary["yll_million"] = summary["yll_base"] * YLL_TO_MILLION
+
+    summary = (
+        df.groupby("cause", as_index=False)["yll_absolute"]
+        .sum()
+        .sort_values("yll_absolute", ascending=False)
+    )
+    summary["yll_million"] = summary["yll_absolute"] * YLL_TO_MILLION
     return summary
 
 
@@ -60,6 +75,7 @@ def _plot(summary: pd.DataFrame, output_pdf: Path) -> None:
 
 if __name__ == "__main__":
     cluster_cause_path = Path(snakemake.input.cluster_cause)  # type: ignore[name-defined]
+    cluster_summary_path = Path(snakemake.input.cluster_summary)  # type: ignore[name-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[name-defined]
     output_csv = Path(snakemake.output.csv)  # type: ignore[name-defined]
 
@@ -67,7 +83,8 @@ if __name__ == "__main__":
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
     cluster_cause = pd.read_csv(cluster_cause_path)
-    summary = _prepare_summary(cluster_cause)
+    cluster_summary = pd.read_csv(cluster_summary_path)
+    summary = _prepare_summary(cluster_cause, cluster_summary)
 
     summary.to_csv(output_csv, index=False)
     _plot(summary, output_pdf)

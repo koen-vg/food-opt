@@ -16,6 +16,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
+from workflow.scripts import constants
 from workflow.scripts.logging_config import setup_script_logging
 
 AGE_BUCKETS = [
@@ -650,8 +651,14 @@ def _process_health_clusters(
     risk_to_causes: dict[str, list[str]],
     relevant_causes: list[str],
     tmrel_g_per_day: dict[str, float],
+    reference_year: int,
 ) -> tuple:
-    """Process each health cluster to compute baseline metrics and intakes."""
+    """Process each health cluster to compute baseline metrics and intakes.
+
+    Returns YLL as incidence rates (per 100,000 population) rather than
+    absolute values, enabling reconstruction using scenario-appropriate
+    population data during model building/solving.
+    """
     cluster_summary_rows = []
     cluster_cause_rows = []
     cluster_risk_baseline_rows = []
@@ -670,7 +677,8 @@ def _process_health_clusters(
         cluster_summary_rows.append(
             {
                 "health_cluster": int(cluster_id),
-                "population_persons": total_population_persons,
+                "reference_population": total_population_persons,
+                "reference_year": reference_year,
             }
         )
 
@@ -728,8 +736,15 @@ def _process_health_clusters(
                 0.0 if rr_baseline <= 0 else 1.0 - rr_ref / rr_baseline
             )  # burden relative to TMREL
             paf = max(0.0, min(1.0, paf))
-            yll_total = yll_by_cause_cluster.get(cause, 0.0)
-            yll_diet_attrib = yll_total * paf
+            yll_total_absolute = yll_by_cause_cluster.get(cause, 0.0)
+
+            # Convert absolute YLL to incidence rates per 100k population
+            yll_rate_per_100k = (
+                (yll_total_absolute / total_population_persons) * constants.PER_100K
+                if total_population_persons > 0
+                else 0.0
+            )
+            yll_attrib_rate_per_100k = yll_rate_per_100k * paf
 
             cluster_cause_rows.append(
                 {
@@ -738,14 +753,14 @@ def _process_health_clusters(
                     "log_rr_total_ref": log_rr_ref_totals[cause],
                     "log_rr_total_baseline": log_rr_baseline,
                     "paf_baseline": paf,
-                    "yll_total": yll_total,
-                    "yll_base": yll_diet_attrib,
+                    "yll_rate_per_100k": yll_rate_per_100k,
+                    "yll_attrib_rate_per_100k": yll_attrib_rate_per_100k,
                 }
             )
 
     cluster_summary = pd.DataFrame(
         cluster_summary_rows,
-        columns=["health_cluster", "population_persons"],
+        columns=["health_cluster", "reference_population", "reference_year"],
     )
     cluster_cause_baseline = pd.DataFrame(
         cluster_cause_rows,
@@ -755,8 +770,8 @@ def _process_health_clusters(
             "log_rr_total_ref",
             "log_rr_total_baseline",
             "paf_baseline",
-            "yll_total",
-            "yll_base",
+            "yll_rate_per_100k",
+            "yll_attrib_rate_per_100k",
         ],
     )
     cluster_risk_baseline = pd.DataFrame(
@@ -980,6 +995,7 @@ def main() -> None:
         risk_to_causes,
         relevant_causes,
         tmrel_g_per_day,
+        reference_year,
     )
 
     # Generate breakpoint tables for SOS2 linearization
