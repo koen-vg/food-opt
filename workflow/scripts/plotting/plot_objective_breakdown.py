@@ -19,6 +19,9 @@ import pypsa
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 # Global mass unit conversion: tonne to megatonne
 TONNE_TO_MEGATONNE = 1e-6
 
@@ -33,16 +36,14 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
     index = static.index
     if component == "Generator":
         # Separate biomass exports so they don't get netted out inside the
-        # generic "Generator" bucket. All biomass export generators are named
-        # ``biomass_for_energy_<country>``.
+        # generic "Generator" bucket.
         carriers = static.get("carrier", pd.Series(dtype=str))
         categories = []
         for name in index:
-            name_str = str(name)
             carrier = str(carriers.get(name, "")) if not carriers.empty else ""
-            if name_str.startswith("biomass_for_energy_"):
+            if carrier == "biomass_for_energy":
                 categories.append("Biomass exports")
-            elif "slack" in name_str or "slack" in carrier:
+            elif carrier.startswith("slack"):
                 categories.append("Slack penalties")
             elif carrier == "fertilizer":
                 categories.append("Fertilizer (synthetic)")
@@ -52,19 +53,23 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
 
     if component == "Link":
         mapping = {
+            "crop": "Crop production",
             "produce": "Crop production",
             "trade": "Trade",
             "convert": "Processing",
             "consume": "Consumption",
         }
+        carriers = static.get("carrier", pd.Series(dtype=str))
         categories = []
         for name in index:
-            name_str = str(name)
-            if name_str.startswith(("crop_to_biomass_", "byproduct_to_biomass_")):
+            carrier = str(carriers.get(name, "")) if not carriers.empty else ""
+            if carrier in ("crop_to_biomass", "byproduct_to_biomass"):
                 categories.append("Biomass routing")
                 continue
 
-            categories.append(mapping.get(name_str.split("_", 1)[0], "Other"))
+            # Extract category prefix from carrier (e.g., "crop_wheat_rainfed" -> "crop")
+            carrier_prefix = carrier.split("_", 1)[0] if carrier else ""
+            categories.append(mapping.get(carrier_prefix, "Other"))
         return pd.Series(categories, index=index, name="category")
 
     if component == "Store":

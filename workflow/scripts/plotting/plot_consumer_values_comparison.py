@@ -33,6 +33,9 @@ from workflow.scripts.population import get_total_population
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 SCENARIO_LABELS = {
     "baseline": "Baseline (fixed)",
     "cv": "CV only",

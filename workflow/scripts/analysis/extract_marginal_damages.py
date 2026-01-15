@@ -130,22 +130,24 @@ def compute_ghg_marginals(
     # Compute emission intensities at each bus via sparse matrix solve
     bus_intensities = solve_emission_intensities(links_df)
 
-    # Extract results for consumption links
-    consume_mask = links_df["link_name"].str.startswith("consume_")
-    consume_df = links_df.loc[consume_mask, ["link_name", "bus0", "flow"]].copy()
+    # Extract results for consumption links using carrier-based filtering
+    links_static = n.links.static
+    consume_mask = links_static["carrier"].str.startswith("consume_")
+    consume_links = links_static.loc[consume_mask].copy()
+
+    # Get flows for consume links
+    consume_df = links_df.loc[links_df["link_name"].isin(consume_links.index)].copy()
 
     # Map bus intensities to consumption links
     consume_df["intensity"] = consume_df["bus0"].map(bus_intensities).fillna(0.0)
 
-    # Parse consumption link names and build output
+    # Use domain columns instead of name parsing
     records = []
     for _, row in consume_df.iterrows():
         link_name = row["link_name"]
-        parts = str(link_name).split("_")
-        if len(parts) < 3:
-            continue
-        country = parts[-1]
-        food = "_".join(parts[1:-1])
+        food = links_static.at[link_name, "food"]
+        country = links_static.at[link_name, "country"]
+
         food_group = food_to_group.get(food)
         if not food_group:
             continue
@@ -479,17 +481,16 @@ def compute_intake_by_cluster_risk(
         else pd.Series()
     )
 
-    for link_name in n.links.static.index:
-        name = str(link_name)
-        if not name.startswith("consume_"):
-            continue
+    links_static = n.links.static
 
-        # Parse: consume_{food}_{country}
-        parts = name.split("_")
-        if len(parts) < 3:
-            continue
-        country = parts[-1].upper()
-        food = "_".join(parts[1:-1])
+    # Filter to consume links using carrier-based filtering
+    consume_mask = links_static["carrier"].str.startswith("consume_")
+    consume_links = links_static.loc[consume_mask]
+
+    for link_name in consume_links.index:
+        # Use domain columns instead of name parsing
+        food = links_static.at[link_name, "food"]
+        country = str(links_static.at[link_name, "country"]).upper()
 
         risk = food_to_risk.get(food)
         if not risk:

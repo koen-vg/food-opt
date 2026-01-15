@@ -29,6 +29,9 @@ from workflow.scripts.population import get_health_cluster_population
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 
 @dataclass
 class HealthInputs:
@@ -156,14 +159,11 @@ def compute_health_results(
     intake_totals: dict[tuple[int, str], float] = defaultdict(float)
     p_now = n.links_t.p0.loc["now"]
 
-    for link_name in n.links.index:
-        name = str(link_name)
-        if not name.startswith("consume_"):
-            continue
-        base, _, country = name.rpartition("_")
-        if len(country) != 3:
-            continue
-        sanitized_food = base[len("consume_") :]
+    consume_links = n.links[n.links["carrier"].str.startswith("consume_")]
+    for link_name in consume_links.index:
+        food = n.links.at[link_name, "food"]
+        country = n.links.at[link_name, "country"]
+        sanitized_food = sanitize_food_name(food)
         entries = food_lookup.get(sanitized_food)
         if not entries:
             continue

@@ -6,7 +6,6 @@
 from collections.abc import Iterable, Mapping
 import logging
 from pathlib import Path
-import re
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -24,24 +23,8 @@ import pypsa
 
 logger = logging.getLogger(__name__)
 
-_LAND_BUS_RE = re.compile(
-    r"^land_(?:pool|existing|new|marginal)_(?P<region>[^_]+)_class\d+"
-)
-
-
-def _region_from_bus0(bus0: str) -> str:
-    match = _LAND_BUS_RE.match(bus0)
-    if match:
-        return match.group("region")
-    if bus0.startswith("grassland_"):
-        parts = bus0.split("_")
-        if len(parts) >= 2:
-            return parts[1]
-    if bus0.startswith("feed_"):
-        parts = bus0.split("_")
-        if len(parts) >= 2:
-            return parts[-1]  # Region is the last part
-    raise ValueError(f"Unexpected land bus name: {bus0}")
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
 
 
 def _dict_to_df(data: dict[tuple[str, str], float]) -> pd.DataFrame:
@@ -62,34 +45,33 @@ def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataF
         key = (region, crop)
         data[key] = data.get(key, 0.0) + float(value)
 
-    produce_links = [name for name in n.links.index if str(name).startswith("produce_")]
-    if produce_links:
-        p1 = n.links_t.p1.loc[snapshot, produce_links]
-        links_df = n.links.loc[produce_links]
+    # Filter crop production links by carrier prefix
+    links_df = n.links.static
+    crop_mask = links_df["carrier"].str.startswith("crop_")
+    crop_links = links_df[crop_mask]
 
-        for name, value in p1.items():
-            link = links_df.loc[name]
+    if not crop_links.empty:
+        p1 = n.links_t.p1.loc[snapshot, crop_links.index]
 
-            # Extract region and crop from link attributes
-            region = str(link["region"])
-            carrier = str(link["carrier"])
+        for name in crop_links.index:
+            value = p1[name]
+            region = str(crop_links.at[name, "region"])
+            carrier = str(crop_links.at[name, "carrier"])
 
-            # Extract crop from carrier (e.g., "crop_maize" -> "maize")
-            if carrier.startswith("crop_"):
-                crop = carrier[5:]  # Remove "crop_" prefix
-                add(region, crop, abs(float(value)))
+            # Extract crop from carrier (e.g., "crop_maize_rainfed" -> "maize_rainfed")
+            crop = carrier[5:]  # Remove "crop_" prefix
+            add(region, crop, abs(float(value)))
 
-    grassland_links = [
-        name
-        for name in n.links.index
-        if str(name).startswith("grassland_region")
-        or str(name).startswith("grassland_marginal")
-    ]
-    if grassland_links:
-        p1 = n.links_t.p1.loc[snapshot, grassland_links]
-        bus0 = n.links.loc[grassland_links, "bus0"]
-        for name, value in p1.items():
-            region = _region_from_bus0(str(bus0.loc[name]))
+    # Filter grazing links by carrier
+    grazing_mask = links_df["carrier"] == "feed_ruminant_grassland"
+    grazing_links = links_df[grazing_mask]
+
+    if not grazing_links.empty:
+        p1 = n.links_t.p1.loc[snapshot, grazing_links.index]
+
+        for name in grazing_links.index:
+            value = p1[name]
+            region = str(grazing_links.at[name, "region"])
             add(region, "grassland", abs(float(value)))
 
     df = _dict_to_df(data)
@@ -111,33 +93,33 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
         key = (region, crop)
         data[key] = data.get(key, 0.0) + float(value)
 
-    produce_links = [name for name in n.links.index if str(name).startswith("produce_")]
-    if produce_links:
-        p0 = n.links_t.p0.loc[snapshot, produce_links]
-        links_df = n.links.loc[produce_links]
-        for name, value in p0.items():
-            link = links_df.loc[name]
+    # Filter crop production links by carrier prefix
+    links_df = n.links.static
+    crop_mask = links_df["carrier"].str.startswith("crop_")
+    crop_links = links_df[crop_mask]
 
-            # Extract region and crop from link attributes
-            region = str(link["region"])
-            carrier = str(link["carrier"])
+    if not crop_links.empty:
+        p0 = n.links_t.p0.loc[snapshot, crop_links.index]
 
-            # Extract crop from carrier (e.g., "crop_maize" -> "maize")
-            if carrier.startswith("crop_"):
-                crop = carrier[5:]  # Remove "crop_" prefix
-                add(region, crop, max(float(value), 0.0) * 1e6)
+        for name in crop_links.index:
+            value = p0[name]
+            region = str(crop_links.at[name, "region"])
+            carrier = str(crop_links.at[name, "carrier"])
 
-    grassland_links = [
-        name
-        for name in n.links.index
-        if str(name).startswith("grassland_region")
-        or str(name).startswith("grassland_marginal")
-    ]
-    if grassland_links:
-        p0 = n.links_t.p0.loc[snapshot, grassland_links]
-        bus0 = n.links.loc[grassland_links, "bus0"]
-        for name, value in p0.items():
-            region = _region_from_bus0(str(bus0.loc[name]))
+            # Extract crop from carrier (e.g., "crop_maize_rainfed" -> "maize_rainfed")
+            crop = carrier[5:]  # Remove "crop_" prefix
+            add(region, crop, max(float(value), 0.0) * 1e6)
+
+    # Filter grazing links by carrier
+    grazing_mask = links_df["carrier"] == "feed_ruminant_grassland"
+    grazing_links = links_df[grazing_mask]
+
+    if not grazing_links.empty:
+        p0 = n.links_t.p0.loc[snapshot, grazing_links.index]
+
+        for name in grazing_links.index:
+            value = p0[name]
+            region = str(grazing_links.at[name, "region"])
             add(region, "grassland", max(float(value), 0.0) * 1e6)
 
     df = _dict_to_df(data)

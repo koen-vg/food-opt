@@ -37,11 +37,12 @@ def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
         Category name for plotting
     """
     # Map specific carriers to categories based on documentation
+    # Note: use link carriers, not bus/store carriers
     carrier_map = {
         "residue_incorporation": "Crop residue incorporation",
-        "spared_land": "Carbon sequestration",
+        "spare_land": "Carbon sequestration",  # Link carrier (not "spared_land" which is bus/store)
         "fertilizer": "Synthetic fertilizer application",
-        "land_new": "Land Use Change",
+        "land_conversion": "Land Use Change",  # Link carrier for land expansion
     }
 
     if carrier in carrier_map:
@@ -54,12 +55,10 @@ def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
         if bus_carrier == "co2":
             return "Land Use Change"
         return "Crop production"
-    elif carrier.startswith("multi_crop_"):
+    elif carrier == "produce_multi":
         if bus_carrier == "co2":
             return "Land Use Change"
         return "Multi-cropping"
-    elif carrier.startswith("convert_new_land"):
-        return "Land Use Change"
     elif carrier.startswith("produce_"):
         # Animal production carriers
         if bus_carrier == "n2o":

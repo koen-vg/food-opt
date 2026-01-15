@@ -28,6 +28,9 @@ from workflow.scripts.population import get_health_cluster_population
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 PLATE_CARREE = ccrs.PlateCarree()
 
 
@@ -54,15 +57,14 @@ def _link_dispatch_at_snapshot(
     network: pypsa.Network, snapshot
 ) -> dict[int, pd.Series]:
     dispatch: dict[int, pd.Series] = {}
-    if not hasattr(network, "links_t"):
-        return dispatch
-    for attr in dir(network.links_t):
+    links_dynamic = network.links.dynamic
+    for attr in dir(links_dynamic):
         if not attr.startswith("p"):
             continue
         suffix = attr[1:]
         if not suffix.isdigit():
             continue
-        series = getattr(network.links_t, attr)
+        series = getattr(links_dynamic, attr)
         if snapshot not in series.index:
             continue
         dispatch[int(suffix)] = series.loc[snapshot]
@@ -73,8 +75,8 @@ def _aggregate_consume_link_totals(
     network: pypsa.Network, snapshot, food_to_group: dict[str, str]
 ) -> dict[tuple[str, str], float]:
     """Aggregate consumption by country and food group using link attributes."""
-    links = network.links
-    consume_links = links[links.index.str.startswith("consume_")]
+    links = network.links.static
+    consume_links = links[links["carrier"].str.startswith("consume_")]
     if consume_links.empty:
         return {}
 
@@ -86,20 +88,19 @@ def _aggregate_consume_link_totals(
     for link_name in consume_links.index:
         food = str(consume_links.at[link_name, "food"])
         country = str(consume_links.at[link_name, "country"]).upper()
+        food_group = consume_links.at[link_name, "food_group"]
 
         group = food_to_group.get(food)
         if group is None:
             continue
 
-        # Find which leg outputs to the group bus
-        for leg, dispatch in dispatch_lookup.items():
+        # Find the leg that outputs to the group bus (identified by food_group column)
+        for _leg, dispatch in dispatch_lookup.items():
             value = float(dispatch.get(link_name, 0.0))
             if value == 0.0 or not np.isfinite(value):
                 continue
-            # Check if this leg goes to a group bus
-            bus_col = f"bus{leg}" if leg > 0 else "bus0"
-            bus_value = consume_links.at[link_name, bus_col]
-            if isinstance(bus_value, str) and bus_value.startswith("group_"):
+            # Use the food_group column to identify group output legs
+            if pd.notna(food_group):
                 key = (country, group)
                 totals[key] = totals.get(key, 0.0) + abs(value)
                 break

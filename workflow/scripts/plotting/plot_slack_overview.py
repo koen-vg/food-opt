@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 
 def _mask_carrier_equals(carrier: str):
     def _mask(columns: pd.Index, generators: pd.DataFrame) -> pd.Series:
@@ -33,21 +36,13 @@ def _mask_carrier_startswith(prefix: str):
     return _mask
 
 
-def _mask_name_startswith(prefix: str):
-    def _mask(columns: pd.Index, _generators: pd.DataFrame) -> pd.Series:
-        names = pd.Index(columns).astype(str)
-        return names.str.startswith(prefix)
-
-    return _mask
-
-
 CATEGORIES = [
     ("Land", _mask_carrier_equals("land_slack"), "Mha"),
     ("Feed (positive)", _mask_carrier_equals("slack_positive_feed"), "Mt"),
     ("Feed (negative)", _mask_carrier_equals("slack_negative_feed"), "Mt"),
     ("Food (positive)", _mask_carrier_startswith("slack_positive_group_"), "Mt"),
     ("Food (negative)", _mask_carrier_startswith("slack_negative_group_"), "Mt"),
-    ("Water", _mask_name_startswith("water_slack_"), "Mm3"),
+    ("Water", _mask_carrier_equals("water_slack"), "Mm3"),
 ]
 
 
@@ -88,8 +83,8 @@ def _collect_production_slack(
 def _collect_slack(network: pypsa.Network, slack_cost: float) -> pd.DataFrame:
     """Aggregate slack quantities and costs by category."""
 
-    generators = network.generators
-    dispatch = network.generators_t.p
+    generators = network.generators.static
+    dispatch = network.generators.dynamic.p
 
     records: list[dict[str, object]] = []
 

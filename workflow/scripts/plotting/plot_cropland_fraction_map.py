@@ -25,8 +25,9 @@ Optional parameters (snakemake.params):
 - csv_prefix: prefix for CSV column names (default determined from `water_supply`).
 
 Notes:
-- Cropland use is computed from link flows for links that
-  consume from land pool buses (bus0 matching 'land_pool_{region}_class{k}_{ws}').
+- Cropland use is computed from link flows for crop production links (carrier
+  starting with 'crop_') and grazing links (carrier='feed_ruminant_grassland').
+  Region, resource class, and water supply are read from domain columns on links.
   Water supply filtering (irrigated vs rainfed) happens via the optional
   parameter above. This reflects actual cropland allocated by the solver.
 - Total land area per (region, resource class) pair is computed directly from
@@ -39,7 +40,6 @@ Notes:
 
 import logging
 from pathlib import Path
-import re
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -57,11 +57,10 @@ import pypsa
 from rasterio.transform import array_bounds
 import xarray as xr
 
-_LAND_BUS_RE = re.compile(
-    r"^land_(?P<kind>pool|marginal)_(?P<region>.+?)_class(?P<resource_class>\d+)_?(?P<water_supply>[a-z]*)$"
-)
-
 logger = logging.getLogger(__name__)
+
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
 
 
 def _compute_total_land_area_by_region_class(
@@ -176,54 +175,53 @@ def _used_cropland_area_by_region_class(
     Returns area in hectares.
     """
 
-    if n.links.empty:
+    links_static = n.links.static
+    if links_static.empty:
         return pd.Series(dtype=float)
 
     # Find all links that consume from land buses, based on carrier
     # Include crop production and grazing, exclude spared land
-    land_links = n.links[
+    land_links = links_static[
         (
-            n.links["carrier"].str.startswith("crop_", na=False)
-            | (n.links["carrier"] == "feed_ruminant_grassland")
+            links_static["carrier"].str.startswith("crop_", na=False)
+            | (links_static["carrier"] == "feed_ruminant_grassland")
         )
-        & (n.links["carrier"] != "spared_land")
+        & (links_static["carrier"] != "spared_land")
     ]
 
     if land_links.empty:
         return pd.Series(dtype=float)
 
+    # Filter by water supply if specified, using the domain column
+    if water_supply is not None:
+        land_links = land_links[land_links["water_supply"] == water_supply]
+        if land_links.empty:
+            return pd.Series(dtype=float)
+
     # Get snapshot - use "now" if available, otherwise first snapshot
     snapshot = "now" if "now" in n.snapshots else n.snapshots[0]
 
-    # Get actual flow on bus0 (land consumption) for all land links at this snapshot
-    p0_flows = n.links_t.p0.loc[snapshot, land_links.index]
-
-    rows: list[tuple[str, int, float]] = []
-    for idx in land_links.index:
-        link = land_links.loc[idx]
-        bus0 = str(link["bus0"])
-        match = _LAND_BUS_RE.match(bus0)
-        if not match:
-            continue
-
-        region = match.group("region")
-        resource_class = int(match.group("resource_class"))
-        ws = (match.group("water_supply") or "").lower()
-
-        if water_supply is not None and ws != water_supply:
-            continue
-
-        # Use actual flow from bus0 (p0), not capacity (p_nom_opt)
-        # p0 is in Mha, convert to ha
-        area_mha = max(float(p0_flows.loc[idx]), 0.0)
-        area_ha = area_mha * 1e6
-
-        rows.append((region, resource_class, area_ha))
-
-    if not rows:
+    # Filter to links that have valid resource_class (exclude links without it)
+    land_links = land_links[land_links["resource_class"].notna()]
+    if land_links.empty:
         return pd.Series(dtype=float)
 
-    df = pd.DataFrame(rows, columns=["region", "resource_class", "used_ha"])
+    # Get actual flow on bus0 (land consumption) for all land links at this snapshot
+    # p0 is in Mha, convert to ha
+    p0_flows = n.links.dynamic.p0.loc[snapshot, land_links.index] * 1e6
+
+    # Build DataFrame using domain columns directly
+    df = pd.DataFrame(
+        {
+            "region": land_links["region"],
+            "resource_class": land_links["resource_class"].astype(int),
+            "used_ha": p0_flows.clip(lower=0.0).values,
+        }
+    )
+
+    if df.empty:
+        return pd.Series(dtype=float)
+
     used = (
         df.groupby(["region", "resource_class"], sort=False)["used_ha"]
         .sum()

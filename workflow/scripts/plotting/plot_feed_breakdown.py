@@ -18,6 +18,9 @@ from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 
 PRODUCT_TO_ANIMAL = {
     "meat-cattle": "Cattle",
@@ -80,38 +83,25 @@ def _map_animal(product: str) -> str:
     return str(product).replace("_", " ").title()
 
 
-def _map_feed_category(bus0: str) -> str:
-    """Convert feed bus names to human-friendly categories."""
-
-    raw = str(bus0)
-    if raw.startswith("feed_"):
-        raw = raw[5:]
-
-    # Try exact match first
-    if raw in FEED_CATEGORY_LABELS:
-        return FEED_CATEGORY_LABELS[raw]
-
-    # Try stripping the country suffix (last underscore component)
-    if "_" in raw:
-        prefix = raw.rsplit("_", 1)[0]
-        if prefix in FEED_CATEGORY_LABELS:
-            return FEED_CATEGORY_LABELS[prefix]
-
-        # If not in labels, return the prefix formatted
-        return prefix.replace("_", " ").title()
-
-    return FEED_CATEGORY_LABELS.get(raw, raw.replace("_", " ").title())
+def _map_feed_category(feed_category: str) -> str:
+    """Convert feed category column values to human-friendly labels."""
+    return FEED_CATEGORY_LABELS.get(
+        feed_category, feed_category.replace("_", " ").title()
+    )
 
 
 def _extract_feed_use(n: pypsa.Network) -> pd.DataFrame:
     """Return long-form feed use (Mt DM) by animal and feed category."""
 
-    if n.links.empty:
+    links_static = n.links.static
+    if links_static.empty:
         return pd.DataFrame(columns=["animal", "feed_category", "feed_mt"])
 
-    links_df = n.links
-    feed_links = links_df[
-        links_df["product"].notna() & links_df["bus0"].str.startswith("feed_")
+    # Filter for animal production links using carrier and feed_category columns
+    feed_links = links_static[
+        links_static["carrier"].str.startswith("produce_")
+        & links_static["product"].notna()
+        & links_static["feed_category"].notna()
     ]
 
     if feed_links.empty:
@@ -119,12 +109,13 @@ def _extract_feed_use(n: pypsa.Network) -> pd.DataFrame:
         return pd.DataFrame(columns=["animal", "feed_category", "feed_mt"])
 
     # Sum over snapshots with objective weightings (keeps units in Mt/year)
-    if "p0" not in n.links_t:
+    links_dynamic = n.links.dynamic
+    if not hasattr(links_dynamic, "p0") or links_dynamic.p0.empty:
         logger.warning("Network is missing link flow data (p0); returning empty frame")
         return pd.DataFrame(columns=["animal", "feed_category", "feed_mt"])
 
     weights = n.snapshot_weightings["objective"]
-    p0 = n.links_t.p0.loc[:, feed_links.index]
+    p0 = links_dynamic.p0.loc[:, feed_links.index]
     weighted = p0.multiply(weights, axis=0)
     totals = weighted.sum()
 
@@ -141,7 +132,8 @@ def _extract_feed_use(n: pypsa.Network) -> pd.DataFrame:
         if animal == "Unknown":
             continue
 
-        feed_category = _map_feed_category(feed_links.at[link_name, "bus0"])
+        raw_category = str(feed_links.at[link_name, "feed_category"])
+        feed_category = _map_feed_category(raw_category)
 
         records.append(
             {

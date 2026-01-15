@@ -14,23 +14,27 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 
 def extract_crop_production(n: pypsa.Network) -> pd.Series:
     """Extract total crop production aggregated across regions/classes."""
     crop_totals: dict[str, float] = {}
-    production_links = n.links[n.links.index.str.startswith("produce_")]
+
+    # Use carrier-based filtering for production links
+    links_static = n.links.static
+    production_links = links_static[links_static["carrier"].str.startswith("produce_")]
 
     for link in production_links.index:
-        carrier = str(production_links.at[link, "carrier"])
-
-        # Extract crop from carrier (e.g., "crop_maize" -> "maize")
-        if carrier.startswith("crop_"):
-            crop = carrier[5:]  # Remove "crop_" prefix
-        else:
+        # Use the 'crop' domain column instead of parsing carrier
+        crop = production_links.at[link, "crop"]
+        if pd.isna(crop):
             continue
+        crop = str(crop)
 
         # Flow at bus1 is crop output (megatonnes)
-        flow = float(n.links_t.p1.loc["now", link])
+        flow = float(n.links.dynamic.p1.loc["now", link])
         production = abs(flow)
         crop_totals[crop] = crop_totals.get(crop, 0.0) + production
 
@@ -38,27 +42,24 @@ def extract_crop_production(n: pypsa.Network) -> pd.Series:
 
 
 def extract_food_production(n: pypsa.Network) -> pd.Series:
-    """Extract food production from solved network."""
-    food_production = {}
+    """Extract food production (consumption) from solved network."""
+    food_production: dict[str, float] = {}
 
-    # Get all food conversion links (those starting with "convert_")
-    conversion_links = [link for link in n.links.index if link.startswith("convert_")]
+    # Use carrier-based filtering for consume links
+    links_static = n.links.static
+    consume_links = links_static[links_static["carrier"].str.startswith("consume_")]
 
-    for link in conversion_links:
-        # Extract food name from link name
-        # Link format is "convert_{crop}_to_{food}"
-        parts = link.split("_to_")
-        if len(parts) == 2:
-            food = parts[1].replace("_", " ")
-            # Get the flow through this link
-            flow = n.links_t.p0.loc["now", link]
-            # The output flow is the food production
-            production = abs(flow * n.links.loc[link, "efficiency"])
+    for link in consume_links.index:
+        # Use the 'food' domain column instead of parsing name
+        food = consume_links.at[link, "food"]
+        if pd.isna(food):
+            continue
+        food = str(food)
 
-            if food in food_production:
-                food_production[food] += production
-            else:
-                food_production[food] = production
+        # Flow at bus0 is food consumption input (megatonnes)
+        flow = float(n.links.dynamic.p0.loc["now", link])
+        production = abs(flow)
+        food_production[food] = food_production.get(food, 0.0) + production
 
     return pd.Series(food_production)
 
@@ -107,9 +108,11 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
     resources = ["land", "water", "fertilizer"]
     resource_usage = {}
 
+    links_dynamic = n.links.dynamic
+
     def _snapshot_series(attr: str) -> pd.Series:
-        table = getattr(n.links_t, attr, None)
-        if table is None or "now" not in table.index:
+        table = getattr(links_dynamic, attr, None)
+        if table is None or table.empty or "now" not in table.index:
             return pd.Series(dtype=float)
         return table.loc["now"]
 
@@ -117,7 +120,7 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
     p2_now = _snapshot_series("p2")
     p3_now = _snapshot_series("p3")
 
-    links = n.links
+    links = n.links.static
     has_bus2 = "bus2" in links.columns and "efficiency2" in links.columns
     has_bus3 = "bus3" in links.columns and "efficiency3" in links.columns
 

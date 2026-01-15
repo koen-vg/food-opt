@@ -18,6 +18,9 @@ from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 POSITIVE_PREFIX = "slack_positive_group_"
 NEGATIVE_PREFIX = "slack_negative_group_"
 
@@ -34,15 +37,15 @@ def _snapshot_weights(network: pypsa.Network) -> pd.Series:
 def _aggregate_positive_slack(network: pypsa.Network) -> pd.Series:
     """Aggregate positive (shortage) slack by food group in Mt."""
 
-    generators = network.generators
-    if generators.empty or "carrier" not in generators:
+    generators = network.generators.static
+    if generators.empty or "carrier" not in generators.columns:
         return pd.Series(dtype=float)
 
     mask = generators["carrier"].astype(str).str.startswith(POSITIVE_PREFIX)
     if not mask.any():
         return pd.Series(dtype=float)
 
-    dispatch = network.generators_t.p.loc[:, mask]
+    dispatch = network.generators.dynamic.p.loc[:, mask]
     weights = _snapshot_weights(network)
     weighted = dispatch.multiply(weights, axis=0)
 
@@ -56,15 +59,15 @@ def _aggregate_positive_slack(network: pypsa.Network) -> pd.Series:
 def _aggregate_negative_slack(network: pypsa.Network) -> pd.Series:
     """Aggregate negative (excess) slack by food group in Mt."""
 
-    generators = network.generators
-    if generators.empty or "carrier" not in generators:
+    generators = network.generators.static
+    if generators.empty or "carrier" not in generators.columns:
         return pd.Series(dtype=float)
 
     mask = generators["carrier"].astype(str).str.startswith(NEGATIVE_PREFIX)
     if not mask.any():
         return pd.Series(dtype=float)
 
-    dispatch = network.generators_t.p.loc[:, mask]
+    dispatch = network.generators.dynamic.p.loc[:, mask]
     weights = _snapshot_weights(network)
     weighted = dispatch.multiply(weights, axis=0)
 
@@ -77,28 +80,35 @@ def _aggregate_negative_slack(network: pypsa.Network) -> pd.Series:
 
 
 def _group_leg_for_link(link_row: pd.Series) -> tuple[int, str] | None:
-    """Return (leg_idx, group) for a consume link's group output bus."""
+    """Return (leg_idx, group) for a consume link's group output bus.
 
+    Uses the food_group column to identify which group a consume link contributes to,
+    and finds which bus leg connects to a group carrier.
+    """
+    # Use the food_group column directly instead of parsing bus names
+    food_group = link_row.get("food_group")
+    if pd.isna(food_group) or not food_group:
+        return None
+
+    group_name = str(food_group)
+
+    # Find which bus leg connects to the group store
     for column in link_row.index:
         if not str(column).startswith("bus"):
             continue
 
         bus_val = link_row[column]
-        if not isinstance(bus_val, str) or not bus_val.startswith("group_"):
+        if not isinstance(bus_val, str):
             continue
 
-        # Bus names look like group_<group>_<country>; split off the country suffix
-        group_token = bus_val.replace("group_", "", 1)
-        group_name = (
-            group_token.rsplit("_", 1)[0] if "_" in group_token else group_token
-        )
-
-        try:
-            leg_idx = int(str(column).replace("bus", "") or 0)
-        except ValueError:
-            continue
-
-        return leg_idx, group_name
+        # Group buses have carrier format like "group_cereals"
+        # Bus names follow pattern store:group:{group}:{country}
+        if f":group:{group_name}:" in bus_val:
+            try:
+                leg_idx = int(str(column).replace("bus", "") or 0)
+            except ValueError:
+                continue
+            return leg_idx, group_name
 
     return None
 
@@ -106,23 +116,24 @@ def _group_leg_for_link(link_row: pd.Series) -> tuple[int, str] | None:
 def _aggregate_consumption_by_group(network: pypsa.Network) -> pd.Series:
     """Aggregate total food consumption by group in Mt using snapshot weights."""
 
-    links = network.links
-    if links.empty:
+    links = network.links.static
+    if links.empty or "carrier" not in links.columns:
         return pd.Series(dtype=float)
 
     weights = _snapshot_weights(network)
     totals: dict[str, float] = {}
 
-    for link_name, link_row in links.iterrows():
-        if not str(link_name).startswith("consume_"):
-            continue
+    # Filter to consume links using carrier-based filtering
+    consume_mask = links["carrier"].astype(str).str.startswith("consume_")
+    consume_links = links[consume_mask]
 
+    for link_name, link_row in consume_links.iterrows():
         leg_info = _group_leg_for_link(link_row)
         if leg_info is None:
             continue
 
         leg_idx, group_name = leg_info
-        series_table = getattr(network.links_t, f"p{leg_idx}", None)
+        series_table = getattr(network.links.dynamic, f"p{leg_idx}", None)
         if series_table is None or link_name not in series_table:
             continue
 

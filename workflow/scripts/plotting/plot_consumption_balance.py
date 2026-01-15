@@ -20,6 +20,10 @@ from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
+
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 EPSILON = 1e-6  # Threshold for considering values as zero
 BAR_WIDTH = 0.35  # Width of each bar (we'll have 2 per cluster)
 BAR_SPACING = 0.05  # Space between the two bars
@@ -96,11 +100,13 @@ def main() -> None:
     consumption_data = []  # (cluster, group, food, value_mt)
 
     # Process Consumption Links
-    consume_links = n.links[n.links.index.str.startswith("consume_")]
+    links_static = n.links.static
+    consume_links = links_static[links_static["carrier"].str.startswith("consume_")]
+    links_dynamic = n.links.dynamic
     p0 = (
-        n.links_t.p0.loc[snapshot]
-        if "p0" in n.links_t
-        else pd.Series(0, index=n.links.index)
+        links_dynamic.p0.loc[snapshot]
+        if hasattr(links_dynamic, "p0") and not links_dynamic.p0.empty
+        else pd.Series(0, index=links_static.index)
     )
 
     for link in consume_links.index:
@@ -109,8 +115,8 @@ def main() -> None:
             continue
 
         # Extract food and country from link attributes
-        food = n.links.at[link, "food"]
-        country = n.links.at[link, "country"]
+        food = links_static.at[link, "food"]
+        country = links_static.at[link, "country"]
 
         cluster = cluster_map.get(country)
         if cluster is None:

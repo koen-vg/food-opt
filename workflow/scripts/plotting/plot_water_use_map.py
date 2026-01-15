@@ -20,6 +20,9 @@ matplotlib.use("pdf")
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 
 def _setup_regions(regions_path: str) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     gdf = gpd.read_file(regions_path)
@@ -42,26 +45,45 @@ def _aggregate_water_use(n: pypsa.Network, snapshot: str) -> pd.DataFrame:
     natural: dict[str, float] = {}
     slack: dict[str, float] = {}
 
+    stores_static = n.stores.static
+    stores_dynamic = n.stores.dynamic
+    buses_static = n.buses.static
+
     # Natural supply: discharge from water stores
-    if not n.stores.empty and "p" in n.stores_t and not n.stores_t.p.empty:
-        store_mask = n.stores["bus"].astype(str).str.startswith("water_")
-        p_store = n.stores_t.p.loc[snapshot, store_mask]
+    if (
+        not stores_static.empty
+        and hasattr(stores_dynamic, "p")
+        and not stores_dynamic.p.empty
+    ):
+        # Filter stores connected to water buses (carrier == "water")
+        water_buses = buses_static[buses_static["carrier"] == "water"].index
+        store_mask = stores_static["bus"].isin(water_buses)
+        p_store = stores_dynamic.p.loc[snapshot, store_mask]
         for name, val in p_store.items():
             if val <= 0:
                 continue
-            bus = str(n.stores.at[name, "bus"])
-            region = bus.replace("water_", "", 1)
+            bus = stores_static.at[name, "bus"]
+            region = buses_static.at[bus, "region"]
             natural[region] = natural.get(region, 0.0) + float(val)
 
-    # Slack supply: dispatch of water_slack_* generators
-    if not n.generators.empty and "p" in n.generators_t:
-        mask = n.generators.index.to_series().str.startswith("water_slack_")
-        if mask.any():
-            dispatch = n.generators_t.p.loc[snapshot, mask]
+    generators_static = n.generators.static
+    generators_dynamic = n.generators.dynamic
+
+    # Slack supply: dispatch of water_slack generators
+    if (
+        not generators_static.empty
+        and hasattr(generators_dynamic, "p")
+        and not generators_dynamic.p.empty
+    ):
+        water_slack_gens = generators_static[
+            generators_static["carrier"] == "water_slack"
+        ]
+        if not water_slack_gens.empty:
+            dispatch = generators_dynamic.p.loc[snapshot, water_slack_gens.index]
             for name, val in dispatch.items():
                 if val <= 0:
                     continue
-                region = str(name).replace("water_slack_", "", 1)
+                region = generators_static.at[name, "region"]
                 slack[region] = slack.get(region, 0.0) + float(val)
 
     regions = sorted(set(natural) | set(slack))

@@ -17,6 +17,9 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 
 def _extract_crop_production(
     n: pypsa.Network,
@@ -32,24 +35,29 @@ def _extract_crop_production(
     production = {}
     irrigated = {}
     rainfed = {}
-    flows = n.links_t.p1.loc["now"] if "p1" in n.links_t else pd.Series(dtype=float)
-    links_df = n.links
+    links_dynamic = n.links.dynamic
+    flows = (
+        links_dynamic.p1.loc["now"]
+        if hasattr(links_dynamic, "p1") and not links_dynamic.p1.empty
+        else pd.Series(dtype=float)
+    )
+    links_df = n.links.static
 
-    for link in n.links.index:
-        if not link.startswith("produce_"):
-            continue
-
-        bus1 = str(links_df.at[link, "bus1"])
-        if bus1.startswith(("co2", "ch4")):
-            continue
-        if not bus1.startswith("crop_"):
-            continue
-
-        # Extract crop from carrier (e.g., "crop_maize" -> "maize")
+    for link in links_df.index:
         carrier = str(links_df.at[link, "carrier"])
-        if not carrier.startswith("crop_"):
+
+        # Filter for crop production links using carrier
+        if not carrier.startswith("produce_"):
             continue
-        crop_token = carrier[5:]  # Remove "crop_" prefix
+        # Skip grassland production (handled separately below)
+        if carrier == "produce_grassland":
+            continue
+
+        # Use crop column for metadata
+        crop = links_df.at[link, "crop"]
+        if pd.isna(crop):
+            continue
+        crop_token = str(crop)
 
         # Get water supply from link attribute
         water_supply = str(links_df.at[link, "water_supply"])
@@ -66,8 +74,10 @@ def _extract_crop_production(
             rainfed[crop_token] = rainfed.get(crop_token, 0.0) + value
 
     pasture_total = 0.0
-    for link in n.links.index:
-        if not (link.startswith(("grassland_region", "grassland_marginal"))):
+    for link in links_df.index:
+        carrier = str(links_df.at[link, "carrier"])
+        # Filter for grassland production using carrier
+        if carrier != "produce_grassland":
             continue
 
         value = abs(float(flows.get(link, 0.0)))
@@ -96,37 +106,42 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
     human_use: defaultdict[str, float] = defaultdict(float)
     feed_use: defaultdict[str, float] = defaultdict(float)
 
-    flows_p0 = n.links_t.p0.loc["now"] if "p0" in n.links_t else pd.Series(dtype=float)
-    flows_p1 = n.links_t.p1.loc["now"] if "p1" in n.links_t else pd.Series(dtype=float)
-    links_df = n.links
+    links_dynamic = n.links.dynamic
+    flows_p0 = (
+        links_dynamic.p0.loc["now"]
+        if hasattr(links_dynamic, "p0") and not links_dynamic.p0.empty
+        else pd.Series(dtype=float)
+    )
+    flows_p1 = (
+        links_dynamic.p1.loc["now"]
+        if hasattr(links_dynamic, "p1") and not links_dynamic.p1.empty
+        else pd.Series(dtype=float)
+    )
+    links_df = n.links.static
 
-    for link in n.links.index:
+    for link in links_df.index:
         flow_in = abs(float(flows_p0.get(link, 0.0)))
         if flow_in <= 0.0:
             continue
 
-        bus0 = str(links_df.at[link, "bus0"])
-        bus1 = str(links_df.at[link, "bus1"])
         carrier = str(links_df.at[link, "carrier"])
 
-        if link.startswith("consume_"):
-            # Use food attribute from consumption link
-            crop = str(links_df.at[link, "food"])
-            human_use[crop] += flow_in
-        elif link.startswith("convert_") and (
-            bus1.startswith("feed_") or carrier.startswith(("convert_to_feed", "feed_"))
-        ):
-            # Extract crop from bus0 (e.g., "crop_maize_USA" -> "maize")
-            if bus0.startswith("crop_"):
-                crop_with_country = bus0[5:]  # Remove "crop_" prefix
-                crop = crop_with_country.rsplit("_", 1)[0]  # Remove country suffix
-                feed_use[crop] += flow_in
-        else:
-            continue
+        if carrier.startswith("consume_"):
+            # Use food column from consumption link
+            food = links_df.at[link, "food"]
+            if pd.notna(food):
+                human_use[str(food)] += flow_in
+        elif carrier.startswith("convert_to_feed"):
+            # Use crop column for feed conversion links
+            crop = links_df.at[link, "crop"]
+            if pd.notna(crop):
+                feed_use[str(crop)] += flow_in
 
     pasture_total = 0.0
-    for link in n.links.index:
-        if not (link.startswith(("grassland_region", "grassland_marginal"))):
+    for link in links_df.index:
+        carrier = str(links_df.at[link, "carrier"])
+        # Filter for grassland production using carrier
+        if carrier != "produce_grassland":
             continue
 
         value = abs(float(flows_p1.get(link, 0.0)))

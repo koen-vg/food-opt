@@ -29,6 +29,9 @@ import pypsa
 
 logger = logging.getLogger(__name__)
 
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 
 def plot_water_value_map(
     solved_network_path: Path, regions_path: Path, output_path: Path
@@ -36,11 +39,11 @@ def plot_water_value_map(
     logger.info("Loading solved network from %s", solved_network_path)
     n = pypsa.Network(str(solved_network_path))
 
-    water_buses = [b for b in n.buses.index if b.startswith("water_")]
-    if not water_buses:
+    water_buses = n.buses[n.buses["carrier"] == "water"]
+    if water_buses.empty:
         raise ValueError("No water buses found in network")
 
-    marginal_prices = n.buses_t.marginal_price.iloc[0][water_buses]
+    marginal_prices = n.buses_t.marginal_price.iloc[0][water_buses.index]
 
     scale_meta = n.meta.get("carrier_unit_scale", {})
     mm3_per_m3 = float(
@@ -51,10 +54,9 @@ def plot_water_value_map(
 
     marginal_prices_per_m3 = marginal_prices * mm3_per_m3
 
-    region_ids = [b.replace("water_", "") for b in water_buses]
     water_values = pd.DataFrame(
         {
-            "region": region_ids,
+            "region": water_buses["region"].tolist(),
             # Present to users in USD/m³ by using the carrier scale factor
             "water_value_usd_per_m3": marginal_prices_per_m3.values,
         }

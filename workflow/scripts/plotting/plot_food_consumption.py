@@ -19,10 +19,13 @@ from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO
 from workflow.scripts.plotting.color_utils import categorical_colors
 from workflow.scripts.population import get_total_population
 
+logger = logging.getLogger(__name__)
+
+# Enable new PyPSA components API
+pypsa.options.api.new_components_api = True
+
 # Alias for backwards compatibility with modules that import from here
 KCAL_PER_PJ = PJ_TO_KCAL
-
-logger = logging.getLogger(__name__)
 
 
 def _select_snapshot(network: pypsa.Network) -> pd.Index | str:
@@ -48,13 +51,14 @@ def _link_dispatch_at_snapshot(
     network: pypsa.Network, snapshot
 ) -> dict[int, pd.Series]:
     dispatch: dict[int, pd.Series] = {}
-    for attr in dir(network.links_t):
+    links_dynamic = network.links.dynamic
+    for attr in dir(links_dynamic):
         if not attr.startswith("p"):
             continue
         suffix = attr[1:]
         if not suffix.isdigit():
             continue
-        series = getattr(network.links_t, attr)
+        series = getattr(links_dynamic, attr)
         if snapshot not in series.index:
             continue
         dispatch[int(suffix)] = series.loc[snapshot]
@@ -65,8 +69,8 @@ def _aggregate_group_mass(
     network: pypsa.Network, snapshot, food_to_group: dict[str, str]
 ) -> pd.Series:
     """Aggregate consumption by food group using link attributes."""
-    links = network.links
-    consume_links = links[links.index.str.startswith("consume_")]
+    links = network.links.static
+    consume_links = links[links["carrier"].str.startswith("consume_")]
     if consume_links.empty:
         return pd.Series(dtype=float)
 
@@ -89,7 +93,7 @@ def _aggregate_group_mass(
             # Check if this leg goes to a group bus
             bus_col = f"bus{leg}" if leg > 0 else "bus0"
             bus_value = consume_links.at[link_name, bus_col]
-            if isinstance(bus_value, str) and bus_value.startswith("group_"):
+            if isinstance(bus_value, str) and bus_value.startswith("group:"):
                 totals[group] = totals.get(group, 0.0) + abs(value)
                 break
 
@@ -117,15 +121,16 @@ def _aggregate_group_calories(
     network: pypsa.Network, snapshot, food_to_group: dict[str, str]
 ) -> pd.Series:
     """Aggregate calorie consumption by food group using link attributes."""
-    links = network.links
+    links = network.links.static
     legs = _available_legs(links)
     if not legs:
         return pd.Series(dtype=float)
 
+    links_dynamic = network.links.dynamic
     time_series_lookup: dict[int, pd.Series] = {}
     for leg in legs:
         attr = f"p{leg}"
-        series = getattr(network.links_t, attr, None)
+        series = getattr(links_dynamic, attr, None)
         if series is None or snapshot not in series.index:
             continue
         time_series_lookup[leg] = series.loc[snapshot]
@@ -134,11 +139,9 @@ def _aggregate_group_calories(
         return pd.Series(dtype=float)
 
     totals: dict[str, float] = {}
-    for link_name in links.index:
-        if not link_name.startswith("consume_"):
-            continue
-
-        food = str(links.at[link_name, "food"])
+    consume_links = links[links["carrier"].str.startswith("consume_")]
+    for link_name in consume_links.index:
+        food = str(consume_links.at[link_name, "food"])
         group_name = food_to_group.get(food)
         if group_name is None:
             continue
@@ -147,8 +150,8 @@ def _aggregate_group_calories(
         kcal_leg: int | None = None
         for leg in legs:
             column = f"bus{leg}"
-            bus_value = links.at[link_name, column]
-            if pd.notna(bus_value) and str(bus_value).startswith("cal_"):
+            bus_value = consume_links.at[link_name, column]
+            if pd.notna(bus_value) and str(bus_value).startswith("nutrient:cal:"):
                 kcal_leg = leg
                 break
 

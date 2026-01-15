@@ -229,6 +229,7 @@ def add_feed_to_animal_product_links(
     all_marginal_cost = []
     all_country = []
     all_product = []
+    all_feed_category = []
     all_manure_ch4_share = []
     all_pasture_n2o_share = []
 
@@ -313,6 +314,7 @@ def add_feed_to_animal_product_links(
         all_marginal_cost.append(marginal_cost)
         all_country.append(country)
         all_product.append(row["product"])
+        all_feed_category.append(row["feed_category"])
         all_manure_ch4_share.append(manure_ch4_share)
         all_pasture_n2o_share.append(pasture_n2o_share)
 
@@ -334,6 +336,7 @@ def add_feed_to_animal_product_links(
         efficiency4=all_n2o,
         country=all_country,
         product=all_product,
+        feed_category=all_feed_category,
         manure_ch4_share=all_manure_ch4_share,
         pasture_n2o_share=all_pasture_n2o_share,
     )
