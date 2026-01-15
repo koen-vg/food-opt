@@ -172,6 +172,29 @@ The workflow validates that all required credentials are present at startup (bef
     - Positive efficiency ⇒ output; negative ⇒ input (relative to `bus0`).
 - When adding components multiple components (e.g. `n.generators.add(name=[...])`), PyPSA will automatically expand constant arguments, so you can write e.g. `marginal_cost=1` instead of `marginal_cost=[1] * len(...)`.
 
+### Component Naming and Accessing
+
+**IMPORTANT**: Never parse component names to extract metadata. Always use columns.
+
+Component names use `:` as delimiter (uncommon in data values):
+- Buses: `crop:wheat:USA`, `food:bread:USA`, `land:pool:usa_east_c1_r`
+- Links: `produce:wheat_rainfed:usa_east_c1`, `consume:bread:USA`
+- Stores: `store:group:cereals:USA`, `store:nutrient:protein:USA`
+- Generators: `supply:land_existing:usa_east_c1_r`, `slack:water:usa_east`
+
+Use columns for filtering instead of name parsing:
+- `carrier` column for type identification (e.g., `produce_wheat`, `consume_bread`)
+- Domain columns: `country`, `region`, `crop`, `food`, `food_group`, `product`, `resource_class`, `water_supply`
+
+Fail fast when expected components not found:
+```python
+group_stores = n.stores.static[n.stores.static["carrier"] == f"group_{group}"]
+if group_stores.empty:
+    raise ValueError(f"No stores found for food group '{group}'")
+```
+
+See `workflow/scripts/build_model/__init__.py` for complete naming and column conventions.
+
 ## When Implementing Changes
 
 - Keep function/module scope tight; avoid broad rewrites.
@@ -237,3 +260,7 @@ tools/update-figure-refs --to-remote  # Switch back before committing
 - Respect SPDX headers; keep or add them to new files following repository practice.
 - Do not introduce secrets, credentials, or hard-coded local paths.
 - Use only licensed datasets and dependencies already declared in `pixi.toml` unless explicitly instructed to add new ones.
+
+## Reminder
+
+Againt, always remember to use pixi to run snippets of python; do not run python directly or you won't be able to use any project dependencies.
