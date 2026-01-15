@@ -49,3 +49,10 @@ path = "pixi.lock"
 precedence = "override"
 SPDX-FileCopyrightText = "2025 Koen van Greevenbroek"
 SPDX-License-Identifier = "CC0-1.0"
+
+# Jupyter notebooks: JSON format makes inline SPDX headers difficult to parse
+[[annotations]]
+path = "notebooks/*.ipynb"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Koen van Greevenbroek"
+SPDX-License-Identifier = "GPL-3.0-or-later"

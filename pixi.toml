@@ -83,6 +83,7 @@ ipython = ">=9.7.0,<10"              # Enhanced Python REPL
 # Code quality
 prek = ">=0.1.0,<2"                  # Git pre-commit hooks runner
 ruff = ">=0.14.6,<0.15"              # Fast Python linter and formatter
+nbstripout = ">=0.8,<1"              # Strip notebook outputs for clean git diffs
 
 # Documentation
 sphinx = ">=8.2.3,<9"                # Documentation generator

@@ -5,7 +5,10 @@
 .snakemake
 results
 processing
-notebooks
+# Notebooks (exploratory, not tracked by default)
+notebooks/*
+!notebooks/sensitivity_utils.py
+!notebooks/*_sensitivity.ipynb
 logs
 data/downloads/*
 **/__pycache__
