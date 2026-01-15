@@ -20,10 +20,10 @@ rule extract_optimal_consumption:
 
     Consumption is extracted from food group stores in the solved network,
     converted to per-capita g/day format for use as constraints in Stage 2.
+    Population data is read from the network metadata.
     """
     input:
         network="results/{name}/solved/model_scen-optimize.nc",
-        population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",
     output:
         consumption="results/{name}/optimal_taxes/optimal_consumption.csv",
@@ -73,7 +73,6 @@ rule plot_optimal_taxes_diet_comparison:
             "results/{name}/solved/model_scen-extract_taxes.nc",
             "results/{name}/solved/model_scen-apply_taxes.nc",
         ],
-        population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",
     output:
         pdf="results/{name}/plots/optimal_taxes/diet_comparison.pdf",

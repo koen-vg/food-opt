@@ -16,6 +16,7 @@ from workflow.scripts.build_model.nutrition import (
 )
 from workflow.scripts.build_model.utils import _per_capita_mass_to_mt_per_year
 from workflow.scripts.logging_config import setup_script_logging
+from workflow.scripts.population import get_country_population
 from workflow.scripts.snakemake_utils import apply_scenario_config
 from workflow.scripts.solve_model.health import (
     HEALTH_AUX_MAP,
@@ -1168,12 +1169,8 @@ if __name__ == "__main__":
         if "LogToConsole" not in solver_options:
             solver_options["LogToConsole"] = 1  # Also print to console
 
-    # Add macronutrient intake bounds
-    population_df = pd.read_csv(snakemake.input.population)
-    population_df["iso3"] = population_df["iso3"].astype(str).str.upper()
-    population_map = (
-        population_df.set_index("iso3")["population"].astype(float).to_dict()
-    )
+    # Get population from network metadata
+    population_map = get_country_population(n)
 
     # Food group baseline equals (optional)
     per_country_equal: dict[str, dict[str, float]] | None = None
@@ -1305,7 +1302,6 @@ if __name__ == "__main__":
             snakemake.input.health_cause_log,
             snakemake.input.health_cluster_summary,
             snakemake.input.health_clusters,
-            snakemake.input.population,
             snakemake.params.health_risk_factors,
             snakemake.params.health_risk_cause_map,
             solver_name,

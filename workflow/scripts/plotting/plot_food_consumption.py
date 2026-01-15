@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO_KCAL
 from workflow.scripts.plotting.color_utils import categorical_colors
+from workflow.scripts.population import get_total_population
 
 # Alias for backwards compatibility with modules that import from here
 KCAL_PER_PJ = PJ_TO_KCAL
@@ -260,7 +261,6 @@ def main() -> None:
         raise RuntimeError("This script must be run from Snakemake") from exc
 
     network_path = snakemake.input.network  # type: ignore[attr-defined]
-    population_path = snakemake.input.population  # type: ignore[attr-defined]
     food_groups_path = snakemake.input.food_groups  # type: ignore[attr-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[attr-defined]
     output_pdf.parent.mkdir(parents=True, exist_ok=True)
@@ -278,12 +278,7 @@ def main() -> None:
     mass = _aggregate_group_mass(network, snapshot, food_to_group)
     calories_pj = _aggregate_group_calories(network, snapshot, food_to_group)
 
-    population_df = pd.read_csv(population_path)
-    if "population" not in population_df.columns:
-        raise ValueError("Population file must contain a 'population' column")
-    total_population = float(population_df["population"].sum())
-    if total_population <= 0.0:
-        raise ValueError("Total population must be positive for per-capita conversion")
+    total_population = get_total_population(network)
 
     mass_per_capita = mass * GRAMS_PER_MEGATONNE / (total_population * DAYS_PER_YEAR)
     calories_per_capita = calories_pj * KCAL_PER_PJ / (total_population * DAYS_PER_YEAR)

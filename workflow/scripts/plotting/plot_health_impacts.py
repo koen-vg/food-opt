@@ -25,6 +25,8 @@ import numpy as np
 import pandas as pd
 import pypsa
 
+from workflow.scripts.population import get_health_cluster_population
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +37,6 @@ class HealthInputs:
     cause_log_breakpoints: pd.DataFrame
     cluster_summary: pd.DataFrame
     clusters: pd.DataFrame
-    population: pd.DataFrame
     cluster_risk_baseline: pd.DataFrame
 
 
@@ -70,37 +71,8 @@ def _build_food_lookup(
     return lookup
 
 
-def _cluster_population(
-    cluster_summary: pd.DataFrame,
-    clusters: pd.DataFrame,
-    population: pd.DataFrame,
-) -> dict[int, float]:
-    clusters = clusters.assign(country_iso3=lambda df: df["country_iso3"].str.upper())
-    cluster_lookup = (
-        clusters.set_index("country_iso3")["health_cluster"].astype(int).to_dict()
-    )
-
-    cluster_summary = cluster_summary.assign(
-        health_cluster=lambda df: df["health_cluster"].astype(int)
-    )
-    baseline = (
-        cluster_summary.set_index("health_cluster")["population_persons"]
-        .astype(float)
-        .to_dict()
-    )
-    population = population.assign(iso3=lambda df: df["iso3"].str.upper())
-    population_map = population.set_index("iso3")["population"].astype(float).to_dict()
-
-    result: dict[int, float] = {}
-    for cluster, base_value in baseline.items():
-        members = [iso for iso, c in cluster_lookup.items() if c == cluster]
-        planning = sum(population_map.get(iso, 0.0) for iso in members)
-        result[int(cluster)] = planning if planning > 0 else float(base_value)
-
-    return result
-
-
 def _prepare_health_inputs(
+    n: pypsa.Network,
     inputs: HealthInputs,
     risk_factors: list[str],
     value_per_yll: float,
@@ -146,14 +118,8 @@ def _prepare_health_inputs(
         clusters.set_index("country_iso3")["health_cluster"].astype(int).to_dict()
     )
 
-    cluster_summary = inputs.cluster_summary.assign(
-        health_cluster=lambda df: df["health_cluster"].astype(int)
-    )
-    cluster_population = _cluster_population(
-        cluster_summary,
-        clusters,
-        inputs.population,
-    )
+    # Get cluster population from network metadata
+    cluster_population = get_health_cluster_population(n)
 
     return (
         risk_tables,
@@ -181,7 +147,7 @@ def compute_health_results(
         cluster_lookup,
         cluster_population,
         value_per_yll_const,
-    ) = _prepare_health_inputs(inputs, risk_factors, value_per_yll, food_groups_df)
+    ) = _prepare_health_inputs(n, inputs, risk_factors, value_per_yll, food_groups_df)
 
     cluster_cause = inputs.cluster_cause.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int)
@@ -320,6 +286,7 @@ def compute_health_results(
 
 
 def compute_baseline_risk_costs(
+    n: pypsa.Network,
     inputs: HealthInputs,
     risk_factors: list[str],
     value_per_yll: float,
@@ -344,7 +311,7 @@ def compute_baseline_risk_costs(
         _cluster_lookup,
         _cluster_population,
         value_per_yll_const,
-    ) = _prepare_health_inputs(inputs, risk_factors, value_per_yll, food_groups_df)
+    ) = _prepare_health_inputs(n, inputs, risk_factors, value_per_yll, food_groups_df)
 
     baseline = inputs.cluster_risk_baseline.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int),
@@ -747,7 +714,6 @@ def main() -> None:
         cause_log_breakpoints=pd.read_csv(snakemake.input.health_cause_log),
         cluster_summary=pd.read_csv(snakemake.input.health_cluster_summary),
         clusters=pd.read_csv(snakemake.input.health_clusters),
-        population=pd.read_csv(snakemake.input.population),
         cluster_risk_baseline=pd.read_csv(snakemake.input.health_cluster_risk_baseline),
     )
 
@@ -823,6 +789,7 @@ def main() -> None:
 
     # Baseline health burden maps
     baseline_risk_costs, baseline_cause_costs = compute_baseline_risk_costs(
+        n,
         health_inputs,
         snakemake.params.health_risk_factors,
         value_per_yll,

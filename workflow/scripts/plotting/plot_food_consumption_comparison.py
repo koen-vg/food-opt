@@ -24,24 +24,14 @@ from workflow.scripts.plotting.plot_food_consumption import (
     _assign_colors,
     _select_snapshot,
 )
+from workflow.scripts.population import get_total_population
 
 logger = logging.getLogger(__name__)
 
 
-def _load_population(population_path: Path) -> float:
-    population_df = pd.read_csv(population_path)
-    if "population" not in population_df.columns:
-        raise ValueError("Population file must contain a 'population' column")
-    total_population = float(population_df["population"].sum())
-    if total_population <= 0.0:
-        raise ValueError("Total population must be positive for per-capita conversion")
-    return total_population
-
-
 def _per_capita_consumption(
-    network_path: Path, food_to_group: dict[str, str], population_total: float
+    network: pypsa.Network, food_to_group: dict[str, str], population_total: float
 ) -> tuple[pd.Series, pd.Series]:
-    network = pypsa.Network(network_path)
     snapshot = _select_snapshot(network)
 
     mass_mt = _aggregate_group_mass(network, snapshot, food_to_group)
@@ -161,7 +151,6 @@ def main() -> None:
 
     network_paths = [Path(p) for p in snakemake.input.networks]  # type: ignore[attr-defined]
     comparison_labels = list(snakemake.params.wildcards)  # type: ignore[attr-defined]
-    population_path = Path(snakemake.input.population)  # type: ignore[attr-defined]
     food_groups_path = Path(snakemake.input.food_groups)  # type: ignore[attr-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[attr-defined]
     output_csv = Path(snakemake.output.csv)  # type: ignore[attr-defined]
@@ -178,16 +167,23 @@ def main() -> None:
     food_groups_df = pd.read_csv(food_groups_path)
     food_to_group = food_groups_df.set_index("food")["group"].to_dict()
 
-    population_total = _load_population(population_path)
-    logger.info("Total population for per-capita conversion: %.3e", population_total)
-
     mass_data: dict[str, pd.Series] = {}
     cal_data: dict[str, pd.Series] = {}
+    population_total: float | None = None
 
     for label, network_path in zip(comparison_labels, network_paths):
         logger.info("Aggregating consumption for %s", network_path)
+        network = pypsa.Network(network_path)
+
+        # Get population from first network
+        if population_total is None:
+            population_total = get_total_population(network)
+            logger.info(
+                "Total population for per-capita conversion: %.3e", population_total
+            )
+
         mass_pc, cal_pc = _per_capita_consumption(
-            network_path, food_to_group, population_total
+            network, food_to_group, population_total
         )
         mass_data[label] = mass_pc
         cal_data[label] = cal_pc

@@ -283,6 +283,7 @@ if __name__ == "__main__":
         .reindex(cfg_countries)
         .astype(float)
     )
+    planning_year = int(population_df["year"].iloc[0])
 
     diet_cfg = snakemake.params.diet
     health_reference_year = int(snakemake.params.health_reference_year)
@@ -352,6 +353,12 @@ if __name__ == "__main__":
     n = pypsa.Network()
     n.set_snapshots(["now"])
     n.name = "food-opt"
+
+    # Store population in network metadata for consistent access in solve and analysis
+    n.meta["population"] = {
+        "country": population.to_dict(),
+        "year": planning_year,
+    }
 
     crop_list = snakemake.params.crops
     animal_products_cfg = snakemake.params.animal_products
@@ -675,6 +682,18 @@ if __name__ == "__main__":
         snakemake.input.health_cluster_cause,
         snakemake.config["health"],
     )
+
+    # Compute and store health cluster populations from country populations
+    cluster_map_df = read_csv(snakemake.input.health_clusters)
+    cluster_lookup = (
+        cluster_map_df.set_index("country_iso3")["health_cluster"].astype(int).to_dict()
+    )
+    cluster_pop: dict[int, float] = {}
+    for iso3, pop in population.items():
+        cluster = cluster_lookup.get(iso3.upper())
+        if cluster is not None:
+            cluster_pop[cluster] = cluster_pop.get(cluster, 0.0) + pop
+    n.meta["population"]["health_cluster"] = cluster_pop
 
     # ═══════════════════════════════════════════════════════════════
     # EXPORT

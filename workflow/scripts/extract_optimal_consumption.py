@@ -14,6 +14,7 @@ import pypsa
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 from workflow.scripts.logging_config import setup_script_logging
+from workflow.scripts.population import get_country_population
 
 # Enable new PyPSA components API
 pypsa.options.api.new_components_api = True
@@ -21,7 +22,7 @@ pypsa.options.api.new_components_api = True
 
 def extract_optimal_consumption(
     n: pypsa.Network,
-    population_df: pd.DataFrame,
+    population: dict[str, float],
     food_groups: list[str],
 ) -> pd.DataFrame:
     """Extract per-country consumption by food group from store levels.
@@ -30,8 +31,8 @@ def extract_optimal_consumption(
     ----------
     n : pypsa.Network
         Solved network with food group stores.
-    population_df : pd.DataFrame
-        Population by country with columns: iso3, population
+    population : dict[str, float]
+        Population by country (ISO3 -> persons).
     food_groups : list[str]
         List of food group names to extract.
 
@@ -43,9 +44,7 @@ def extract_optimal_consumption(
     snapshot = "now" if "now" in n.snapshots else n.snapshots[-1]
     store_levels = n.stores.dynamic.e.loc[snapshot]
 
-    population_df = population_df.copy()
-    population_df["iso3"] = population_df["iso3"].astype(str).str.upper()
-    pop_map = population_df.set_index("iso3")["population"].to_dict()
+    pop_map = {k.upper(): v for k, v in population.items()}
 
     stores_df = n.stores.static
 
@@ -101,11 +100,11 @@ if __name__ == "__main__":
     logger.info("Loading solved network from %s", snakemake.input.network)
     n = pypsa.Network(snakemake.input.network)
 
-    population_df = pd.read_csv(snakemake.input.population)
+    population = get_country_population(n)
     food_groups_df = pd.read_csv(snakemake.input.food_groups)
     food_groups = food_groups_df["group"].unique().tolist()
 
-    df = extract_optimal_consumption(n, population_df, food_groups)
+    df = extract_optimal_consumption(n, population, food_groups)
 
     output_path = snakemake.output.consumption
     df.to_csv(output_path, index=False)

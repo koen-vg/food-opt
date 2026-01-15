@@ -267,7 +267,6 @@ rule plot_water_use_map:
 rule plot_food_consumption:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",
-        population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",
     output:
         pdf="results/{name}/plots/scen-{scenario}/food_consumption.pdf",
@@ -289,7 +288,6 @@ def food_consumption_comparison_inputs(wildcards):
 rule plot_food_consumption_comparison:
     input:
         networks=food_consumption_comparison_inputs,
-        population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",
     output:
         pdf="results/{name}/plots/food_consumption_comparison.pdf",
@@ -327,7 +325,6 @@ rule plot_system_cost_comparison:
 rule plot_food_consumption_map:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",
-        population="processing/{name}/population.csv",
         clusters="processing/{name}/health/country_clusters.csv",
         regions="processing/{name}/regions.geojson",
         food_groups="data/food_groups.csv",

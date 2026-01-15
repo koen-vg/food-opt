@@ -88,6 +88,7 @@ rule build_model:
         grazing_only_land="processing/{name}/land_grazing_only_by_class.csv",
         health_cluster_summary="processing/{name}/health/cluster_summary.csv",
         health_cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
+        health_clusters="processing/{name}/health/country_clusters.csv",
         build_scripts=expand(
             "workflow/scripts/build_model/{script}",
             script=[
@@ -159,7 +160,6 @@ def solve_model_inputs(w):
         "health_cause_log": f"processing/{w.name}/health/cause_log_breakpoints.csv",
         "health_cluster_summary": f"processing/{w.name}/health/cluster_summary.csv",
         "health_clusters": f"processing/{w.name}/health/country_clusters.csv",
-        "population": f"processing/{w.name}/population.csv",
         "food_groups": "data/food_groups.csv",
         "baseline_diet": f"processing/{w.name}/dietary_intake.csv",
     }

@@ -48,6 +48,17 @@ PRETTY_NAMES = {
     "eggs_poultry": "Eggs & poultry",
 }
 
+# Health-specific labels: "Diet low in X" for protective, "Diet high in X" for harmful
+PRETTY_NAMES_HEALTH = {
+    "fruits": "Diet low in\nfruits",
+    "vegetables": "Diet low in\nvegetables",
+    "whole_grains": "Diet low in\nwhole grains",
+    "legumes": "Diet low in\nlegumes",
+    "nuts_seeds": "Diet low in\nnuts & seeds",
+    "red_meat": "Diet high in\nred meat",
+    "fruits_vegetables": "Diet low in\nfruits & veg.",
+}
+
 # Pretty names for objective categories
 PRETTY_NAMES_OBJ = {
     "Crop production": "Crop production",
@@ -75,10 +86,16 @@ def is_cache_valid(cache_path: Path, network_files: list[Path]) -> bool:
     return all(nf.stat().st_mtime <= cache_mtime for nf in network_files)
 
 
-def load_population(processing_dir: Path) -> float:
-    """Load total global population."""
-    pop_df = pd.read_csv(processing_dir / "population.csv")
-    return pop_df["population"].sum()
+def load_population_from_network(network_path: Path) -> float:
+    """Load total global population from network metadata."""
+    n = pypsa.Network(network_path)
+    pop_meta = n.meta.get("population")
+    if pop_meta is None:
+        raise KeyError(
+            "Population data not found in network metadata. "
+            "Ensure the model was built with population embedding enabled."
+        )
+    return sum(pop_meta["country"].values())
 
 
 def extract_param_value(scenario_name: str, prefix: str) -> float | None:
@@ -96,6 +113,25 @@ def extract_param_value(scenario_name: str, prefix: str) -> float | None:
     match = re.match(rf"{prefix}_(\d+)", scenario_name)
     if match:
         return float(match.group(1))
+    return None
+
+
+def extract_combined_param_value(scenario_name: str) -> tuple[float, float] | None:
+    """Extract GHG price and YLL value from combined scenario name.
+
+    Args:
+        scenario_name: e.g. 'ghg_yll_100' (ghg=100, yll=10000)
+
+    Returns:
+        Tuple of (ghg_price, yll_value), or None if pattern doesn't match
+    """
+    if scenario_name == "baseline":
+        return None
+    match = re.match(r"ghg_yll_(\d+)", scenario_name)
+    if match:
+        ghg_price = float(match.group(1))
+        yll_value = ghg_price * 100  # Fixed ratio
+        return (ghg_price, yll_value)
     return None
 
 
@@ -397,7 +433,6 @@ def _extract_ghg_by_food_group_worker(args):
 
 def extract_consumption_data(
     scenarios: list[tuple[float, str, Path]],
-    processing_dir: Path,
     food_to_group: dict,
     cache_path: Path,
     param_name: str = "param_value",
@@ -407,7 +442,6 @@ def extract_consumption_data(
 
     Args:
         scenarios: List of (param_value, scenario_name, network_path) tuples
-        processing_dir: Path to processing directory (for population data)
         food_to_group: Mapping from food to food group
         cache_path: Path to cache file
         param_name: Name for the parameter (used as index name)
@@ -422,7 +456,8 @@ def extract_consumption_data(
         print(f"Loading consumption data from cache: {cache_path}")
         return pd.read_csv(cache_path, index_col=param_name)
 
-    population = load_population(processing_dir)
+    # Load population from first network's embedded metadata
+    population = load_population_from_network(network_paths[0])
     print(f"Total population: {population:,.0f}")
     print(f"Extracting consumption data using {n_workers} workers...")
 
@@ -571,6 +606,324 @@ def extract_ghg_data(
 
 
 # -----------------------------------------------------------------------------
+# Health cost attribution functions
+# -----------------------------------------------------------------------------
+
+
+def _load_health_tables(
+    processing_dir: Path,
+    network: pypsa.Network | None = None,
+) -> tuple[dict, dict, pd.DataFrame, pd.DataFrame, dict]:
+    """Load health data tables from processing directory.
+
+    Args:
+        processing_dir: Path to processing directory
+        network: Optional network to get cluster population from embedded metadata
+
+    Returns:
+        Tuple of (cluster_lookup, cluster_population, risk_breakpoints,
+                  cluster_cause_baseline, tmrel_g_per_day)
+    """
+    health_dir = processing_dir / "health"
+
+    # Country to cluster mapping
+    country_clusters = pd.read_csv(health_dir / "country_clusters.csv")
+    cluster_lookup = dict(
+        zip(country_clusters["country_iso3"], country_clusters["health_cluster"])
+    )
+
+    # Get cluster population from network metadata if available
+    if network is not None:
+        pop_meta = network.meta.get("population")
+        if pop_meta is not None and "health_cluster" in pop_meta:
+            # Convert string keys to int (JSON serialization)
+            cluster_population = {
+                int(k): float(v) for k, v in pop_meta["health_cluster"].items()
+            }
+        else:
+            cluster_population = _load_cluster_population_fallback(
+                health_dir, cluster_lookup
+            )
+    else:
+        cluster_population = _load_cluster_population_fallback(
+            health_dir, cluster_lookup
+        )
+
+    # Risk breakpoints for log(RR) lookup
+    risk_breakpoints = pd.read_csv(health_dir / "risk_breakpoints.csv")
+
+    # Baseline YLL and RR data per (cluster, cause)
+    cluster_cause_baseline = pd.read_csv(health_dir / "cluster_cause_baseline.csv")
+
+    # TMREL values per risk factor
+    tmrel_df = pd.read_csv(health_dir / "derived_tmrel.csv")
+    tmrel_g_per_day = dict(zip(tmrel_df["risk_factor"], tmrel_df["tmrel_g_per_day"]))
+
+    return (
+        cluster_lookup,
+        cluster_population,
+        risk_breakpoints,
+        cluster_cause_baseline,
+        tmrel_g_per_day,
+    )
+
+
+def _load_cluster_population_fallback(
+    health_dir: Path, cluster_lookup: dict
+) -> dict[int, float]:
+    """Fallback: load cluster population from CSV files."""
+    cluster_summary = pd.read_csv(health_dir / "cluster_summary.csv")
+    return {
+        int(k): float(v)
+        for k, v in zip(
+            cluster_summary["health_cluster"], cluster_summary["population_persons"]
+        )
+    }
+
+
+def _interpolate_log_rr(
+    intake: float, breakpoints: pd.DataFrame, risk_factor: str, cause: str
+) -> float:
+    """Interpolate log(RR) from breakpoints for given intake.
+
+    Args:
+        intake: Intake in g/day
+        breakpoints: DataFrame with risk_factor, cause, intake_g_per_day, log_rr
+        risk_factor: Risk factor name
+        cause: Disease cause name
+
+    Returns:
+        Interpolated log(RR) value
+    """
+    mask = (breakpoints["risk_factor"] == risk_factor) & (breakpoints["cause"] == cause)
+    bp = breakpoints.loc[mask].sort_values("intake_g_per_day")
+
+    if bp.empty:
+        return 0.0
+
+    return float(np.interp(intake, bp["intake_g_per_day"], bp["log_rr"]))
+
+
+def _extract_health_by_risk_factor_worker(args):
+    """Worker function to extract health costs attributed to each risk factor.
+
+    Steps:
+    1. Load network and get food group store levels
+    2. Aggregate by cluster to get per-capita intakes (g/day)
+    3. Look up log(RR) for each (cluster, risk_factor, cause)
+    4. Compute excess log(RR) relative to TMREL for proper attribution
+    5. Proportionally allocate YLL based on excess log(RR)
+    6. Sum across clusters and causes, return by risk factor
+    """
+    (
+        network_path,
+        processing_dir,
+        grams_per_mt,
+        days_per_year,
+    ) = args
+
+    # Load network first to access embedded population
+    n = pypsa.Network(network_path)
+
+    # Load health data tables (uses embedded cluster population from network)
+    (
+        cluster_lookup,
+        cluster_population,
+        risk_breakpoints,
+        cluster_cause_baseline,
+        tmrel_g_per_day,
+    ) = _load_health_tables(processing_dir, network=n)
+
+    # Get unique risk factors from breakpoints
+    risk_factors = risk_breakpoints["risk_factor"].unique().tolist()
+
+    # Build risk to causes mapping
+    risk_cause_map = {}
+    for rf in risk_factors:
+        rf_causes = (
+            risk_breakpoints.loc[risk_breakpoints["risk_factor"] == rf, "cause"]
+            .unique()
+            .tolist()
+        )
+        risk_cause_map[rf] = rf_causes
+
+    # Precompute log(RR) at TMREL for each (risk_factor, cause) pair
+    # This is the reference point for computing "excess" risk
+    log_rr_at_tmrel = {}  # (rf, cause) -> log_rr
+    for rf in risk_factors:
+        tmrel_intake = tmrel_g_per_day.get(rf, 0.0)
+        for cause in risk_cause_map.get(rf, []):
+            log_rr_tmrel = _interpolate_log_rr(
+                tmrel_intake, risk_breakpoints, rf, cause
+            )
+            log_rr_at_tmrel[(rf, cause)] = log_rr_tmrel
+
+    # Get snapshot (network already loaded above)
+    snapshot = n.snapshots[-1]
+
+    # Get store levels at the snapshot
+    if snapshot in n.stores_t.e.index:
+        store_levels = n.stores_t.e.loc[snapshot]
+    else:
+        store_levels = pd.Series(dtype=float)
+
+    # 1. Compute cluster intakes from food group stores
+    # Stores with carrier group_{risk_factor} hold consumption
+    cluster_intakes = {}  # (cluster, risk_factor) -> g/day per capita
+
+    for rf in risk_factors:
+        carrier = f"group_{rf}"
+        fg_stores = n.stores[n.stores["carrier"] == carrier]
+
+        if fg_stores.empty:
+            continue
+
+        for store_name in fg_stores.index:
+            level_mt = store_levels.get(store_name, 0.0)
+            if level_mt <= 0:
+                continue
+
+            # Get country from store (format: group_{rf}_{country})
+            parts = store_name.split("_")
+            if len(parts) >= 3:
+                country = parts[-1]
+            else:
+                continue
+
+            cluster = cluster_lookup.get(country)
+            if cluster is None:
+                continue
+
+            # Accumulate total grams per cluster
+            key = (cluster, rf)
+            if key not in cluster_intakes:
+                cluster_intakes[key] = 0.0
+            cluster_intakes[key] += level_mt * grams_per_mt
+
+    # Convert to g/day per capita
+    for (cluster, rf), total_grams in list(cluster_intakes.items()):
+        pop = cluster_population.get(cluster, 0)
+        if pop > 0:
+            cluster_intakes[(cluster, rf)] = total_grams / (days_per_year * pop)
+        else:
+            cluster_intakes[(cluster, rf)] = 0.0
+
+    # 2. Look up log(RR) for each (cluster, risk_factor, cause)
+    log_rr_values = {}  # (cluster, rf, cause) -> log_rr
+
+    for (cluster, rf), intake in cluster_intakes.items():
+        for cause in risk_cause_map.get(rf, []):
+            log_rr = _interpolate_log_rr(intake, risk_breakpoints, rf, cause)
+            log_rr_values[(cluster, rf, cause)] = log_rr
+
+    # 3. Compute attributed YLL using proportional allocation based on EXCESS log(RR)
+    attributed_yll = {}  # rf -> MYLL
+
+    for cluster in cluster_population:
+        cluster_rows = cluster_cause_baseline[
+            cluster_cause_baseline["health_cluster"] == cluster
+        ]
+
+        for _, row in cluster_rows.iterrows():
+            cause = row["cause"]
+
+            # Compute EXCESS log(RR) for each risk factor relative to TMREL
+            # excess = log(RR(x)) - log(RR(tmrel))
+            # For protective foods at TMREL: excess ≈ 0 (no contribution)
+            # For protective foods below TMREL: excess > 0 (contributing to burden)
+            # For harmful foods (TMREL=0): excess = log(RR(x)) - 0 = log(RR(x))
+            excess_contributions = {}
+            for rf in risk_factors:
+                key = (cluster, rf, cause)
+                log_rr_current = log_rr_values.get(key, 0.0)
+                log_rr_tmrel = log_rr_at_tmrel.get((rf, cause), 0.0)
+                # Excess is how much worse than optimal; should be >= 0
+                excess = max(0.0, log_rr_current - log_rr_tmrel)
+                excess_contributions[rf] = excess
+
+            # Total excess log(RR) for weighting
+            total_excess = sum(excess_contributions.values())
+
+            if total_excess <= 0:
+                continue
+
+            # Get actual YLL from the health store (instead of recomputing)
+            # Store naming: yll_{cause}_cluster{cluster:03d}
+            store_name = f"yll_{cause}_cluster{cluster:03d}"
+            yll_myll = store_levels.get(store_name, 0.0)
+
+            # Skip if negligible
+            if yll_myll <= 1e-9:
+                continue
+
+            # Proportionally allocate to risk factors based on excess log(RR)
+            for rf, excess in excess_contributions.items():
+                if excess > 0:
+                    weight = excess / total_excess
+                    if rf not in attributed_yll:
+                        attributed_yll[rf] = 0.0
+                    attributed_yll[rf] += weight * yll_myll
+
+    return pd.Series(attributed_yll, dtype=float)
+
+
+def extract_health_data(
+    scenarios: list[tuple[float, str, Path]],
+    processing_dir: Path,
+    cache_path: Path,
+    param_name: str = "param_value",
+    n_workers: int = 8,
+) -> pd.DataFrame:
+    """Extract health cost attribution by risk factor for all scenarios.
+
+    Args:
+        scenarios: List of (param_value, scenario_name, network_path) tuples
+        processing_dir: Path to processing directory (for health data)
+        cache_path: Path to cache file
+        param_name: Name for the parameter (used as index name)
+        n_workers: Number of parallel workers
+
+    Returns:
+        DataFrame with param_value as index and risk_factors as columns (in MYLL)
+    """
+    network_paths = [f for _, _, f in scenarios]
+
+    if is_cache_valid(cache_path, network_paths):
+        print(f"Loading health data from cache: {cache_path}")
+        return pd.read_csv(cache_path, index_col=param_name)
+
+    print(f"Extracting health data using {n_workers} workers...")
+
+    worker_args = [
+        (network_path, processing_dir, GRAMS_PER_MEGATONNE, DAYS_PER_YEAR)
+        for _, _, network_path in scenarios
+    ]
+    param_values = [pv for pv, _, _ in scenarios]
+
+    health_data = {}
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = {
+            executor.submit(_extract_health_by_risk_factor_worker, args): pv
+            for args, pv in zip(worker_args, param_values)
+        }
+
+        for future in as_completed(futures):
+            param_value = futures[future]
+            health_data[param_value] = future.result()
+            print(f"  Loaded {param_name}={int(param_value)}")
+
+    df = pd.DataFrame(health_data).T.fillna(0)
+    df.index.name = param_name
+    df = df.sort_index()
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(cache_path)
+    print(f"Saved health data to cache: {cache_path}")
+
+    return df
+
+
+# -----------------------------------------------------------------------------
 # Data preparation utilities
 # -----------------------------------------------------------------------------
 
@@ -626,6 +979,103 @@ def assign_food_colors(df: pd.DataFrame) -> dict:
 # -----------------------------------------------------------------------------
 
 
+def set_dual_xaxis_labels(
+    ax: plt.Axes,
+    x_ticks: list[float],
+    ghg_values: list[float],
+    yll_values: list[float],
+    ghg_color: str = "darkgreen",
+    yll_color: str = "darkblue",
+    fontsize: int = 7,
+):
+    """Set up dual-colored x-axis tick labels showing both GHG price and YLL value.
+
+    Args:
+        ax: Matplotlib axes
+        x_ticks: X-axis tick positions
+        ghg_values: GHG price values for each tick
+        yll_values: YLL values for each tick
+        ghg_color: Color for GHG labels
+        yll_color: Color for YLL labels
+        fontsize: Font size for tick labels
+    """
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels([])  # Clear default labels
+
+    # Get axis transform for positioning
+    trans = ax.get_xaxis_transform()
+
+    # Add colored labels below axis
+    for x, ghg, yll in zip(x_ticks, ghg_values, yll_values):
+        # Format values nicely
+        ghg_str = f"{int(ghg)}" if ghg < 1000 else f"{int(ghg/1000)}k"
+        yll_str = f"{int(yll)}" if yll < 1000 else f"{int(yll/1000)}k"
+
+        # GHG label (top, dark green)
+        ax.text(
+            x,
+            -0.02,
+            ghg_str,
+            transform=trans,
+            ha="center",
+            va="top",
+            fontsize=fontsize,
+            color=ghg_color,
+            fontweight="bold",
+        )
+        # YLL label (bottom, dark blue)
+        ax.text(
+            x,
+            -0.08,
+            yll_str,
+            transform=trans,
+            ha="center",
+            va="top",
+            fontsize=fontsize,
+            color=yll_color,
+            fontweight="bold",
+        )
+
+
+def set_dual_xlabel(
+    ax: plt.Axes,
+    ghg_color: str = "darkgreen",
+    yll_color: str = "darkblue",
+    fontsize: int = 8,
+):
+    """Set dual-colored x-axis label for combined GHG/YLL sensitivity.
+
+    Args:
+        ax: Matplotlib axes
+        ghg_color: Color for GHG part
+        yll_color: Color for YLL part
+        fontsize: Font size
+    """
+    # Use a two-line xlabel with colored text
+    ax.set_xlabel("")  # Clear default
+
+    ax.text(
+        0.5,
+        -0.18,
+        "GHG price [USD/tCO2eq]",
+        transform=ax.transAxes,
+        ha="center",
+        va="top",
+        fontsize=fontsize,
+        color=ghg_color,
+    )
+    ax.text(
+        0.5,
+        -0.26,
+        "Health value [USD/YLL]",
+        transform=ax.transAxes,
+        ha="center",
+        va="top",
+        fontsize=fontsize,
+        color=yll_color,
+    )
+
+
 def plot_stacked_sensitivity(
     df: pd.DataFrame,
     colors: dict,
@@ -639,6 +1089,7 @@ def plot_stacked_sensitivity(
     label_skip: set | None = None,
     min_height_for_label: float = 30,
     y_max: float | None = None,
+    pretty_names: dict | None = None,
 ):
     """Create a stacked area plot with logarithmic x-axis.
 
@@ -655,11 +1106,14 @@ def plot_stacked_sensitivity(
         label_skip: Set of group names to skip labeling (optional)
         min_height_for_label: Minimum height to show a label
         y_max: Maximum y-axis value (optional)
+        pretty_names: Custom pretty names dict (falls back to PRETTY_NAMES)
     """
     if label_x_positions is None:
         label_x_positions = {}
     if label_skip is None:
         label_skip = set()
+    if pretty_names is None:
+        pretty_names = PRETTY_NAMES
 
     x_values = df.index.values
     groups = df.columns.tolist()
@@ -732,11 +1186,11 @@ def plot_stacked_sensitivity(
         y_top = y_stacks[i + 1]
         y_pos = (y_bottom[idx] + y_top[idx]) / 2
 
-        pretty_name = PRETTY_NAMES.get(group, group)
+        label_text = pretty_names.get(group, PRETTY_NAMES.get(group, group))
         ax.text(
             x_pos,
             y_pos,
-            pretty_name,
+            label_text,
             ha="center",
             va="center",
             fontsize=label_fontsize,
@@ -783,7 +1237,7 @@ def plot_objective_sensitivity(
     health_value: float | None = None,
     ghg_price: float | None = None,
     label_x_positions: dict | None = None,
-    highlight_cat: str = "Health burden",
+    highlight_cat: str | None = None,
 ):
     """Create stacked area plot for objective breakdown with positive/negative categories.
 
@@ -797,7 +1251,7 @@ def plot_objective_sensitivity(
         health_value: Health value to display in note box
         ghg_price: GHG price to display in note box
         label_x_positions: Manual x-positions for labels (optional)
-        highlight_cat: Category to highlight with hatching
+        highlight_cat: Category to highlight with hatching (None for no highlighting)
     """
     if label_x_positions is None:
         label_x_positions = {}
@@ -857,7 +1311,7 @@ def plot_objective_sensitivity(
             y_smooth_split[neg_name] = y_neg
             purely_neg_cats.append(neg_name)
 
-    if highlight_cat in purely_pos_cats:
+    if highlight_cat is not None and highlight_cat in purely_pos_cats:
         purely_pos_cats.remove(highlight_cat)
         purely_pos_cats.append(highlight_cat)
 

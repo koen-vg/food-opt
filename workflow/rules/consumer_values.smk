@@ -47,7 +47,6 @@ rule plot_consumer_values_comparison:
     input:
         unpack(consumer_values_comparison_inputs),
         consumer_values="results/{name}/consumer_values/values.csv",
-        population="processing/{name}/population.csv",
         food_groups="data/food_groups.csv",
     output:
         consumption_pdf="results/{name}/plots/consumer_values/consumption_comparison.pdf",

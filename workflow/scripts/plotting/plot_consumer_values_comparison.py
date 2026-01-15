@@ -29,6 +29,7 @@ from workflow.scripts.plotting.plot_food_consumption import (
     _select_snapshot,
 )
 from workflow.scripts.plotting.plot_objective_breakdown import compute_system_costs
+from workflow.scripts.population import get_total_population
 
 logger = logging.getLogger(__name__)
 
@@ -50,16 +51,6 @@ SCENARIO_PAIR_ORDER = [
     ("cv_G", "no_cv_G"),
     ("cv_HG", "no_cv_HG"),
 ]
-
-
-def _load_population(population_path: Path) -> float:
-    population_df = pd.read_csv(population_path)
-    if "population" not in population_df.columns:
-        raise ValueError("Population file must contain a 'population' column")
-    total_population = float(population_df["population"].sum())
-    if total_population <= 0.0:
-        raise ValueError("Total population must be positive for per-capita conversion")
-    return total_population
 
 
 def _per_capita_consumption(
@@ -330,7 +321,6 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
     scenarios = list(snakemake.params.scenarios)
-    population_path = Path(snakemake.input.population)
     food_groups_path = Path(snakemake.input.food_groups)
 
     # Create output directories
@@ -340,13 +330,10 @@ def main() -> None:
     food_groups_df = pd.read_csv(food_groups_path)
     food_to_group = food_groups_df.set_index("food")["group"].to_dict()
 
-    # Load population
-    population_total = _load_population(population_path)
-    logger.info("Total population: %.3e", population_total)
-
     # Load networks and compute metrics
     consumption_data = {}
     objective_data = {}
+    population_total: float | None = None
 
     ordered_scenarios: list[str] = []
     if "baseline" in scenarios:
@@ -369,6 +356,11 @@ def main() -> None:
 
         logger.info("Loading network for scenario: %s", scen)
         n = pypsa.Network(network_path)
+
+        # Get population from first network loaded
+        if population_total is None:
+            population_total = get_total_population(n)
+            logger.info("Total population: %.3e", population_total)
 
         label = SCENARIO_LABELS.get(scen, scen)
 

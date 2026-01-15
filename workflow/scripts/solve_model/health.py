@@ -52,6 +52,7 @@ import pypsa
 import xarray as xr
 
 from .. import constants
+from ..population import get_health_cluster_population
 
 logger = logging.getLogger(__name__)
 
@@ -164,12 +165,12 @@ def _add_sos2_with_fallback(
 
 
 def _load_health_data(
+    n: pypsa.Network,
     risk_breakpoints_path: str,
     cluster_cause_path: str,
     cause_log_path: str,
     cluster_summary_path: str,
     clusters_path: str,
-    population_totals_path: str,
 ) -> dict:
     """Load and preprocess all health-related input data.
 
@@ -185,37 +186,15 @@ def _load_health_data(
             int
         )
     cluster_map = pd.read_csv(clusters_path)
-    population_totals = pd.read_csv(population_totals_path)
 
     # Cluster lookups
     cluster_lookup = cluster_map.set_index("country_iso3")["health_cluster"].to_dict()
-    cluster_population_baseline = cluster_summary.set_index("health_cluster")[
-        "population_persons"
-    ].to_dict()
 
     # Cluster-cause metadata (baseline YLL, RR values)
     cluster_cause_metadata = cluster_cause.set_index(["health_cluster", "cause"])
 
-    # Population totals for planning year
-    population_totals = population_totals.dropna(subset=["iso3", "population"]).copy()
-    population_totals["iso3"] = population_totals["iso3"].astype(str).str.upper()
-    population_map = population_totals.set_index("iso3")["population"].to_dict()
-
-    # Compute planning-year population per cluster
-    cluster_population_planning: dict[int, float] = defaultdict(float)
-    for iso3, cluster in cluster_lookup.items():
-        value = float(population_map.get(iso3, 0.0))
-        if value > 0:
-            cluster_population_planning[int(cluster)] += value
-
-    # Use planning population if available, else baseline
-    cluster_population: dict[int, float] = {}
-    for cluster, baseline_pop in cluster_population_baseline.items():
-        planning_pop = cluster_population_planning.get(int(cluster), 0.0)
-        if planning_pop > 0:
-            cluster_population[int(cluster)] = planning_pop
-        else:
-            cluster_population[int(cluster)] = float(baseline_pop)
+    # Get cluster population from network metadata (computed at build time)
+    cluster_population = get_health_cluster_population(n)
 
     # Sort breakpoint tables
     risk_breakpoints = risk_breakpoints.sort_values(
@@ -798,7 +777,6 @@ def add_health_objective(
     cause_log_path: str,
     cluster_summary_path: str,
     clusters_path: str,
-    population_totals_path: str,
     risk_factors: list[str],
     risk_cause_map: dict[str, list[str]],
     solver_name: str,
@@ -826,7 +804,8 @@ def add_health_objective(
     Parameters
     ----------
     n
-        The PyPSA network with health stores already added.
+        The PyPSA network with health stores already added. Population data
+        for health clusters is read from the network metadata.
     risk_breakpoints_path
         Path to CSV with (risk_factor, intake_g_per_day, cause, log_rr).
     cluster_cause_path
@@ -838,10 +817,6 @@ def add_health_objective(
         Path to CSV with cluster metadata.
     clusters_path
         Path to CSV mapping countries to health clusters.
-    population_totals_path
-        Path to CSV with population by country.
-    food_groups_path
-        Path to CSV mapping foods to risk factors.
     risk_factors
         List of risk factors to include (e.g., ['fruits', 'vegetables', ...]).
     risk_cause_map
@@ -855,12 +830,12 @@ def add_health_objective(
 
     # --- Load Data ---
     data = _load_health_data(
+        n,
         risk_breakpoints_path,
         cluster_cause_path,
         cause_log_path,
         cluster_summary_path,
         clusters_path,
-        population_totals_path,
     )
 
     risk_breakpoints = data["risk_breakpoints"]

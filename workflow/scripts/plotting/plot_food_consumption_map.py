@@ -24,6 +24,7 @@ import pypsa
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 from workflow.scripts.plotting.color_utils import categorical_colors
+from workflow.scripts.population import get_health_cluster_population
 
 logger = logging.getLogger(__name__)
 
@@ -442,7 +443,6 @@ def main() -> None:
         raise RuntimeError("This script must be run via Snakemake") from exc
 
     network_path = snakemake.input.network  # type: ignore[attr-defined]
-    population_path = snakemake.input.population  # type: ignore[attr-defined]
     clusters_path = snakemake.input.clusters  # type: ignore[attr-defined]
     regions_path = snakemake.input.regions  # type: ignore[attr-defined]
     food_groups_path = snakemake.input.food_groups  # type: ignore[attr-defined]
@@ -480,8 +480,8 @@ def main() -> None:
     cluster_mass = _aggregate_cluster_group_mass(country_group, iso_to_cluster)
     logger.info("Aggregated to %d clusters", cluster_mass.shape[0])
 
-    population_df = pd.read_csv(population_path)
-    pop_map = _cluster_population(population_df, iso_to_cluster)
+    # Get cluster population from network metadata
+    pop_map = get_health_cluster_population(network)
     population_series = pd.Series(pop_map, dtype=float)
     missing_population = sorted(
         cluster
