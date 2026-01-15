@@ -123,6 +123,9 @@ rule build_model:
         food_group_constraints=lambda w: get_effective_config(w.scenario)[
             "food_groups"
         ]["constraints"],
+        food_group_max_per_capita=lambda w: get_effective_config(w.scenario)[
+            "food_groups"
+        ]["max_per_capita"],
         macronutrients=lambda w: get_effective_config(w.scenario)["macronutrients"],
         diet=lambda w: get_effective_config(w.scenario)["diet"],
         byproducts=lambda w: get_effective_config(w.scenario)["byproducts"],

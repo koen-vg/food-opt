@@ -295,6 +295,22 @@ food_groups:
   # Optional per-group constraints with "min", "max" or "equal" in g/person/day
   constraints: {}
   equal_by_country_source: null
+  # Per-capita consumption caps (g/person/day) applied as e_nom_max on stores.
+  # Values are 2x the observed maximum consumption in GDD dietary intake data.
+  max_per_capita:
+    whole_grains: 390
+    grain: 1383
+    fruits: 999
+    vegetables: 961
+    legumes: 471
+    nuts_seeds: 144
+    starchy_vegetable: 1225
+    oil: 51
+    red_meat: 505
+    poultry: 381
+    dairy: 2864
+    eggs: 214
+    sugar: 145
 
 # --- section: diet ---
 diet:

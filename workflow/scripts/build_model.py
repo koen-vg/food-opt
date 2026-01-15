@@ -633,6 +633,8 @@ if __name__ == "__main__":
         n,
         food_group_list,
         cfg_countries,
+        population,
+        max_per_capita=snakemake.params.food_group_max_per_capita,
         add_slack_for_fixed_consumption=enforce_baseline,
         slack_marginal_cost=validation_slack_cost,
     )

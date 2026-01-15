@@ -86,11 +86,32 @@ def add_food_group_buses_and_loads(
     n: pypsa.Network,
     food_group_list: list,
     countries: list,
+    population: pd.Series,
     *,
+    max_per_capita: dict[str, float] | None = None,
     add_slack_for_fixed_consumption: bool = False,
     slack_marginal_cost: float | None = None,
 ) -> None:
-    """Add carriers, buses, and stores for food groups."""
+    """Add carriers, buses, and stores for food groups.
+
+    Parameters
+    ----------
+    n
+        The PyPSA network.
+    food_group_list
+        List of food groups to add.
+    countries
+        List of country ISO3 codes.
+    population
+        Population per country (indexed by ISO3).
+    max_per_capita
+        Optional per-group consumption caps in g/person/day. Applied as e_nom_max
+        on stores after converting to Mt/year using country population.
+    add_slack_for_fixed_consumption
+        Whether to add slack generators for baseline consumption enforcement.
+    slack_marginal_cost
+        Marginal cost for slack generators.
+    """
 
     countries_index = pd.Index(countries, dtype="object")
 
@@ -100,12 +121,21 @@ def add_food_group_buses_and_loads(
         buses = f"group_{group}_" + countries_index
         carriers = f"group_{group}"
 
+        # Compute e_nom_max from per-capita cap if specified
+        # Convert g/person/day -> Mt/year: cap_g * pop * 365 / 1e12
+        if max_per_capita and group in max_per_capita:
+            cap_g = max_per_capita[group]
+            e_nom_max_values = cap_g * population.loc[countries].values * 365 / 1e12
+        else:
+            e_nom_max_values = np.inf
+
         store_names = "store_" + names
         n.stores.add(
             store_names,
             bus=buses,
             carrier=carriers,
             e_nom_extendable=True,
+            e_nom_max=e_nom_max_values,
             country=countries,
             food_group=group,
         )

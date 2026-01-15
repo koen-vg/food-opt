@@ -549,7 +549,7 @@ properties:
 
   food_groups:
     type: object
-    required: [included, constraints, equal_by_country_source]
+    required: [included, constraints, equal_by_country_source, max_per_capita]
     additionalProperties: false
     properties:
       included:
@@ -577,6 +577,13 @@ properties:
           - string
           - "null"
         description: "CSV path with group/country equality targets (g/person/day)"
+      max_per_capita:
+        type: object
+        patternProperties:
+          "^[a-z0-9_]+$":
+            type: number
+            minimum: 0
+        description: "Per-group maximum consumption caps in g/person/day, applied as e_nom_max on stores"
 
   diet:
     type: object
