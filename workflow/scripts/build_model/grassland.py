@@ -123,6 +123,9 @@ def add_grassland_feed_links(
     pasture_utilization_rate : float, optional
         Fraction of grassland biomass actually consumed by animals, by default 1.0.
     """
+    # Add produce_grassland carrier
+    if "produce_grassland" not in n.carriers.static.index:
+        n.carriers.add("produce_grassland", unit="Mt")
 
     grass_df = grassland.copy()
     grass_df = grass_df[np.isfinite(grass_df["yield"]) & (grass_df["yield"] > 0)]

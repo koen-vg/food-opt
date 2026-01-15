@@ -47,6 +47,11 @@ def add_regional_crop_production_links(
     residue_lookup = residue_lookup or {}
     harvested_area_data = harvested_area_data or {}
 
+    # Add produce carriers for all crops
+    produce_carriers = sorted({f"produce_{crop}" for crop in crop_list})
+    if produce_carriers:
+        n.carriers.add(produce_carriers, unit="Mt")
+
     for crop in crop_list:
         # Get fertilizer N application rate (kg N/ha/year) for this crop
         # If crop not in fertilizer data, default to 0 (no fertilizer requirement)

@@ -93,6 +93,7 @@ def add_primary_resources(
 
     # Add GHG aggregation store and links from individual gases
     # Note: GHG pricing is applied at solve time, not build time
+    n.carriers.add("aggregate_emissions", unit="MtCO2e")
     n.stores.add(
         "store:emission:ghg",
         bus="emission:ghg",
@@ -149,6 +150,8 @@ def add_fertilizer_distribution_links(
     country_list = list(countries)
     if not country_list:
         return
+
+    n.carriers.add("distribute_fertilizer", unit="Mt")
 
     names = [f"distribute:fertilizer:{country}" for country in country_list]
     params: dict[str, object] = {

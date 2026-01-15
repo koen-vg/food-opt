@@ -227,6 +227,11 @@ def add_food_nutrition_links(
             ", ".join(sorted(byproduct_foods)),
         )
 
+    # Add consume carriers for all consumable foods
+    consume_carriers = sorted({f"consume_{food}" for food in consumable_foods})
+    if consume_carriers:
+        n.carriers.add(consume_carriers, unit="Mt")
+
     nutrients = list(nutrition.index.get_level_values("nutrient").unique())
     for food in consumable_foods:
         group_val = food_to_group.get(food, None)

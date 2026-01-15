@@ -43,6 +43,12 @@ def add_food_conversion_links(
     # Filter foods DataFrame to only include configured crops
     foods = foods[foods["crop"].isin(crop_list)].copy()
 
+    # Add pathway carriers for all unique pathways
+    unique_pathways = foods["pathway"].dropna().unique()
+    pathway_carriers = sorted({f"pathway_{str(p).strip()}" for p in unique_pathways})
+    if pathway_carriers:
+        n.carriers.add(pathway_carriers, unit="Mt")
+
     # Load loss/waste data (already validated by prepare_food_loss_waste.py)
     loss_waste_pairs: dict[tuple[str, str], tuple[float, float]] = {}
     for _, row in loss_waste.iterrows():
