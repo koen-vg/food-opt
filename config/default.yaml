@@ -425,11 +425,16 @@ health:
   - vegetables
   - nuts_seeds
   - legumes
-  - fish
   - red_meat
-  - prc_meat
   - whole_grains
-  # - sugar # Has a funky relative risk curve
+  # Fish and processed meat are covered by GBD data, but not modelled
+  # - fish
+  # - prc_meat
+  # GDB has data on sugar-sweetened beverage intake as a risk factor,
+  # from which we can in theory derive added sugar intake risk
+  # factors. The epidemiological evidence for this is, however,
+  # lacking, and so we don't count "sugar" as a risk factor.
+  # - sugar
   # Health outcomes/causes to consider (must be present in IHME GBD data and relative risks)
   causes:
   - CHD              # Coronary/Ischemic Heart Disease
@@ -442,10 +447,10 @@ health:
     vegetables: [CHD, Stroke]
     nuts_seeds: [CHD, T2DM]
     legumes: [CHD]
-    fish: [CHD]
     red_meat: [CHD, Stroke, T2DM, CRC]
-    prc_meat: [CHD, T2DM, CRC]
     whole_grains: [CHD, Stroke, T2DM, CRC]
+    # fish: [CHD]
+    # prc_meat: [CHD, T2DM, CRC]
     # sugar: [CHD, Stroke, T2DM, CRC]
   # Multi-objective clustering settings for grouping countries into health clusters
   clustering:
