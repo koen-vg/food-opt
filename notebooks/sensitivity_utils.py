@@ -176,11 +176,11 @@ def _extract_consumption_calories_worker(args):
 
     totals = {}
     for link_name in links.index:
-        if not link_name.startswith("consume_"):
+        food = links.at[link_name, "food"]
+        if pd.isna(food):
             continue
 
-        food = str(links.at[link_name, "food"])
-        group_name = food_to_group.get(food)
+        group_name = food_to_group.get(str(food))
         if group_name is None:
             continue
 
@@ -188,7 +188,7 @@ def _extract_consumption_calories_worker(args):
         for leg in legs:
             column = f"bus{leg}"
             bus_value = links.at[link_name, column]
-            if pd.notna(bus_value) and str(bus_value).startswith("cal_"):
+            if pd.notna(bus_value) and str(bus_value).startswith("nutrient:cal:"):
                 kcal_leg = leg
                 break
 
@@ -223,9 +223,9 @@ def _objective_category(n: pypsa.Network, component: str, **_) -> pd.Series:
         for name in index:
             name_str = str(name)
             carrier = str(carriers.get(name, "")) if not carriers.empty else ""
-            if name_str.startswith("biomass_for_energy_"):
+            if name_str.startswith("biomass:"):
                 categories.append("Biomass exports")
-            elif "slack" in name_str or "slack" in carrier:
+            elif name_str.startswith("slack:"):
                 categories.append("Slack penalties")
             elif carrier == "fertilizer":
                 categories.append("Fertilizer (synthetic)")
@@ -243,17 +243,17 @@ def _objective_category(n: pypsa.Network, component: str, **_) -> pd.Series:
         categories = []
         for name in index:
             name_str = str(name)
-            if name_str.startswith(("crop_to_biomass_", "byproduct_to_biomass_")):
+            if name_str.startswith("biomass:"):
                 categories.append("Biomass routing")
                 continue
-            categories.append(mapping.get(name_str.split("_", 1)[0], "Other links"))
+            categories.append(mapping.get(name_str.split(":", 1)[0], "Other links"))
         return pd.Series(categories, index=index, name="category")
 
     if component == "Store":
         carriers = static["carrier"].astype(str)
         categories = []
-        for name, carrier in zip(index, carriers):
-            if carrier == "ghg" or str(name) == "ghg":
+        for _name, carrier in zip(index, carriers):
+            if carrier == "ghg":
                 categories.append("GHG storage")
             elif carrier.startswith("yll_"):
                 categories.append("Health burden")
@@ -324,7 +324,11 @@ def _extract_objective_breakdown_worker(args):
 
 def build_ghg_links_dataframe(n, p0, ch4_gwp, n2o_gwp):
     """Build DataFrame of links with flows and GHG emissions."""
-    gwp = {"co2": 1.0, "ch4": ch4_gwp * 1e-6, "n2o": n2o_gwp * 1e-6}
+    gwp = {
+        "emission:co2": 1.0,
+        "emission:ch4": ch4_gwp * 1e-6,
+        "emission:n2o": n2o_gwp * 1e-6,
+    }
 
     links = n.links.copy()
     links["link_name"] = links.index
@@ -350,7 +354,10 @@ def build_ghg_links_dataframe(n, p0, ch4_gwp, n2o_gwp):
             mask = (emission_bus == gas) & (eff > 0)
             links.loc[mask, "emissions_co2e"] += eff[mask] * gwp_factor
 
-    return links[["link_name", "bus0", "bus1", "flow", "efficiency", "emissions_co2e"]]
+    result_cols = ["link_name", "bus0", "bus1", "flow", "efficiency", "emissions_co2e"]
+    if "food" in links.columns:
+        result_cols.append("food")
+    return links[result_cols]
 
 
 def solve_emission_intensities(links_df):
@@ -407,18 +414,16 @@ def _extract_ghg_by_food_group_worker(args):
 
     bus_intensities = solve_emission_intensities(links_df)
 
-    consume_mask = links_df["link_name"].str.startswith("consume_")
-    consume_df = links_df.loc[consume_mask, ["link_name", "bus0", "flow"]].copy()
+    if "food" not in links_df.columns:
+        return pd.Series(dtype=float)
+
+    consume_df = links_df[links_df["food"].notna()].copy()
     consume_df["intensity"] = consume_df["bus0"].map(bus_intensities).fillna(0.0)
     consume_df["ghg_mtco2e"] = consume_df["flow"] * consume_df["intensity"]
 
     totals = {}
     for _, row in consume_df.iterrows():
-        link_name = row["link_name"]
-        parts = str(link_name).split("_")
-        if len(parts) < 3:
-            continue
-        food = "_".join(parts[1:-1])
+        food = row["food"]
         group = food_to_group.get(food)
         if group:
             totals[group] = totals.get(group, 0.0) + row["ghg_mtco2e"]
@@ -783,18 +788,14 @@ def _extract_health_by_risk_factor_worker(args):
             if level_mt <= 0:
                 continue
 
-            # Get country from store (format: group_{rf}_{country})
-            parts = store_name.split("_")
-            if len(parts) >= 3:
-                country = parts[-1]
-            else:
+            country = fg_stores.at[store_name, "country"]
+            if pd.isna(country):
                 continue
 
             cluster = cluster_lookup.get(country)
             if cluster is None:
                 continue
 
-            # Accumulate total grams per cluster
             key = (cluster, rf)
             if key not in cluster_intakes:
                 cluster_intakes[key] = 0.0
@@ -826,6 +827,9 @@ def _extract_health_by_risk_factor_worker(args):
 
         for _, row in cluster_rows.iterrows():
             cause = row["cause"]
+            rr_ref = np.exp(row["log_rr_total_ref"])
+            rr_baseline = np.exp(row["log_rr_total_baseline"])
+            yll_total = row["yll_total"]
 
             # Compute EXCESS log(RR) for each risk factor relative to TMREL
             # excess = log(RR(x)) - log(RR(tmrel))
@@ -847,13 +851,24 @@ def _extract_health_by_risk_factor_worker(args):
             if total_excess <= 0:
                 continue
 
-            # Get actual YLL from the health store (instead of recomputing)
-            # Store naming: yll_{cause}_cluster{cluster:03d}
-            store_name = f"yll_{cause}_cluster{cluster:03d}"
-            yll_myll = store_levels.get(store_name, 0.0)
+            # Compute actual RR and YLL for this (cluster, cause)
+            log_rr_total = sum(
+                log_rr_values.get((cluster, rf, cause), 0.0) for rf in risk_factors
+            )
+            rr_total = np.exp(log_rr_total)
 
-            # Skip if negligible
-            if yll_myll <= 1e-9:
+            # YLL = (RR - RR_ref) * (yll_total / RR_baseline) * 1e-6
+            # This matches the health module formula
+            yll_myll = (rr_total - rr_ref) * (yll_total / rr_baseline) * 1e-6
+
+            # Alternative: read actual YLL from health stores instead of recomputing.
+            # This gives totals that match the solver exactly, but the formula-based
+            # approach above is more transparent and matches the documented methodology.
+            # store_name = f"yll_{cause}_cluster{cluster:03d}"
+            # yll_myll = store_levels.get(store_name, 0.0)
+
+            # Skip if negligible or negative (shouldn't happen but be safe)
+            if yll_myll <= 0:
                 continue
 
             # Proportionally allocate to risk factors based on excess log(RR)
