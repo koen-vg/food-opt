@@ -233,7 +233,7 @@ def _build_store_to_cluster_map(
     Parameters
     ----------
     stores_df
-        DataFrame of stores with 'carrier' and 'country' columns.
+        DataFrame of stores with 'food_group' and 'country' columns.
     risk_factors
         List of GBD risk factors (e.g., ['fruits', 'vegetables', ...]).
     cluster_lookup
@@ -247,35 +247,36 @@ def _build_store_to_cluster_map(
         Columns: store_name, risk_factor, country, cluster, coeff.
     """
     # Filter for food group stores matching risk factors
-    # Carrier format: "group_{risk_factor}"
-    risk_carriers = {f"group_{rf}" for rf in risk_factors}
-    fg_stores = stores_df[stores_df["carrier"].isin(risk_carriers)].copy()
+    fg_stores = stores_df[stores_df["food_group"].isin(risk_factors)].copy()
 
     if fg_stores.empty:
         return pd.DataFrame()
 
-    # Extract risk factor from carrier
-    fg_stores["risk_factor"] = fg_stores["carrier"].str.replace(
-        "group_", "", regex=False
-    )
-
-    # Build mapping DataFrame
+    # Build mapping DataFrame using food_group column directly
     df = pd.DataFrame(
         {
             "store_name": fg_stores.index,
-            "risk_factor": fg_stores["risk_factor"].values,
+            "risk_factor": fg_stores["food_group"].values,
             "country": fg_stores["country"].values,
         }
     )
 
-    # Map to cluster
+    # Map to cluster - fail if any countries are unmapped
     df["cluster"] = df["country"].map(cluster_lookup)
-    df = df.dropna(subset=["cluster"])
+    unmapped = df[df["cluster"].isna()]["country"].unique()
+    if len(unmapped) > 0:
+        raise ValueError(f"Countries not mapped to health clusters: {sorted(unmapped)}")
     df["cluster"] = df["cluster"].astype(int)
 
-    # Get cluster population and compute per-capita coefficient
+    # Get cluster population - fail if any clusters have zero/missing population
     df["population"] = df["cluster"].map(cluster_population)
-    df = df[df["population"] > 0]
+    zero_pop_clusters = df[df["population"].isna() | (df["population"] <= 0)][
+        "cluster"
+    ].unique()
+    if len(zero_pop_clusters) > 0:
+        raise ValueError(
+            f"Health clusters with zero or missing population: {sorted(zero_pop_clusters)}"
+        )
 
     # Per-capita coefficient: grams/megatonne / (365 * cluster_population)
     df["coeff"] = constants.GRAMS_PER_MEGATONNE / (365.0 * df["population"])
@@ -495,12 +496,21 @@ def _add_stage1_constraints(
             log_rr_frames,
             keys=cluster_risk_index,
             names=["cluster_risk", "intake_step"],
-        ).fillna(0.0)
+        )
+
+        # Check for missing log_rr values - these would silently zero out health effects
+        if combined_log_rr.isna().any().any():
+            missing = combined_log_rr[combined_log_rr.isna().any(axis=1)]
+            raise ValueError(
+                f"Missing log_rr values in risk breakpoints for {len(missing)} "
+                f"(cluster_risk, intake_step) combinations; first few: "
+                f"{list(missing.index[:5])}"
+            )
 
         # Convert to DataArray: (cluster_risk, intake_step, cause)
         s_log = combined_log_rr.stack()
         s_log.index.names = ["cluster_risk", "intake_step", "cause"]
-        da_log = xr.DataArray.from_series(s_log).fillna(0.0)
+        da_log = xr.DataArray.from_series(s_log)
 
         # log(RR_{c,r,d}) = Σ_k λ_k log(RR_{r,d}(x_k))
         contrib = (lambda_var * da_log).sum("intake_step")
@@ -698,6 +708,13 @@ def _add_stage2_constraints(
             data = cluster_cause_data[(cluster, cause)]
             lambda_total = lambda_var.sel(cluster_cause=label)
 
+            # Verify Stage 1 produced log_rr totals for this (cluster, cause) pair
+            if (cluster, cause) not in log_rr_totals:
+                raise ValueError(
+                    f"No log_rr total from Stage 1 for cluster {cluster}, cause {cause}. "
+                    f"This indicates no risk factors were processed for this cluster. "
+                    f"Check that food group stores exist and map to health clusters."
+                )
             total_expr = log_rr_totals[(cluster, cause)]
             cause_bp = data["cause_bp"]
 
@@ -719,6 +736,11 @@ def _add_stage2_constraints(
             rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total_step")
 
             # Get store name
+            if (cluster, cause) not in health_stores.index:
+                raise ValueError(
+                    f"No YLL store found for cluster {cluster}, cause {cause}. "
+                    f"Check that health stores were created during model build."
+                )
             store_name = health_stores.loc[(cluster, cause), "name"]
 
             if data["yll_total"] <= 0:
