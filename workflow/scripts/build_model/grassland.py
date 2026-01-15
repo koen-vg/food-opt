@@ -222,11 +222,11 @@ def add_grassland_feed_links(
         if work.empty:
             return False
         work["name"] = work.apply(
-            lambda r: f"{name_prefix}_{r['region']}_class{int(r['resource_class'])}",
+            lambda r: f"{name_prefix}:{r['region']}_c{int(r['resource_class'])}",
             axis=1,
         )
         work["bus0"] = work.apply(bus0_builder, axis=1)
-        work["bus1"] = work["country"].apply(lambda c: f"feed_ruminant_grassland_{c}")
+        work["bus1"] = work["country"].apply(lambda c: f"feed:ruminant_grassland:{c}")
 
         available_mha = work["available_area"].to_numpy() / HA_PER_MHA
 
@@ -245,19 +245,24 @@ def add_grassland_feed_links(
             marginal_cost * efficiencies * MEGATONNE_TO_TONNE * USD_TO_BNUSD
         )
 
+        # Index by name for proper alignment with PyPSA component names
+        work_indexed = work.set_index("name")
         params = {
-            "carrier": "feed_ruminant_grassland",
-            "bus0": work["bus0"].tolist(),
-            "bus1": work["bus1"].tolist(),
+            "carrier": "produce_grassland",
+            "bus0": work_indexed["bus0"],
+            "bus1": work_indexed["bus1"],
             "efficiency": efficiencies,
             "p_nom_max": available_mha,
             "p_nom_extendable": not use_actual_production,
             "marginal_cost": cost_per_mha_bnusd,
+            "region": work_indexed["region"],
+            "resource_class": work_indexed["resource_class"],
+            "country": work_indexed["country"],
         }
         if use_actual_production:
             params["p_nom"] = available_mha
 
-        n.links.add(work["name"].tolist(), **params)
+        n.links.add(work_indexed.index, **params)
         return True
 
     link_added = False
@@ -267,8 +272,8 @@ def add_grassland_feed_links(
     # optimisation is unconstrained.
     link_added |= _add_links_for_frame(
         cropland_frame,
-        "grassland",
-        lambda r: f"land_pool_{r['region']}_class{int(r['resource_class'])}_r",
+        "produce:grassland",
+        lambda r: f"land:pool:{r['region']}_c{int(r['resource_class'])}_r",
     )
 
     if marginal_frame is not None and not marginal_frame.empty:
@@ -276,8 +281,8 @@ def add_grassland_feed_links(
         # grazing can expand without reducing cropland-suitable land.
         link_added |= _add_links_for_frame(
             marginal_frame,
-            "grassland_marginal",
-            lambda r: f"land_marginal_{r['region']}_class{int(r['resource_class'])}",
+            "produce:grassland_marginal",
+            lambda r: f"land:marginal:{r['region']}_c{int(r['resource_class'])}",
         )
 
     if not link_added:

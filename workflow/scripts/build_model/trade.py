@@ -144,7 +144,7 @@ def _add_trade_hubs_and_links(
     for item in tradable_items:
         item_label = str(item)
         for h in hub_ids:
-            hub_bus_names.append(f"{hub_name_prefix}_{h}_{item_label}")
+            hub_bus_names.append(f"{hub_name_prefix}:{h}_{item_label}")
             hub_bus_carriers.append(f"{carrier_prefix}{item_label}")
 
     if hub_bus_names:
@@ -180,15 +180,19 @@ def _add_trade_hubs_and_links(
                 hub_idx = country_to_hub[c]
                 cost = country_to_dist_km[c] * item_cost
 
-                country_bus = f"{bus_prefix}{item_label}_{c}"
-                hub_bus = f"{hub_name_prefix}_{hub_idx}_{item_label}"
+                country_bus = f"{bus_prefix}:{item_label}:{c}"
+                hub_bus = f"{hub_name_prefix}:{hub_idx}_{item_label}"
 
-                link_names.append(f"{link_name_prefix}_{item_label}_{c}_hub{hub_idx}")
+                link_names.append(
+                    f"{link_name_prefix}:{item_label}:{c}_to_hub{hub_idx}"
+                )
                 link_bus0.append(country_bus)
                 link_bus1.append(hub_bus)
                 link_costs.append(cost)
 
-                link_names.append(f"{link_name_prefix}_{item_label}_hub{hub_idx}_{c}")
+                link_names.append(
+                    f"{link_name_prefix}:{item_label}:hub{hub_idx}_to_{c}"
+                )
                 link_bus0.append(hub_bus)
                 link_bus1.append(country_bus)
                 link_costs.append(cost)
@@ -221,10 +225,10 @@ def _add_trade_hubs_and_links(
                 item_cost = item_costs[item_label]
                 for i, j, dist in zip(ii, jj, dists_km):
                     hub_link_names.append(
-                        f"{link_name_prefix}_{item_label}_hub{i}_to_hub{j}"
+                        f"{link_name_prefix}:{item_label}:hub{i}_to_hub{j}"
                     )
-                    hub_link_bus0.append(f"{hub_name_prefix}_{i}_{item_label}")
-                    hub_link_bus1.append(f"{hub_name_prefix}_{j}_{item_label}")
+                    hub_link_bus0.append(f"{hub_name_prefix}:{i}_{item_label}")
+                    hub_link_bus1.append(f"{hub_name_prefix}:{j}_{item_label}")
                     hub_link_costs.append(float(dist) * item_cost)
 
         if hub_link_names:
@@ -258,9 +262,9 @@ def add_crop_trade_hubs_and_links(
         default_cost_key="crop_default_trade_cost_per_km",
         category_item_key="crops",
         non_tradable_key="non_tradable_crops",
-        bus_prefix="crop_",
+        bus_prefix="crop",
         carrier_prefix="crop_",
-        hub_name_prefix="hub",
+        hub_name_prefix="hub:crop",
         link_name_prefix="trade",
         log_label="crop",
     )
@@ -287,9 +291,9 @@ def add_food_trade_hubs_and_links(
         default_cost_key="food_default_trade_cost_per_km",
         category_item_key="foods",
         non_tradable_key="non_tradable_foods",
-        bus_prefix="food_",
+        bus_prefix="food",
         carrier_prefix="food_",
-        hub_name_prefix="hub_food",
+        hub_name_prefix="hub:food",
         link_name_prefix="trade_food",
         log_label="food",
     )
@@ -333,9 +337,9 @@ def add_feed_trade_hubs_and_links(
         default_cost_key="feed_default_trade_cost_per_km",
         category_item_key="feeds",
         non_tradable_key="non_tradable_feeds",
-        bus_prefix="feed_",
+        bus_prefix="feed",
         carrier_prefix="feed_",
-        hub_name_prefix="hub_feed",
+        hub_name_prefix="hub:feed",
         link_name_prefix="trade_feed",
         log_label="feed",
     )

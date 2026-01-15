@@ -51,7 +51,13 @@ def add_land_components(
         return
 
     # Ensure carriers exist before adding components
-    for carrier_name in ("land", "land_existing", "land_new"):
+    for carrier_name in (
+        "land",
+        "land_existing",
+        "land_new",
+        "land_use",
+        "land_conversion",
+    ):
         if carrier_name not in n.carriers.static.index:
             n.carriers.add(carrier_name, unit="Mha")
 
@@ -70,26 +76,27 @@ def add_land_components(
     land_index_df["baseline_area_ha"] = baseline_series.to_numpy()
     land_index_df["expansion_area_ha"] = expansion_series.to_numpy()
 
+    # Build bus names using ':' delimiter
     land_index_df["pool_bus"] = (
-        "land_pool_"
+        "land:pool:"
         + land_index_df["region"].astype(str)
-        + "_class"
+        + "_c"
         + land_index_df["resource_class"].astype(str)
         + "_"
         + land_index_df["water_supply"].astype(str)
     )
     land_index_df["existing_bus"] = (
-        "land_existing_"
+        "land:existing:"
         + land_index_df["region"].astype(str)
-        + "_class"
+        + "_c"
         + land_index_df["resource_class"].astype(str)
         + "_"
         + land_index_df["water_supply"].astype(str)
     )
     land_index_df["new_bus"] = (
-        "land_new_"
+        "land:new:"
         + land_index_df["region"].astype(str)
-        + "_class"
+        + "_c"
         + land_index_df["resource_class"].astype(str)
         + "_"
         + land_index_df["water_supply"].astype(str)
@@ -112,41 +119,49 @@ def add_land_components(
             return
 
     pool_bus_names = land_index_df["pool_bus"].tolist()
-    n.buses.add(pool_bus_names, carrier=["land"] * len(pool_bus_names))
+    pool_regions = land_index_df["region"].tolist()
+    n.buses.add(pool_bus_names, carrier="land", region=pool_regions)
 
     baseline_rows = land_index_df[land_index_df["baseline_area_ha"] > 0].copy()
     if not baseline_rows.empty:
         n.buses.add(
             baseline_rows["existing_bus"].tolist(),
-            carrier=["land_existing"] * len(baseline_rows),
+            carrier="land_existing",
+            region=baseline_rows["region"].tolist(),
         )
 
     if not baseline_rows.empty:
         existing_gen_names = [
-            f"land_existing_supply_{row.region}_class{int(row.resource_class)}_{row.water_supply}"
+            f"supply:land_existing:{row.region}_c{int(row.resource_class)}_{row.water_supply}"
             for row in baseline_rows.itertuples(index=False)
         ]
         baseline_mha = baseline_rows["baseline_area_ha"].to_numpy() / 1e6
         n.generators.add(
             existing_gen_names,
             bus=baseline_rows["existing_bus"].tolist(),
-            carrier=["land_existing"] * len(existing_gen_names),
+            carrier="land_existing",
             p_nom=baseline_mha,
             p_nom_extendable=False,
             marginal_cost=0.0,
+            region=baseline_rows["region"].tolist(),
+            resource_class=baseline_rows["resource_class"].tolist(),
+            water_supply=baseline_rows["water_supply"].tolist(),
         )
         existing_link_names = [
-            f"use_existing_land_{row.region}_class{int(row.resource_class)}_{row.water_supply}"
+            f"use:existing_land:{row.region}_c{int(row.resource_class)}_{row.water_supply}"
             for row in baseline_rows.itertuples(index=False)
         ]
         n.links.add(
             existing_link_names,
-            carrier="land_existing",
+            carrier="land_use",
             bus0=baseline_rows["existing_bus"].tolist(),
             bus1=baseline_rows["pool_bus"].tolist(),
             efficiency=1.0,
             p_nom=baseline_mha,
             p_nom_extendable=False,
+            region=baseline_rows["region"].tolist(),
+            resource_class=baseline_rows["resource_class"].tolist(),
+            water_supply=baseline_rows["water_supply"].tolist(),
         )
 
     if luc_lef_lookup:
@@ -171,12 +186,13 @@ def add_land_components(
     if not expansion_rows.empty:
         n.buses.add(
             expansion_rows["new_bus"].tolist(),
-            carrier=["land_new"] * len(expansion_rows),
+            carrier="land_new",
+            region=expansion_rows["region"].tolist(),
         )
 
     if not expansion_rows.empty:
         new_gen_names = [
-            f"land_new_supply_{row.region}_class{int(row.resource_class)}_{row.water_supply}"
+            f"supply:land_new:{row.region}_c{int(row.resource_class)}_{row.water_supply}"
             for row in expansion_rows.itertuples(index=False)
         ]
         expansion_cap_mha = (
@@ -185,22 +201,25 @@ def add_land_components(
         n.generators.add(
             new_gen_names,
             bus=expansion_rows["new_bus"].tolist(),
-            carrier=["land_new"] * len(new_gen_names),
+            carrier="land_new",
             p_nom_extendable=True,
             p_nom_max=expansion_cap_mha,
             marginal_cost=0.0,
+            region=expansion_rows["region"].tolist(),
+            resource_class=expansion_rows["resource_class"].tolist(),
+            water_supply=expansion_rows["water_supply"].tolist(),
         )
         new_link_names = [
-            f"convert_new_land_{row.region}_class{int(row.resource_class)}_{row.water_supply}"
+            f"convert:new_land:{row.region}_c{int(row.resource_class)}_{row.water_supply}"
             for row in expansion_rows.itertuples(index=False)
         ]
         n.links.add(
             new_link_names,
-            carrier="land_new",
+            carrier="land_conversion",
             bus0=expansion_rows["new_bus"].tolist(),
             bus1=expansion_rows["pool_bus"].tolist(),
             efficiency=1.0,
-            bus2="co2",
+            bus2="emission:co2",
             efficiency2=(
                 expansion_rows["luc_efficiency"].to_numpy()
                 * 1e6
@@ -208,6 +227,9 @@ def add_land_components(
             ),
             p_nom_extendable=True,
             p_nom_max=expansion_cap_mha,
+            region=expansion_rows["region"].tolist(),
+            resource_class=expansion_rows["resource_class"].tolist(),
+            water_supply=expansion_rows["water_supply"].tolist(),
         )
 
     if enable_land_slack:

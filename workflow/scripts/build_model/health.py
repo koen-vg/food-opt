@@ -85,17 +85,18 @@ def add_health_stores(
 
     # Create one bus per cluster
     unique_clusters = sorted(cluster_summary["health_cluster"].unique())
-    cluster_buses = [f"health_cluster_{cluster:03d}" for cluster in unique_clusters]
-    n.buses.add(cluster_buses, carrier="health")
+    cluster_buses = [f"health:cluster:{cluster:03d}" for cluster in unique_clusters]
+    n.buses.add(cluster_buses, carrier="health", health_cluster=unique_clusters)
 
     # Add one generator per cluster to supply YLL (satisfies bus balance)
-    gen_names = [f"gen_health_cluster_{cluster:03d}" for cluster in unique_clusters]
+    gen_names = [f"supply:health:cluster{cluster:03d}" for cluster in unique_clusters]
     n.generators.add(
         gen_names,
         bus=cluster_buses,
         carrier="health",
         p_nom_extendable=True,
         marginal_cost=0,
+        health_cluster=unique_clusters,
     )
 
     # Build stores from the cluster_cause table so we retain per-cause metadata
@@ -112,10 +113,10 @@ def add_health_stores(
     cause_names = filtered["cause"].astype(str)
 
     store_names = [
-        f"yll_{cause}_cluster{cluster:03d}"
+        f"store:yll:{cause}:cluster{cluster:03d}"
         for cause, cluster in zip(cause_names, clusters)
     ]
-    store_buses = [f"health_cluster_{cluster:03d}" for cluster in clusters]
+    store_buses = [f"health:cluster:{cluster:03d}" for cluster in clusters]
     carriers = [f"yll_{cause}" for cause in cause_names]
 
     n.stores.add(

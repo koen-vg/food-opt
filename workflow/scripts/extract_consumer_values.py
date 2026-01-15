@@ -11,7 +11,7 @@ replicates consumer preferences.
 
 Expects a solved network with:
 - validation.enforce_gdd_baseline=True (fixed food group consumption)
-- Global constraints named: food_group_equal_{group}_store_{group}_{country}
+- Global constraints with food_group and country columns set
 """
 
 import logging
@@ -22,38 +22,6 @@ import pypsa
 from workflow.scripts.logging_config import setup_script_logging
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_constraint_name(name: str) -> tuple[str, str] | None:
-    """Parse constraint name to extract group and country.
-
-    Constraint names follow: food_group_equal_{group}_store_{group}_{country}
-    where {group} may contain underscores (e.g., nuts_seeds).
-    """
-    prefix = "food_group_equal_"
-    if not name.startswith(prefix):
-        return None
-
-    remainder = name[len(prefix) :]
-
-    # Find "_store_" which separates the two occurrences of {group}
-    store_idx = remainder.find("_store_")
-    if store_idx == -1:
-        return None
-
-    group = remainder[:store_idx]
-
-    # After "_store_{group}_" comes the country code (3 uppercase letters)
-    after_store = remainder[store_idx + len("_store_") :]
-    expected_prefix = f"{group}_"
-    if not after_store.startswith(expected_prefix):
-        return None
-
-    country = after_store[len(expected_prefix) :]
-    if len(country) != 3 or not country.isupper():
-        return None
-
-    return group, country
 
 
 def extract_consumer_values(n: pypsa.Network) -> pd.DataFrame:
@@ -71,10 +39,12 @@ def extract_consumer_values(n: pypsa.Network) -> pd.DataFrame:
         adjustment_bnusd_per_mt. The adjustment column is the value with
         sign flipped for direct use as a marginal cost incentive.
     """
-    gc_df = n.global_constraints
+    gc_df = n.global_constraints.static
 
-    # Filter for food group equality constraints
-    food_group_constraints = gc_df[gc_df.index.str.startswith("food_group_equal_")]
+    # Filter to food group equality constraints using the food_group column
+    food_group_constraints = gc_df[
+        gc_df["food_group"].notna() & gc_df.index.str.startswith("food_group_equal_")
+    ]
 
     if food_group_constraints.empty:
         raise ValueError(
@@ -82,40 +52,21 @@ def extract_consumer_values(n: pypsa.Network) -> pd.DataFrame:
             "Ensure the model was solved with validation.enforce_gdd_baseline=true"
         )
 
-    records = []
-    for name, row in food_group_constraints.iterrows():
-        # Parse constraint name: food_group_equal_{group}_store_{group}_{country}
-        parsed = _parse_constraint_name(str(name))
-        if parsed is None:
-            logger.warning("Could not parse constraint name: %s", name)
-            continue
+    # Use columns to get group and country - no name parsing needed
+    groups = food_group_constraints["food_group"].astype(str)
+    countries = food_group_constraints["country"].astype(str).str.upper()
+    duals = food_group_constraints["mu"].fillna(0.0).astype(float)
 
-        group, country = parsed
-
-        # Extract dual value (shadow price)
-        # Units: bnUSD/Mt (model internal units)
-        dual = float(row["mu"]) if "mu" in row.index else 0.0
-
-        records.append(
-            {
-                "group": group,
-                "country": country,
-                "value_bnusd_per_mt": dual,
-            }
-        )
-
-    if not records:
-        raise ValueError(
-            "No valid food group constraints could be parsed. "
-            f"Found constraints: {list(food_group_constraints.index[:5])}"
-        )
-
-    df = pd.DataFrame.from_records(records)
-    df["adjustment_bnusd_per_mt"] = -df["value_bnusd_per_mt"]
-    logger.info(
-        "Extracted consumer values for %d (group, country) pairs",
-        len(df),
+    df = pd.DataFrame(
+        {
+            "group": groups.values,
+            "country": countries.values,
+            "value_bnusd_per_mt": duals.values,
+            "adjustment_bnusd_per_mt": -duals.values,
+        }
     )
+
+    logger.info("Extracted consumer values for %d (group, country) pairs", len(df))
     return df
 
 

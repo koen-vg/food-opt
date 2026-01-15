@@ -32,38 +32,6 @@ from workflow.scripts.logging_config import setup_script_logging
 pypsa.options.api.new_components_api = True
 
 
-def _parse_constraint_name(name: str) -> tuple[str, str] | None:
-    """Parse constraint name to extract group and country.
-
-    Constraint names follow: food_group_equal_{group}_store_{group}_{country}
-    where {group} may contain underscores (e.g., nuts_seeds).
-    """
-    prefix = "food_group_equal_"
-    if not name.startswith(prefix):
-        return None
-
-    remainder = name[len(prefix) :]
-
-    # Find "_store_" which separates the two occurrences of {group}
-    store_idx = remainder.find("_store_")
-    if store_idx == -1:
-        return None
-
-    group = remainder[:store_idx]
-
-    # After "_store_{group}_" comes the country code (3 uppercase letters)
-    after_store = remainder[store_idx + len("_store_") :]
-    expected_prefix = f"{group}_"
-    if not after_store.startswith(expected_prefix):
-        return None
-
-    country = after_store[len(expected_prefix) :]
-    if len(country) != 3 or not country.isupper():
-        return None
-
-    return group, country
-
-
 def extract_optimal_taxes(n: pypsa.Network) -> pd.DataFrame:
     """Extract optimal taxes from food group equality constraint duals.
 
@@ -81,7 +49,11 @@ def extract_optimal_taxes(n: pypsa.Network) -> pd.DataFrame:
         negative values indicate subsidies (encourage consumption).
     """
     gc_df = n.global_constraints.static
-    food_group_constraints = gc_df[gc_df.index.str.startswith("food_group_equal_")]
+
+    # Filter to food group equality constraints using the food_group column
+    food_group_constraints = gc_df[
+        gc_df["food_group"].notna() & gc_df.index.str.startswith("food_group_equal_")
+    ]
 
     if food_group_constraints.empty:
         raise ValueError(
@@ -89,44 +61,27 @@ def extract_optimal_taxes(n: pypsa.Network) -> pd.DataFrame:
             "Ensure the model was solved with fixed consumption constraints."
         )
 
-    records = []
-    for name, row in food_group_constraints.iterrows():
-        parsed = _parse_constraint_name(str(name))
-        if parsed is None:
-            logger.warning("Could not parse constraint name: %s", name)
-            continue
+    # Use columns to get group and country - no name parsing needed
+    groups = food_group_constraints["food_group"].astype(str)
+    countries = food_group_constraints["country"].astype(str).str.upper()
+    duals = food_group_constraints["mu"].fillna(0.0).astype(float)
 
-        group, country = parsed
+    # Tax = -dual
+    # - If dual > 0: consumption is costly to production → need subsidy (tax < 0)
+    # - If dual < 0: consumption saves production cost → need tax (tax > 0)
+    taxes_bnusd_per_mt = -duals
 
-        # Extract dual value (shadow price)
-        # Units: bnUSD/Mt (model internal units)
-        dual = float(row["mu"]) if "mu" in row.index else 0.0
+    # Unit conversion: bnUSD/Mt = 1e9 USD / 1e9 kg = USD/kg
+    df = pd.DataFrame(
+        {
+            "group": groups.values,
+            "country": countries.values,
+            "tax_bnusd_per_mt": taxes_bnusd_per_mt.values,
+            "tax_usd_per_kg": taxes_bnusd_per_mt.values,
+            "adjustment_bnusd_per_mt": taxes_bnusd_per_mt.values,
+        }
+    )
 
-        # Tax = -dual
-        # - If dual > 0: consumption is costly to production → need subsidy (tax < 0)
-        # - If dual < 0: consumption saves production cost → need tax (tax > 0)
-        tax_bnusd_per_mt = -dual
-
-        # Unit conversion: bnUSD/Mt = 1e9 USD / 1e9 kg = USD/kg
-        tax_usd_per_kg = tax_bnusd_per_mt
-
-        records.append(
-            {
-                "group": group,
-                "country": country,
-                "tax_bnusd_per_mt": tax_bnusd_per_mt,
-                "tax_usd_per_kg": tax_usd_per_kg,
-                "adjustment_bnusd_per_mt": tax_bnusd_per_mt,
-            }
-        )
-
-    if not records:
-        raise ValueError(
-            "No valid food group constraints could be parsed. "
-            f"Found constraints: {list(food_group_constraints.index[:5])}"
-        )
-
-    df = pd.DataFrame.from_records(records)
     logger.info("Extracted taxes for %d (group, country) pairs", len(df))
     return df
 

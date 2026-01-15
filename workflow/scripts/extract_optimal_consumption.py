@@ -50,7 +50,7 @@ def extract_optimal_consumption(
 
     records = []
     for group in food_groups:
-        # Store names follow pattern: store_{group}_{country}
+        # Filter stores by carrier; use 'country' column for metadata
         group_stores = stores_df[stores_df["carrier"] == f"group_{group}"]
 
         for store_name in group_stores.index:

@@ -77,7 +77,7 @@ def add_regional_crop_production_links(
             crop_yields["name"] = crop_yields.index.map(
                 lambda x,
                 crop=crop,
-                ws=ws: f"produce_{crop}_{'irrigated' if ws == 'i' else 'rainfed'}_{x[0]}_class{x[1]}"
+                ws=ws: f"produce:{crop}_{'irrigated' if ws == 'i' else 'rainfed'}:{x[0]}_c{x[1]}"
             )
 
             # Make index levels columns
@@ -113,7 +113,7 @@ def add_regional_crop_production_links(
 
             bus0_series = df.apply(
                 lambda r,
-                ws=ws: f"land_pool_{r['region']}_class{int(r['resource_class'])}_{'i' if ws == 'i' else 'r'}",
+                ws=ws: f"land:pool:{r['region']}_c{int(r['resource_class'])}_{'i' if ws == 'i' else 'r'}",
                 axis=1,
             )
             missing_bus_mask = ~bus0_series.isin(n.buses.static.index)
@@ -164,14 +164,12 @@ def add_regional_crop_production_links(
             link_params = {
                 "name": df.index,
                 # Use the crop's own carrier so no extra carrier is needed
-                "carrier": f"crop_{crop}",
-                "bus0": bus0_series.tolist(),
-                "bus1": df["country"]
-                .apply(lambda c, crop=crop: f"crop_{crop}_{c}")
-                .tolist(),
+                "carrier": f"produce_{crop}",
+                "bus0": bus0_series,
+                "bus1": df["country"].apply(lambda c, crop=crop: f"crop:{crop}:{c}"),
                 # Output: Mt crop per Mha land (already Mt-aware)
                 "efficiency": df["yield"],
-                "bus3": df["country"].apply(lambda c: f"fertilizer_{c}").tolist(),
+                "bus3": df["country"].apply(lambda c: f"fertilizer:{c}"),
                 "efficiency3": -fert_n_rate_kg_per_ha
                 * 1e6
                 * constants.KG_TO_MEGATONNE,  # kg N/ha → Mt N/Mha
@@ -179,7 +177,7 @@ def add_regional_crop_production_links(
                 "marginal_cost": base_cost,
                 "p_nom_max": df["suitable_area"] / 1e6,  # ha → Mha
                 "p_nom_extendable": not use_actual_production,
-                # Add metadata attributes
+                # Metadata columns
                 "crop": crop,
                 "country": df["country"],
                 "region": df["region"],
@@ -199,7 +197,7 @@ def add_regional_crop_production_links(
                     df["water_requirement_m3_per_ha"], errors="coerce"
                 )
 
-                link_params["bus2"] = df["region"].apply(lambda r: f"water_{r}")
+                link_params["bus2"] = df["region"].apply(lambda r: f"water:{r}")
                 # Convert m³/ha to Mm³/Mha for compatibility with scaled water units
                 link_params["efficiency2"] = -water_requirement
 
@@ -235,7 +233,7 @@ def add_regional_crop_production_links(
                         bus_key = f"bus{next_bus_idx}"
                         eff_key = f"efficiency{next_bus_idx}"
                         link_params[bus_key] = [
-                            f"residue_{feed_item}_{country}"
+                            f"residue:{feed_item}:{country}"
                             for country in countries_for_rows
                         ]
                         link_params[eff_key] = efficiencies
@@ -265,11 +263,11 @@ def add_regional_crop_production_links(
                 )
                 emission_outputs["ch4"] = ch4_emissions
 
-            for bus_name in sorted(emission_outputs.keys()):
-                values = emission_outputs[bus_name]
+            for emission_type in sorted(emission_outputs.keys()):
+                values = emission_outputs[emission_type]
                 key_bus = f"bus{next_bus_idx}"
                 key_eff = f"efficiency{next_bus_idx}"
-                link_params[key_bus] = [bus_name] * len(values)
+                link_params[key_bus] = [f"emission:{emission_type}"] * len(values)
                 link_params[key_eff] = values
                 next_bus_idx += 1
 
@@ -348,7 +346,7 @@ def add_multi_cropping_links(
     merged = merged.sort_values([*key_cols, "cycle_index", "crop"])
     merged["crop"] = merged["crop"].astype(str).str.strip()
     merged["country"] = merged["country"].astype(str).str.strip()
-    merged["crop_bus"] = "crop_" + merged["crop"] + "_" + merged["country"]
+    merged["crop_bus"] = "crop:" + merged["crop"] + ":" + merged["country"]
     merged["yield_efficiency"] = merged["yield_t_per_ha"]
     merged["output_idx"] = merged.groupby(key_cols).cumcount()
 
@@ -465,23 +463,23 @@ def add_multi_cropping_links(
 
     index_df = base.reset_index()
     index_df["resource_class"] = index_df["resource_class"].astype(int)
-    index_df["carrier"] = "multi_crop_" + index_df["combination"].astype(str)
+    index_df["carrier"] = "produce_multi"
     index_df["bus0"] = (
-        "land_pool_"
+        "land:pool:"
         + index_df["region"].astype(str)
-        + "_class"
+        + "_c"
         + index_df["resource_class"].astype(str)
         + "_"
         + index_df["water_supply"].astype(str)
     )
     index_df["link_name"] = (
-        "produce_multi_"
+        "produce:multi_"
         + index_df["combination"].astype(str)
         + "_"
         + index_df["water_supply"].astype(str)
-        + "_"
+        + ":"
         + index_df["region"].astype(str)
-        + "_class"
+        + "_c"
         + index_df["resource_class"].astype(str)
     )
 
@@ -553,7 +551,7 @@ def add_multi_cropping_links(
         water_entries["bus_col"] = "bus" + offset_str
         water_entries["eff_col"] = "efficiency" + offset_str
         water_entries.loc[water_entries["offset"].eq(1), "eff_col"] = "efficiency"
-        water_entries["bus_value"] = "water_" + water_entries["region"].astype(str)
+        water_entries["bus_value"] = "water:" + water_entries["region"].astype(str)
         water_entries = water_entries[
             [
                 "link_name",
@@ -583,7 +581,7 @@ def add_multi_cropping_links(
         fert_entries["bus_col"] = "bus" + offset_str
         fert_entries["eff_col"] = "efficiency" + offset_str
         fert_entries.loc[fert_entries["offset"].eq(1), "eff_col"] = "efficiency"
-        fert_entries["bus_value"] = "fertilizer_" + fert_entries["country"].astype(str)
+        fert_entries["bus_value"] = "fertilizer:" + fert_entries["country"].astype(str)
         fert_entries = fert_entries[
             [
                 "link_name",
@@ -629,9 +627,9 @@ def add_multi_cropping_links(
         residue_entries["eff_col"] = "efficiency" + offset_str
         residue_entries.loc[residue_entries["offset"].eq(1), "eff_col"] = "efficiency"
         residue_entries["bus_value"] = (
-            "residue_"
+            "residue:"
             + residue_entries["feed_item"].astype(str)
-            + "_"
+            + ":"
             + residue_entries["country"].astype(str)
         )
         residue_entries["eff_value"] = residue_entries["residue_total"]
@@ -753,19 +751,19 @@ def add_spared_land_links(
 
     def _bus0(row: pd.Series) -> str:
         return (
-            f"land_existing_{row['region']}_class{int(row['resource_class'])}_"
+            f"land:existing:{row['region']}_c{int(row['resource_class'])}_"
             f"{row['water_supply']}"
         )
 
     def _sink_bus(row: pd.Series) -> str:
         return (
-            f"land_spared_{row['region']}_class{int(row['resource_class'])}_"
+            f"land:spared:{row['region']}_c{int(row['resource_class'])}_"
             f"{row['water_supply']}"
         )
 
     def _link_name(row: pd.Series) -> str:
         return (
-            f"spare_{row['region']}_class{int(row['resource_class'])}_"
+            f"spare:land:{row['region']}_c{int(row['resource_class'])}_"
             f"{row['water_supply']}"
         )
 
@@ -787,32 +785,51 @@ def add_spared_land_links(
         logger.info("No spared land links after filtering for existing buses")
         return
 
-    # Add carrier and sink buses
+    # Add carriers and sink buses
     n.carriers.add("spared_land", unit="Mha")
-    n.buses.add(df["sink_bus"].tolist(), carrier="spared_land")
+    n.carriers.add("spare_land", unit="Mha")  # Link carrier
 
-    # Add stores for sink buses
-    store_names = [f"{bus}_store" for bus in df["sink_bus"]]
+    # Index by sink_bus for proper alignment with PyPSA component names
+    sink_df = df.set_index("sink_bus")
+    n.buses.add(sink_df.index, carrier="spared_land", region=sink_df["region"])
+
+    # Add stores for sink buses - index by store name for alignment
+    df["store_name"] = (
+        "store:spared:"
+        + df["region"]
+        + "_c"
+        + df["resource_class"].astype(str)
+        + "_"
+        + df["water_supply"]
+    )
+    store_df = df.set_index("store_name")
     n.stores.add(
-        store_names,
-        bus=df["sink_bus"].tolist(),
+        store_df.index,
+        bus=store_df["sink_bus"],
         carrier="spared_land",
         e_nom_extendable=True,
+        region=store_df["region"],
+        resource_class=store_df["resource_class"],
+        water_supply=store_df["water_supply"],
     )
 
-    # Add spared land links
+    # Add spared land links - index by link_name for alignment
+    link_df = df.set_index("link_name")
     n.links.add(
-        df["link_name"].tolist(),
-        carrier="spared_land",
-        bus0=df["bus0"].tolist(),
-        bus1=df["sink_bus"].tolist(),
+        link_df.index,
+        carrier="spare_land",
+        bus0=link_df["bus0"],
+        bus1=link_df["sink_bus"],
         efficiency=1.0,
-        bus2="co2",
+        bus2="emission:co2",
         efficiency2=(
-            df["lef"] * 1e6 * constants.TONNE_TO_MEGATONNE
-        ).to_numpy(),  # tCO2/ha/yr → MtCO2/Mha/yr
+            link_df["lef"] * 1e6 * constants.TONNE_TO_MEGATONNE
+        ),  # tCO2/ha/yr → MtCO2/Mha/yr
         p_nom_extendable=True,
-        p_nom_max=df["area_mha"].to_numpy(),
+        p_nom_max=link_df["area_mha"],
+        region=link_df["region"],
+        resource_class=link_df["resource_class"],
+        water_supply=link_df["water_supply"],
     )
 
 
@@ -954,13 +971,13 @@ def add_residue_soil_incorporation_links(
         )
 
         for country in countries:
-            bus_name = f"residue_{item}_{country}"
+            bus_name = f"residue:{item}:{country}"
 
             # Only add link if the residue bus exists in the network
             if bus_name not in n.buses.static.index:
                 continue
 
-            all_names.append(f"incorporate_{item}_{country}")
+            all_names.append(f"incorporate:residue_{item}:{country}")
             all_bus0.append(bus_name)
             all_efficiency.append(n2o_efficiency)
 
@@ -977,7 +994,7 @@ def add_residue_soil_incorporation_links(
     n.links.add(
         all_names,
         bus0=all_bus0,
-        bus1="n2o",
+        bus1="emission:n2o",
         carrier=carrier,
         efficiency=all_efficiency,
         marginal_cost=0.0,  # No cost to incorporate residues

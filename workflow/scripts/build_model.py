@@ -471,16 +471,22 @@ if __name__ == "__main__":
     marginal_bus_names: list[str] = []
     if grazing_only_area_series is not None and not grazing_only_area_series.empty:
         marginal_bus_names = [
-            f"land_marginal_{region}_class{int(cls)}"
+            f"land:marginal:{region}_c{int(cls)}"
             for region, cls in grazing_only_area_series.index
         ]
-        n.buses.add(marginal_bus_names, carrier=["land"] * len(marginal_bus_names))
+        marginal_regions = [region for region, _cls in grazing_only_area_series.index]
+        n.buses.add(marginal_bus_names, carrier="land", region=marginal_regions)
+        marginal_gen_names = [
+            f"supply:land_marginal:{region}_c{int(cls)}"
+            for region, cls in grazing_only_area_series.index
+        ]
         n.generators.add(
-            marginal_bus_names,
+            marginal_gen_names,
             bus=marginal_bus_names,
-            carrier=["land"] * len(marginal_bus_names),
-            p_nom_extendable=[True] * len(marginal_bus_names),
+            carrier="land",
+            p_nom_extendable=True,
             p_nom_max=(reg_limit * grazing_only_area_series.values / 1e6),
+            region=marginal_regions,
         )
         if enable_land_slack:
             primary_resources._add_land_slack_generators(

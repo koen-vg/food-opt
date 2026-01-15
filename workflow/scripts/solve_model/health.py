@@ -181,10 +181,7 @@ def _load_health_data(
     cluster_cause = pd.read_csv(cluster_cause_path)
     cause_log_breakpoints = pd.read_csv(cause_log_path)
     cluster_summary = pd.read_csv(cluster_summary_path)
-    if "health_cluster" in cluster_summary.columns:
-        cluster_summary["health_cluster"] = cluster_summary["health_cluster"].astype(
-            int
-        )
+    cluster_summary["health_cluster"] = cluster_summary["health_cluster"].astype(int)
     cluster_map = pd.read_csv(clusters_path)
 
     # Cluster lookups

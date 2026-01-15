@@ -117,8 +117,7 @@ def add_food_group_buses_and_loads(
 
     logger.info("Adding food group stores for nutrition requirements...")
     for group in food_group_list:
-        names = f"{group}_" + countries_index
-        buses = f"group_{group}_" + countries_index
+        buses = "group:" + group + ":" + countries_index
         carriers = f"group_{group}"
 
         # Compute e_nom_max from per-capita cap if specified
@@ -129,7 +128,7 @@ def add_food_group_buses_and_loads(
         else:
             e_nom_max_values = np.inf
 
-        store_names = "store_" + names
+        store_names = "store:group:" + group + ":" + countries_index
         n.stores.add(
             store_names,
             bus=buses,
@@ -144,20 +143,24 @@ def add_food_group_buses_and_loads(
             n.carriers.add("slack_positive_group_" + group, unit="Mt")
             n.carriers.add("slack_negative_group_" + group, unit="Mt")
             n.generators.add(
-                f"slack_positive_{group}_" + countries_index,
+                "slack:group_positive:" + group + ":" + countries_index,
                 bus=buses,
                 carrier=f"slack_positive_group_{group}",
                 p_nom_extendable=True,
                 marginal_cost=slack_marginal_cost,
+                country=countries,
+                food_group=group,
             )
             n.generators.add(
-                f"slack_negative_{group}_" + countries_index,
+                "slack:group_negative:" + group + ":" + countries_index,
                 bus=buses,
                 carrier=f"slack_negative_group_{group}",
                 p_nom_extendable=True,
                 p_min_pu=-1.0,
                 p_max_pu=0.0,
                 marginal_cost=-slack_marginal_cost,
+                country=countries,
+                food_group=group,
             )
 
 
@@ -180,14 +183,14 @@ def add_macronutrient_loads(
     logger.info("Adding macronutrient stores and constraints per country...")
 
     for nutrient in all_nutrients:
-        names = [f"{nutrient}_{c}" for c in countries]
+        buses = [f"nutrient:{nutrient}:{c}" for c in countries]
         carriers = nutrient
 
-        store_names = [f"store_{nutrient}_{c}" for c in countries]
+        store_names = [f"store:nutrient:{nutrient}:{c}" for c in countries]
 
         n.stores.add(
             store_names,
-            bus=names,
+            bus=buses,
             carrier=carriers,
             e_nom_extendable=True,
             e_cyclic=False,
@@ -227,8 +230,8 @@ def add_food_nutrition_links(
     nutrients = list(nutrition.index.get_level_values("nutrient").unique())
     for food in consumable_foods:
         group_val = food_to_group.get(food, None)
-        names = [f"consume_{food}_{c}" for c in countries]
-        bus0 = [f"food_{food}_{c}" for c in countries]
+        names = [f"consume:{food}:{c}" for c in countries]
+        bus0 = [f"food:{food}:{c}" for c in countries]
 
         # macronutrient outputs
         out_bus_lists = []
@@ -236,7 +239,7 @@ def add_food_nutrition_links(
         for _i, nutrient in enumerate(nutrients, start=1):
             unit = nutrient_units[nutrient]
             factor = _nutrition_efficiency_factor(unit)
-            out_bus_lists.append([f"{nutrient}_{c}" for c in countries])
+            out_bus_lists.append([f"nutrient:{nutrient}:{c}" for c in countries])
             eff_val = (
                 float(nutrition.loc[(food, nutrient), "value"])
                 if (food, nutrient) in nutrition.index
@@ -245,7 +248,11 @@ def add_food_nutrition_links(
             eff_values.append(eff_val * factor)
 
         # Food bus flows are Mt/year, so efficiencies below represent nutrient fractions.
-        params = {"bus0": bus0, "marginal_cost": _LOW_DEFAULT_MARGINAL_COST}
+        params = {
+            "bus0": bus0,
+            "carrier": f"consume_{food}",
+            "marginal_cost": _LOW_DEFAULT_MARGINAL_COST,
+        }
         for i, buses in enumerate(out_bus_lists, start=1):
             params[f"bus{i}"] = buses
             eff_key = "efficiency" if i == 1 else f"efficiency{i}"
@@ -254,11 +261,13 @@ def add_food_nutrition_links(
         # optional food group output as last leg
         if group_val is not None and pd.notna(group_val):
             idx = len(nutrients) + 1
-            params[f"bus{idx}"] = [f"group_{group_val}_{c}" for c in countries]
+            params[f"bus{idx}"] = [f"group:{group_val}:{c}" for c in countries]
             params[f"efficiency{idx}"] = 1.0
 
         # Add metadata attributes
         params["food"] = food
         params["country"] = countries
+        if group_val is not None and pd.notna(group_val):
+            params["food_group"] = group_val
 
         n.links.add(names, p_nom_extendable=True, **params)

@@ -38,17 +38,19 @@ def add_biomass_infrastructure(
     biomass_carrier = "biomass"
     n.carriers.add(biomass_carrier, unit="MtDM")
 
-    biomass_buses = [f"biomass_{country}" for country in countries]
-    n.buses.add(biomass_buses, carrier=biomass_carrier)
+    country_list = list(countries)
+    biomass_buses = [f"biomass:{country}" for country in country_list]
+    n.buses.add(biomass_buses, carrier=biomass_carrier, country=country_list)
 
     n.generators.add(
-        [f"biomass_for_energy_{country}" for country in countries],
+        [f"sink:biomass:{country}" for country in country_list],
         bus=biomass_buses,
         carrier=biomass_carrier,
         p_nom_extendable=True,
         marginal_cost=marginal_cost,
         p_min_pu=-1,  # Allow consumption, not generation of biomass
         p_max_pu=0,
+        country=country_list,
     )
 
 
@@ -59,14 +61,14 @@ def add_biomass_byproduct_links(
     combos = pd.MultiIndex.from_product(
         [byproducts, countries], names=["item", "country"]
     ).to_frame(index=False)
-    combos["bus0"] = "food_" + combos["item"] + "_" + combos["country"]
-    combos["bus1"] = "biomass_" + combos["country"]
+    combos["bus0"] = "food:" + combos["item"] + ":" + combos["country"]
+    combos["bus1"] = "biomass:" + combos["country"]
     bus_index = n.buses.static.index
     combos = combos[combos["bus0"].isin(bus_index) & combos["bus1"].isin(bus_index)]
     if combos.empty:
         return
 
-    combos["name"] = "byproduct_to_biomass_" + combos["item"] + "_" + combos["country"]
+    combos["name"] = "biomass:byproduct_" + combos["item"] + ":" + combos["country"]
     combos = combos.set_index("name")
 
     carrier = "byproduct_to_biomass"
@@ -78,6 +80,7 @@ def add_biomass_byproduct_links(
         bus1=combos["bus1"],
         carrier=carrier,
         p_nom_extendable=True,
+        country=combos["country"],
     )
 
 
@@ -88,14 +91,14 @@ def add_biomass_crop_links(
     combos = pd.MultiIndex.from_product(
         [crops, countries], names=["crop", "country"]
     ).to_frame(index=False)
-    combos["bus0"] = "crop_" + combos["crop"] + "_" + combos["country"]
-    combos["bus1"] = "biomass_" + combos["country"]
+    combos["bus0"] = "crop:" + combos["crop"] + ":" + combos["country"]
+    combos["bus1"] = "biomass:" + combos["country"]
     bus_index = n.buses.static.index
     combos = combos[combos["bus0"].isin(bus_index) & combos["bus1"].isin(bus_index)]
     if combos.empty:
         return
 
-    combos["name"] = "crop_to_biomass_" + combos["crop"] + "_" + combos["country"]
+    combos["name"] = "biomass:crop_" + combos["crop"] + ":" + combos["country"]
     combos = combos.set_index("name")
 
     carrier = "crop_to_biomass"
@@ -106,4 +109,6 @@ def add_biomass_crop_links(
         bus1=combos["bus1"],
         carrier=carrier,
         p_nom_extendable=True,
+        country=combos["country"],
+        crop=combos["crop"],
     )

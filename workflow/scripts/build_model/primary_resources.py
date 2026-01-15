@@ -24,8 +24,10 @@ def _add_land_slack_generators(
 
     if "land_slack" not in n.carriers.static.index:
         n.carriers.add("land_slack", unit="Mha")
+    # Extract suffix from bus name (e.g., "land:pool:usa_c1_r" -> "usa_c1_r")
+    slack_names = [f"slack:land:{bus.split(':')[-1]}" for bus in bus_names]
     n.generators.add(
-        [f"{bus}_slack" for bus in bus_names],
+        slack_names,
         bus=bus_names,
         carrier="land_slack",
         p_nom_extendable=True,
@@ -49,23 +51,25 @@ def add_primary_resources(
     # Water stores use Mm^3, so convert m^3 limits accordingly.
     water_limits = region_water_limits * constants.MM3_PER_M3
     n.stores.add(
-        "water_store_" + water_limits.index,
-        bus="water_" + water_limits.index,
+        "store:water:" + water_limits.index,
+        bus="water:" + water_limits.index,
         carrier="water",
         e_nom=water_limits.values,
         e_initial=water_limits.values,
         e_nom_extendable=False,
         e_cyclic=False,
+        region=water_limits.index,
     )
 
     # Slack in water limits when using actual (current) production
     if use_actual_production:
         n.generators.add(
-            "water_slack_" + water_limits.index,
-            bus="water_" + water_limits.index,
+            "slack:water:" + water_limits.index,
+            bus="water:" + water_limits.index,
             carrier="water",
             marginal_cost=water_slack_cost,
             p_nom_extendable=True,
+            region=water_limits.index,
         )
 
     scale_meta = n.meta.setdefault("carrier_unit_scale", {})
@@ -79,8 +83,8 @@ def add_primary_resources(
         * constants.USD_TO_BNUSD
     )
     n.generators.add(
-        "fertilizer",
-        bus="fertilizer",
+        "supply:fertilizer",
+        bus="fertilizer:supply",
         carrier="fertilizer",
         p_nom_extendable=True,
         p_nom_max=limit_mt,
@@ -90,35 +94,35 @@ def add_primary_resources(
     # Add GHG aggregation store and links from individual gases
     # Note: GHG pricing is applied at solve time, not build time
     n.stores.add(
-        "ghg",
-        bus="ghg",
+        "store:emission:ghg",
+        bus="emission:ghg",
         carrier="ghg",
         e_nom_extendable=True,
         e_nom_min=-np.inf,
         e_min_pu=-1.0,
     )
     n.links.add(
-        "convert_co2_to_ghg",
-        bus0="co2",
-        bus1="ghg",
-        carrier="co2",
+        "aggregate:co2_to_ghg",
+        bus0="emission:co2",
+        bus1="emission:ghg",
+        carrier="aggregate_emissions",
         efficiency=1.0,
         p_min_pu=-1.0,  # allow negative emissions flow
         p_nom_extendable=True,
     )
     n.links.add(
-        "convert_ch4_to_ghg",
-        bus0="ch4",
-        bus1="ghg",
-        carrier="ch4",
+        "aggregate:ch4_to_ghg",
+        bus0="emission:ch4",
+        bus1="emission:ghg",
+        carrier="aggregate_emissions",
         efficiency=ch4_to_co2_factor * constants.TONNE_TO_MEGATONNE,
         p_nom_extendable=True,
     )
     n.links.add(
-        "convert_n2o_to_ghg",
-        bus0="n2o",
-        bus1="ghg",
-        carrier="n2o",
+        "aggregate:n2o_to_ghg",
+        bus0="emission:n2o",
+        bus1="emission:ghg",
+        carrier="aggregate_emissions",
         efficiency=n2o_to_co2_factor * constants.TONNE_TO_MEGATONNE,
         p_nom_extendable=True,
     )
@@ -146,13 +150,14 @@ def add_fertilizer_distribution_links(
     if not country_list:
         return
 
-    names = [f"distribute_synthetic_fertilizer_{country}" for country in country_list]
+    names = [f"distribute:fertilizer:{country}" for country in country_list]
     params: dict[str, object] = {
-        "bus0": "fertilizer",
-        "bus1": [f"fertilizer_{country}" for country in country_list],
-        "carrier": "fertilizer",
+        "bus0": "fertilizer:supply",
+        "bus1": [f"fertilizer:{country}" for country in country_list],
+        "carrier": "distribute_fertilizer",
         "efficiency": 1.0,
         "p_nom_extendable": True,
+        "country": country_list,
     }
 
     # Calculate total N2O emissions (direct + indirect)
@@ -171,7 +176,7 @@ def add_fertilizer_distribution_links(
 
     if emission_mt_per_mt > 0.0:
         emission_t_per_mt = emission_mt_per_mt * constants.MEGATONNE_TO_TONNE
-        params["bus2"] = "n2o"
+        params["bus2"] = "emission:n2o"
         params["efficiency2"] = emission_t_per_mt
 
     n.links.add(names, **params)
@@ -179,8 +184,9 @@ def add_fertilizer_distribution_links(
     # Add extendable stores to absorb excess fertilizer (primarily manure nitrogen
     # from animal production when crop demand is insufficient)
     n.stores.add(
-        [f"fertilizer_store_{country}" for country in country_list],
-        bus=[f"fertilizer_{country}" for country in country_list],
+        [f"store:fertilizer:{country}" for country in country_list],
+        bus=[f"fertilizer:{country}" for country in country_list],
         carrier="fertilizer",
         e_nom_extendable=True,
+        country=country_list,
     )

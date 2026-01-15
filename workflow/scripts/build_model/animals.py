@@ -44,8 +44,8 @@ def add_feed_slack_generators(
     marginal_cost : float
         Cost per Mt of slack (billion USD/Mt)
     """
-    # Find all feed buses (named feed_*_<country>)
-    feed_buses = [bus for bus in n.buses.static.index if bus.startswith("feed_")]
+    # Find all feed buses (named feed:{category}:{country})
+    feed_buses = [bus for bus in n.buses.static.index if bus.startswith("feed:")]
 
     if not feed_buses:
         logger.info("No feed buses found; skipping feed slack")
@@ -62,7 +62,10 @@ def add_feed_slack_generators(
 
     # Add positive slack generators only for grassland (provide feed when insufficient)
     if grassland_buses:
-        gen_pos_names = [f"slack_positive_feed_{bus}" for bus in grassland_buses]
+        # Extract country from bus name (feed:ruminant_grassland:{country})
+        gen_pos_names = [
+            f"slack:feed_positive:{bus.split(':')[-1]}" for bus in grassland_buses
+        ]
         n.generators.add(
             gen_pos_names,
             bus=grassland_buses,
@@ -78,7 +81,14 @@ def add_feed_slack_generators(
     # Add negative slack stores for non-grassland feed buses (absorb excess feed)
     non_grassland_buses = [bus for bus in feed_buses if "ruminant_grassland" not in bus]
     if non_grassland_buses:
-        gen_neg_names = [f"slack_negative_feed_{bus}" for bus in non_grassland_buses]
+        # Build unique names based on feed category and country
+        gen_neg_names = []
+        for bus in non_grassland_buses:
+            # bus format: feed:{category}:{country}
+            parts = bus.split(":")
+            category = parts[1]
+            country = parts[2]
+            gen_neg_names.append(f"slack:feed_negative_{category}:{country}")
         n.generators.add(
             gen_neg_names,
             bus=non_grassland_buses,
@@ -229,8 +239,8 @@ def add_feed_to_animal_product_links(
             continue
 
         # Check if required buses exist
-        feed_bus = f"feed_{row['feed_category']}_{country}"
-        food_bus = f"food_{row['product']}_{country}"
+        feed_bus = f"feed:{row['feed_category']}:{country}"
+        food_bus = f"food:{row['product']}:{country}"
         if feed_bus not in n.buses.static.index or food_bus not in n.buses.static.index:
             skipped_count += 1
             continue
@@ -289,12 +299,10 @@ def add_feed_to_animal_product_links(
         flw_multiplier = (1.0 - loss_frac) * (1.0 - waste_frac)
         adjusted_efficiency = base_efficiency * flw_multiplier
 
-        all_names.append(
-            f"produce_{row['product']}_from_{row['feed_category']}_{country}"
-        )
+        all_names.append(f"animal:{row['product']}_{row['feed_category']}:{country}")
         all_bus0.append(feed_bus)
         all_bus1.append(food_bus)
-        all_bus3.append(f"fertilizer_{country}")
+        all_bus3.append(f"fertilizer:{country}")
         all_carrier.append(f"produce_{row['product']}")
         all_efficiency.append(adjusted_efficiency)
         # Convert per-tonne emissions to per-Mt flows (CH4, N2O in t; feed in Mt)
@@ -318,11 +326,11 @@ def add_feed_to_animal_product_links(
         efficiency=all_efficiency,
         marginal_cost=all_marginal_cost,
         p_nom_extendable=True,
-        bus2="ch4",
+        bus2="emission:ch4",
         efficiency2=all_ch4,
         bus3=all_bus3,
         efficiency3=all_n_fert,
-        bus4="n2o",
+        bus4="emission:n2o",
         efficiency4=all_n2o,
         country=all_country,
         product=all_product,

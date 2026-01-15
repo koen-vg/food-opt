@@ -108,6 +108,8 @@ def add_macronutrient_constraints(
                     sense="==",
                     constant=rhs.values,
                     type="nutrition",
+                    country=countries.values,
+                    nutrient=nutrient,
                 )
                 break
 
@@ -121,6 +123,8 @@ def add_macronutrient_constraints(
                 sense=operator,
                 constant=rhs.values,
                 type="nutrition",
+                country=countries.values,
+                nutrient=nutrient,
             )
 
 
@@ -207,6 +211,8 @@ def add_food_group_constraints(
                     sense="==",
                     constant=rhs.values,
                     type="nutrition",
+                    country=countries.values,
+                    food_group=group,
                 )
                 break
 
@@ -220,6 +226,8 @@ def add_food_group_constraints(
                 sense=operator,
                 constant=rhs.values,
                 type="nutrition",
+                country=countries.values,
+                food_group=group,
             )
 
 
@@ -256,7 +264,9 @@ def add_ghg_pricing_to_objective(n: pypsa.Network, ghg_price_usd_per_t: float) -
     )
 
     # Add marginal storage cost to store
-    n.stores.static.at["ghg", "marginal_cost_storage"] = ghg_price_bnusd_per_mt
+    n.stores.static.at["store:emission:ghg", "marginal_cost_storage"] = (
+        ghg_price_bnusd_per_mt
+    )
 
 
 def add_food_group_incentives_to_objective(
@@ -291,7 +301,7 @@ def add_food_group_incentives_to_objective(
 
         incentives_df["country"] = incentives_df["country"].astype(str).str.upper()
         incentives_df["store_name"] = (
-            "store_" + incentives_df["group"] + "_" + incentives_df["country"]
+            "store:group:" + incentives_df["group"] + ":" + incentives_df["country"]
         )
         combined.append(incentives_df[["store_name", "adjustment_bnusd_per_mt"]].copy())
 
@@ -390,10 +400,6 @@ def build_residue_feed_fraction_by_country(
     return per_country
 
 
-def _residue_bus_country(residue_bus: str) -> str:
-    return residue_bus.rsplit("_", 1)[-1].upper()
-
-
 def add_residue_feed_constraints(
     n: pypsa.Network,
     max_feed_fraction: float,
@@ -427,9 +433,9 @@ def add_residue_feed_constraints(
     link_p = m.variables["Link-p"].sel(snapshot="now")
     links_df = n.links.static
 
-    # Find residue feed links (carrier="convert_to_feed", bus0 starts with "residue_")
+    # Find residue feed links (carrier="convert_to_feed", bus0 starts with "residue:")
     feed_mask = (links_df["carrier"] == "convert_to_feed") & (
-        links_df["bus0"].str.startswith("residue_")
+        links_df["bus0"].str.startswith("residue:")
     )
     feed_links_df = links_df[feed_mask]
 
@@ -486,9 +492,12 @@ def add_residue_feed_constraints(
     # Group incorp vars by residue bus and sum (handles alignment)
     incorp_flow = incorp_vars.groupby(incorp_bus_map).sum()
 
+    # Build bus-to-country mapping from incorporation links (which have country column)
+    bus_to_country = incorp_links_df.groupby("bus0")["country"].first().to_dict()
+
     ratios = []
     for bus in common_buses:
-        country = _residue_bus_country(bus)
+        country = str(bus_to_country.get(bus, "")).upper()
         max_fraction = max_feed_fraction_by_country.get(country, max_feed_fraction)
         ratios.append(max_fraction / (1.0 - max_fraction))
 
@@ -505,11 +514,13 @@ def add_residue_feed_constraints(
 
     # Add GlobalConstraints for shadow price tracking
     gc_names = [f"{constr_name}_{bus}" for bus in common_buses]
+    gc_countries = [str(bus_to_country.get(bus, "")).upper() for bus in common_buses]
     n.global_constraints.add(
         gc_names,
         sense="<=",
         constant=0.0,  # RHS is dynamic (depends on incorp_flow), use 0 as placeholder
         type="residue_feed",
+        country=gc_countries,
     )
 
     if max_feed_fraction_by_country:
@@ -634,11 +645,15 @@ def add_animal_production_constraints(
 
     # Add GlobalConstraints for shadow price tracking
     gc_names = [f"{constr_name}_{prod}_{country}" for prod, country in common_index]
+    gc_products = [prod for prod, _country in common_index]
+    gc_countries = [country for _prod, country in common_index]
     n.global_constraints.add(
         gc_names,
         sense="==",
         constant=rhs.values,
         type="production_target",
+        country=gc_countries,
+        product=gc_products,
     )
 
     logger.info(
@@ -841,11 +856,15 @@ def _add_crop_stability_constraints(
         gc_names = [
             f"{constr_name}_{fao_item}_{country}" for fao_item, country in zero_index
         ]
+        gc_crops = [fao_item for fao_item, _country in zero_index]
+        gc_countries = [country for _fao_item, country in zero_index]
         n.global_constraints.add(
             gc_names,
             sense="==",
             constant=0.0,
             type="production_stability",
+            country=gc_countries,
+            crop=gc_crops,
         )
         logger.info(
             "Added %d crop production constraints for zero-baseline (fao_item, country) pairs",
@@ -907,17 +926,23 @@ def _add_crop_stability_constraints(
             f"{constr_name_max}_{fao_item}_{country}"
             for fao_item, country in nonzero_index
         ]
+        gc_crops = [fao_item for fao_item, _country in nonzero_index]
+        gc_countries = [country for _fao_item, country in nonzero_index]
         n.global_constraints.add(
             gc_names_min,
             sense=">=",
             constant=lower_nonzero.values,
             type="production_stability",
+            country=gc_countries,
+            crop=gc_crops,
         )
         n.global_constraints.add(
             gc_names_max,
             sense="<=",
             constant=upper_nonzero.values,
             type="production_stability",
+            country=gc_countries,
+            crop=gc_crops,
         )
 
         logger.info(
@@ -1032,11 +1057,15 @@ def _add_animal_stability_constraints(
         constr_name = "animal_production_zero"
         m.add_constraints(lhs_zero == 0, name=f"GlobalConstraint-{constr_name}")
         gc_names = [f"{constr_name}_{prod}_{country}" for prod, country in zero_index]
+        gc_products = [prod for prod, _country in zero_index]
+        gc_countries = [country for _prod, country in zero_index]
         n.global_constraints.add(
             gc_names,
             sense="==",
             constant=0.0,
             type="production_stability",
+            country=gc_countries,
+            product=gc_products,
         )
         logger.info(
             "Added %d animal production constraints for zero-baseline (product, country) pairs",
@@ -1096,17 +1125,23 @@ def _add_animal_stability_constraints(
         gc_names_max = [
             f"{constr_name_max}_{prod}_{country}" for prod, country in nonzero_index
         ]
+        gc_products = [prod for prod, _country in nonzero_index]
+        gc_countries = [country for _prod, country in nonzero_index]
         n.global_constraints.add(
             gc_names_min,
             sense=">=",
             constant=lower_nonzero.values,
             type="production_stability",
+            country=gc_countries,
+            product=gc_products,
         )
         n.global_constraints.add(
             gc_names_max,
             sense="<=",
             constant=upper_nonzero.values,
             type="production_stability",
+            country=gc_countries,
+            product=gc_products,
         )
 
         logger.info(

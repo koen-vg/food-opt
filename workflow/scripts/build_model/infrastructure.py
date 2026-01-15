@@ -32,55 +32,64 @@ def add_carriers_and_buses(
     - Crops, residues, foods, food groups, and macronutrients are created per-country.
     - Primary resources (water) and emissions (co2, ch4, n2o) use global buses.
     - Fertilizer has a global supply bus with per-country delivery buses.
+
+    Bus names use ':' as delimiter: {type}:{specifier}:{scope}
+    All buses have 'country' and 'region' columns (NaN when not applicable).
     """
     # Land carrier (class-level buses are added later)
     n.carriers.add("land", unit="Mha")
 
     # Crops per country
     crop_buses = [
-        f"crop_{crop}_{country}" for country in countries for crop in crop_list
+        f"crop:{crop}:{country}" for country in countries for crop in crop_list
     ]
     crop_carriers = [f"crop_{crop}" for country in countries for crop in crop_list]
+    crop_countries = [country for country in countries for _ in crop_list]
     if crop_buses:
         n.carriers.add(sorted({f"crop_{crop}" for crop in crop_list}), unit="Mt")
-        n.buses.add(crop_buses, carrier=crop_carriers)
+        n.buses.add(crop_buses, carrier=crop_carriers, country=crop_countries)
 
     # Residues per country
     residue_items_sorted = sorted(dict.fromkeys(residue_feed_items))
     if residue_items_sorted:
         residue_buses = [
-            f"residue_{item}_{country}"
+            f"residue:{item}:{country}"
             for country in countries
             for item in residue_items_sorted
         ]
         residue_carriers = [
             f"residue_{item}" for country in countries for item in residue_items_sorted
         ]
+        residue_countries = [
+            country for country in countries for _ in residue_items_sorted
+        ]
         n.carriers.add(sorted(set(residue_carriers)), unit="Mt")
-        n.buses.add(residue_buses, carrier=residue_carriers)
+        n.buses.add(residue_buses, carrier=residue_carriers, country=residue_countries)
 
     # Foods per country
     food_buses = [
-        f"food_{food}_{country}" for country in countries for food in food_list
+        f"food:{food}:{country}" for country in countries for food in food_list
     ]
     food_carriers = [f"food_{food}" for country in countries for food in food_list]
+    food_countries = [country for country in countries for _ in food_list]
     if food_buses:
         n.carriers.add(sorted({f"food_{food}" for food in food_list}), unit="Mt")
-        n.buses.add(food_buses, carrier=food_carriers)
+        n.buses.add(food_buses, carrier=food_carriers, country=food_countries)
 
     # Food groups per country
     group_buses = [
-        f"group_{group}_{country}" for country in countries for group in food_group_list
+        f"group:{group}:{country}" for country in countries for group in food_group_list
     ]
     group_carriers = [
         f"group_{group}" for country in countries for group in food_group_list
     ]
+    group_countries = [country for country in countries for _ in food_group_list]
     if group_buses:
         n.carriers.add(
             sorted({f"group_{group}" for group in food_group_list}),
             unit="Mt",
         )
-        n.buses.add(group_buses, carrier=group_carriers)
+        n.buses.add(group_buses, carrier=group_carriers, country=group_countries)
 
     # Macronutrients per country
     nutrient_list_sorted = sorted(dict.fromkeys(nutrient_list))
@@ -92,12 +101,19 @@ def add_carriers_and_buses(
 
     if nutrient_list_sorted:
         nutrient_buses = [
-            f"{nut}_{country}" for country in countries for nut in nutrient_list_sorted
+            f"nutrient:{nut}:{country}"
+            for country in countries
+            for nut in nutrient_list_sorted
         ]
         nutrient_carriers = [
             nut for country in countries for nut in nutrient_list_sorted
         ]
-        n.buses.add(nutrient_buses, carrier=nutrient_carriers)
+        nutrient_countries = [
+            country for country in countries for _ in nutrient_list_sorted
+        ]
+        n.buses.add(
+            nutrient_buses, carrier=nutrient_carriers, country=nutrient_countries
+        )
 
         scale_meta = n.meta.setdefault("carrier_unit_scale", {})
         if any(
@@ -119,12 +135,13 @@ def add_carriers_and_buses(
         "monogastric_protein",
     ]
     feed_buses = [
-        f"feed_{fc}_{country}" for country in countries for fc in feed_categories
+        f"feed:{fc}:{country}" for country in countries for fc in feed_categories
     ]
     feed_carriers = [f"feed_{fc}" for country in countries for fc in feed_categories]
+    feed_countries = [country for country in countries for _ in feed_categories]
     if feed_buses:
         n.carriers.add(sorted(set(feed_carriers)), unit="Mt")
-        n.buses.add(feed_buses, carrier=feed_carriers)
+        n.buses.add(feed_buses, carrier=feed_carriers, country=feed_countries)
 
     n.carriers.add("convert_to_feed", unit="Mt")
 
@@ -140,12 +157,20 @@ def add_carriers_and_buses(
         ("ghg", "MtCO2e"),
     ]:
         n.carriers.add(carrier, unit=unit)
-        n.buses.add(carrier, carrier=carrier)
+    # Add global emission buses (no country)
+    n.buses.add("emission:co2", carrier="co2")
+    n.buses.add("emission:ch4", carrier="ch4")
+    n.buses.add("emission:n2o", carrier="n2o")
+    n.buses.add("emission:ghg", carrier="ghg")
+    # Global fertilizer supply bus
+    n.buses.add("fertilizer:supply", carrier="fertilizer")
 
-    fert_country_buses = [f"fertilizer_{country}" for country in countries]
+    # Per-country fertilizer buses
+    fert_country_buses = [f"fertilizer:{country}" for country in countries]
     n.buses.add(
         fert_country_buses,
         carrier="fertilizer",
+        country=countries,
     )
 
     scale_meta = n.meta.setdefault("carrier_unit_scale", {})
@@ -157,5 +182,5 @@ def add_carriers_and_buses(
     scale_meta["water_mm3_per_m3"] = constants.MM3_PER_M3
 
     for region in water_regions:
-        bus_name = f"water_{region}"
-        n.buses.add(bus_name, carrier="water")
+        bus_name = f"water:{region}"
+        n.buses.add(bus_name, carrier="water", region=region)

@@ -87,15 +87,18 @@ def add_food_conversion_links(
         conversion_factor = crop_to_fresh_factor[crop]
 
         # Create multi-output link names (one per country)
-        names = [f"pathway_{pathway}_{c}" for c in normalized_countries]
-        bus0 = [f"crop_{crop}_{c}" for c in normalized_countries]
+        names = [f"pathway:{pathway}:{c}" for c in normalized_countries]
+        bus0 = [f"crop:{crop}:{c}" for c in normalized_countries]
 
         # All crop/food buses are in Mt, so the efficiency coefficients are
         # simple mass fractions after accounting for losses.
         link_params = {
             "bus0": bus0,
+            "carrier": f"pathway_{pathway}",
             "marginal_cost": _LOW_PROCESSING_COST,
             "p_nom_extendable": True,
+            "country": normalized_countries,
+            "crop": crop,
         }
 
         # Add each output food as a separate bus with its efficiency
@@ -105,7 +108,7 @@ def add_food_conversion_links(
             bus_key = f"bus{output_idx}"
             eff_key = "efficiency" if output_idx == 1 else f"efficiency{output_idx}"
 
-            link_params[bus_key] = [f"food_{food}_{c}" for c in normalized_countries]
+            link_params[bus_key] = [f"food:{food}:{c}" for c in normalized_countries]
 
             # Calculate efficiencies per country (including loss/waste adjustments)
             efficiencies: list[float] = []
@@ -216,6 +219,8 @@ def add_feed_supply_links(
     all_names = []
     all_bus0 = []
     all_bus1 = []
+    all_countries = []
+    all_feed_categories = []
 
     for _, row in ruminant_feeds.iterrows():
         item = row["feed_item"]
@@ -233,9 +238,11 @@ def add_feed_supply_links(
             link_prefix = "convert_residue"
 
         for country in countries:
-            all_names.append(f"{link_prefix}_{item}_to_ruminant_{category}_{country}")
-            all_bus0.append(f"{bus_prefix}_{item}_{country}")
-            all_bus1.append(f"feed_ruminant_{category}_{country}")
+            all_names.append(f"{link_prefix}:{item}_to_ruminant_{category}:{country}")
+            all_bus0.append(f"{bus_prefix}:{item}:{country}")
+            all_bus1.append(f"feed:ruminant_{category}:{country}")
+            all_countries.append(country)
+            all_feed_categories.append(f"ruminant_{category}")
 
     # Build monogastric links
     for _, row in monogastric_feeds.iterrows():
@@ -255,10 +262,12 @@ def add_feed_supply_links(
 
         for country in countries:
             all_names.append(
-                f"{link_prefix}_{item}_to_monogastric_{category}_{country}"
+                f"{link_prefix}:{item}_to_monogastric_{category}:{country}"
             )
-            all_bus0.append(f"{bus_prefix}_{item}_{country}")
-            all_bus1.append(f"feed_monogastric_{category}_{country}")
+            all_bus0.append(f"{bus_prefix}:{item}:{country}")
+            all_bus1.append(f"feed:monogastric_{category}:{country}")
+            all_countries.append(country)
+            all_feed_categories.append(f"monogastric_{category}")
 
     if not all_names:
         logger.info("No feed supply links to create; check crop/food lists")
@@ -271,6 +280,8 @@ def add_feed_supply_links(
         carrier="convert_to_feed",
         marginal_cost=_LOW_PROCESSING_COST,
         p_nom_extendable=True,
+        country=all_countries,
+        feed_category=all_feed_categories,
     )
 
     logger.info(
