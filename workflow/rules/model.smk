@@ -86,9 +86,9 @@ rule build_model:
         luc_carbon_coefficients="processing/{name}/luc/luc_carbon_coefficients.csv",
         current_grassland_area="processing/{name}/luc/current_grassland_area_by_class.csv",
         grazing_only_land="processing/{name}/land_grazing_only_by_class.csv",
-        health_cluster_summary="processing/{name}/health/cluster_summary.csv",
-        health_cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
-        health_clusters="processing/{name}/health/country_clusters.csv",
+        health_cluster_summary="processing/{name}/health/scen-{scenario}/cluster_summary.csv",
+        health_cluster_cause="processing/{name}/health/scen-{scenario}/cluster_cause_baseline.csv",
+        health_clusters="processing/{name}/health/scen-{scenario}/country_clusters.csv",
         build_scripts=expand(
             "workflow/scripts/build_model/{script}",
             script=[
@@ -155,11 +155,11 @@ def solve_model_inputs(w):
     inputs = {
         "network": f"results/{w.name}/build/model_scen-{w.scenario}.nc",
         "m49": "data/M49-codes.csv",
-        "health_risk_breakpoints": f"processing/{w.name}/health/risk_breakpoints.csv",
-        "health_cluster_cause": f"processing/{w.name}/health/cluster_cause_baseline.csv",
-        "health_cause_log": f"processing/{w.name}/health/cause_log_breakpoints.csv",
-        "health_cluster_summary": f"processing/{w.name}/health/cluster_summary.csv",
-        "health_clusters": f"processing/{w.name}/health/country_clusters.csv",
+        "health_risk_breakpoints": f"processing/{w.name}/health/scen-{w.scenario}/risk_breakpoints.csv",
+        "health_cluster_cause": f"processing/{w.name}/health/scen-{w.scenario}/cluster_cause_baseline.csv",
+        "health_cause_log": f"processing/{w.name}/health/scen-{w.scenario}/cause_log_breakpoints.csv",
+        "health_cluster_summary": f"processing/{w.name}/health/scen-{w.scenario}/cluster_summary.csv",
+        "health_clusters": f"processing/{w.name}/health/scen-{w.scenario}/country_clusters.csv",
         "food_groups": "data/food_groups.csv",
         "baseline_diet": f"processing/{w.name}/dietary_intake.csv",
     }

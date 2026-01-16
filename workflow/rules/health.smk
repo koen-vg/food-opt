@@ -132,6 +132,12 @@ rule prepare_life_table:
 
 
 rule prepare_health_costs:
+    """Prepare health cost data for SOS2 linearization.
+
+    This rule is scenario-specific because the breakpoint tables (risk_breakpoints,
+    cause_log) depend on intake_grid_points and log_rr_points parameters which
+    can vary by scenario.
+    """
     input:
         regions="processing/{name}/regions.geojson",
         diet="processing/{name}/dietary_intake.csv",
@@ -142,17 +148,17 @@ rule prepare_health_costs:
         food_groups="data/food_groups.csv",
         gdp="data/downloads/gdp_per_capita.csv",
     params:
-        countries=config["countries"],
-        health=config["health"],
+        countries=lambda w: get_effective_config(w.scenario)["countries"],
+        health=lambda w: get_effective_config(w.scenario)["health"],
     output:
-        risk_breakpoints="processing/{name}/health/risk_breakpoints.csv",
-        cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
-        cause_log="processing/{name}/health/cause_log_breakpoints.csv",
-        cluster_summary="processing/{name}/health/cluster_summary.csv",
-        clusters="processing/{name}/health/country_clusters.csv",
-        cluster_risk_baseline="processing/{name}/health/cluster_risk_baseline.csv",
-        derived_tmrel="processing/{name}/health/derived_tmrel.csv",
+        risk_breakpoints="processing/{name}/health/scen-{scenario}/risk_breakpoints.csv",
+        cluster_cause="processing/{name}/health/scen-{scenario}/cluster_cause_baseline.csv",
+        cause_log="processing/{name}/health/scen-{scenario}/cause_log_breakpoints.csv",
+        cluster_summary="processing/{name}/health/scen-{scenario}/cluster_summary.csv",
+        clusters="processing/{name}/health/scen-{scenario}/country_clusters.csv",
+        cluster_risk_baseline="processing/{name}/health/scen-{scenario}/cluster_risk_baseline.csv",
+        derived_tmrel="processing/{name}/health/scen-{scenario}/derived_tmrel.csv",
     log:
-        "logs/{name}/prepare_health_costs.log",
+        "logs/{name}/prepare_health_costs_scen-{scenario}.log",
     script:
         "../scripts/prepare_health_costs.py"
