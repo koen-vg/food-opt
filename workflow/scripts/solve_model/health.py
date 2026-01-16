@@ -478,6 +478,14 @@ def _add_stage1_constraints(
             coeff_intake = risk_table["intake_values"]
             intake_expr = (lambda_var * coeff_intake).sum("intake_step")
 
+            # IMPORTANT: Align coordinates before creating constraint.
+            # The groupby operation may produce different coordinate ordering than
+            # the lambda variable index. We must explicitly reindex to ensure
+            # store_expr[cluster_risk] matches intake_expr[cluster_risk].
+            intake_expr = intake_expr.reindex(
+                cluster_risk=store_expr.data.coords["cluster_risk"]
+            )
+
             # I_{c,r} = Σ_k λ_k x_k
             m.add_constraints(
                 store_expr == intake_expr,
@@ -536,6 +544,7 @@ def _add_stage1_constraints(
             for cause in causes:
                 expr = group_total.sel(cluster=c, cause=cause)
                 key = (c, cause)
+
                 if key in log_rr_totals:
                     log_rr_totals[key] = log_rr_totals[key] + expr
                 else:
