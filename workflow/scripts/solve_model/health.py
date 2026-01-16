@@ -38,6 +38,20 @@ piecewise-linear approximation:
 
 Both stages use SOS2 (Special Ordered Sets Type 2) constraints for
 piecewise-linear interpolation.
+
+Code Organization
+-----------------
+- Data loading: _load_health_data
+- Stage 1 (Intake → log(RR)):
+    - _build_store_to_cluster_map: Map stores to clusters with per-capita coefficients
+    - _build_intake_breakpoints: Build breakpoint grids per risk factor
+    - _group_cluster_risk_pairs: Group pairs by shared breakpoints for efficiency
+    - _add_stage1_constraints: Create λ variables, intake balance, log(RR) computation
+- Stage 2 (log(RR) → YLL):
+    - _build_cause_breakpoints: Build log-RR breakpoints per cause
+    - _group_cluster_cause_pairs: Group pairs by shared log-RR grids
+    - _add_stage2_constraints: Second SOS2 layer for exp() approximation
+- Main entry point: add_health_objective
 """
 
 from collections import defaultdict
@@ -244,7 +258,7 @@ def _build_store_to_cluster_map(
     Returns
     -------
     pd.DataFrame
-        Columns: store_name, risk_factor, country, cluster, coeff.
+        Columns: store_name, risk_factor, country, cluster, per_capita_coeff.
     """
     # Filter for food group stores matching risk factors
     fg_stores = stores_df[stores_df["food_group"].isin(risk_factors)].copy()
@@ -279,7 +293,7 @@ def _build_store_to_cluster_map(
         )
 
     # Per-capita coefficient: grams/megatonne / (365 * cluster_population)
-    df["coeff"] = constants.GRAMS_PER_MEGATONNE / (365.0 * df["population"])
+    df["per_capita_coeff"] = constants.GRAMS_PER_MEGATONNE / (365.0 * df["population"])
 
     return df
 
@@ -364,7 +378,7 @@ def _add_stage1_constraints(
     store_map: pd.DataFrame,
     intake_groups: dict[tuple[float, ...], list[tuple[int, str]]],
     intake_data: dict,
-    store_e: xr.DataArray,
+    store_level_var: xr.DataArray,
     solver_name: str,
     value_per_yll: float,
 ) -> dict[tuple[int, str], linopy.LinearExpression]:
@@ -389,7 +403,7 @@ def _add_stage1_constraints(
         (cluster, risk) pairs grouped by intake coordinates.
     intake_data
         Breakpoint data from _build_intake_breakpoints.
-    store_e
+    store_level_var
         Store level variables (food group stores).
     solver_name
         Solver name for SOS2 implementation selection.
@@ -403,17 +417,27 @@ def _add_stage1_constraints(
     """
     log_rr_totals: dict[tuple[int, str], linopy.LinearExpression] = {}
 
-    for coords_key, group_pairs in intake_groups.items():
+    # Process (cluster, risk) pairs in groups that share the same intake breakpoints.
+    # This batches constraint creation for efficiency - pairs with identical
+    # breakpoint grids can share a single λ variable array.
+    for intake_grid, cluster_risk_pairs in intake_groups.items():
         # Get risk data for this group (all pairs share same breakpoints)
-        risk = group_pairs[0][1]
+        risk = cluster_risk_pairs[0][1]
         risk_table = intake_data[risk]
         intake_steps = risk_table["intake_steps"]
 
-        # Create cluster-risk labels for vectorized operations
-        cluster_risk_labels = [f"c{cluster}_r{risk}" for cluster, risk in group_pairs]
+        # -----------------------------------------------------------------------
+        # Create λ variables (SOS2 interpolation weights)
+        # -----------------------------------------------------------------------
+        # λ variables enable piecewise-linear interpolation:
+        #     x = Σ_k λ_k x_k,  f(x) ≈ Σ_k λ_k f(x_k)
+        # SOS2 ensures at most two adjacent λ_k are nonzero.
+
+        cluster_risk_labels = [
+            f"c{cluster}_r{risk}" for cluster, risk in cluster_risk_pairs
+        ]
         cluster_risk_index = pd.Index(cluster_risk_labels, name="cluster_risk")
 
-        # Create λ variables (SOS2-bounded interpolation weights)
         risk_label = str(risk)
         lambda_var = m.add_variables(
             lower=0,
@@ -445,26 +469,35 @@ def _add_stage1_constraints(
         # Convexity: Σ_k λ_k = 1
         m.add_constraints(lambda_var.sum("intake_step") == 1)
 
-        # --- Intake Balance ---
-        # Build mapping from cluster_risk labels to store levels
-        group_map_df = pd.DataFrame(group_pairs, columns=["cluster", "risk_factor"])
-        group_map_df["cluster_risk"] = cluster_risk_labels
+        # -----------------------------------------------------------------------
+        # Intake balance: country stores → cluster intake (g/person/day)
+        # -----------------------------------------------------------------------
+        # Each country c in cluster C has a food group store with level s_c (Mt/year).
+        # Cluster intake I_C is the population-weighted average:
+        #
+        #     I_C = Σ_{c∈C} s_c * (10^12 g/Mt) / (365 days * P_C persons)
+        #
+        # where P_C is cluster population. The per_capita_coeff converts a country's
+        # store level to its contribution to cluster intake.
 
-        merged_stores = store_map.merge(
-            group_map_df, on=["cluster", "risk_factor"], how="inner"
+        pairs_df = pd.DataFrame(cluster_risk_pairs, columns=["cluster", "risk_factor"])
+        pairs_df["cluster_risk"] = cluster_risk_labels
+
+        stores_with_labels = store_map.merge(
+            pairs_df, on=["cluster", "risk_factor"], how="inner"
         )
 
-        if not merged_stores.empty:
-            store_names = merged_stores["store_name"].values
-            coeffs = xr.DataArray(
-                merged_stores["coeff"].values,
+        if not stores_with_labels.empty:
+            store_names = stores_with_labels["store_name"].values
+            per_capita_coeffs = xr.DataArray(
+                stores_with_labels["per_capita_coeff"].values,
                 coords={"name": store_names},
                 dims="name",
             )
             # Grouper name="cluster_risk" ensures the groupby result dimension
             # matches intake_expr's dimension for proper constraint alignment
             grouper = xr.DataArray(
-                merged_stores["cluster_risk"].values,
+                stores_with_labels["cluster_risk"].values,
                 coords={"name": store_names},
                 dims="name",
                 name="cluster_risk",
@@ -472,11 +505,15 @@ def _add_stage1_constraints(
 
             # LHS: Aggregated store level expression by cluster_risk
             # Each store is one country's food group; sum stores within cluster
-            store_expr = (store_e.sel(name=store_names) * coeffs).groupby(grouper).sum()
+            store_expr = (
+                (store_level_var.sel(name=store_names) * per_capita_coeffs)
+                .groupby(grouper)
+                .sum()
+            )
 
             # RHS: Intake interpolation
-            coeff_intake = risk_table["intake_values"]
-            intake_expr = (lambda_var * coeff_intake).sum("intake_step")
+            intake_values = risk_table["intake_values"]
+            intake_expr = (lambda_var * intake_values).sum("intake_step")
 
             # IMPORTANT: Align coordinates before creating constraint.
             # The groupby operation may produce different coordinate ordering than
@@ -489,12 +526,22 @@ def _add_stage1_constraints(
             # I_{c,r} = Σ_k λ_k x_k
             m.add_constraints(
                 store_expr == intake_expr,
-                name=f"health_intake_balance_group_{hash(coords_key)}",
+                name=f"health_intake_balance_group_{hash(intake_grid)}",
             )
 
-        # --- log(RR) Calculation ---
-        # Collect log_rr matrices for all (cluster, risk) pairs in this group
-        log_rr_frames = [intake_data[risk]["log_rr"] for _cluster, risk in group_pairs]
+        # -----------------------------------------------------------------------
+        # Compute log(RR) and accumulate by cluster
+        # -----------------------------------------------------------------------
+        # The multiplicative RR relationship becomes additive in log space:
+        #     RR_d = ∏_r RR_{r,d}  ⟹  log(RR_d) = Σ_r log(RR_{r,d})
+        #
+        # For each (cluster, risk) pair, we compute:
+        #     log(RR_{c,r,d}) = Σ_k λ_k * log(RR_{r,d}(x_k))
+        # Then sum across risk factors for each cluster.
+
+        log_rr_frames = [
+            intake_data[risk]["log_rr"] for _cluster, risk in cluster_risk_pairs
+        ]
 
         if not log_rr_frames:
             continue
@@ -516,33 +563,33 @@ def _add_stage1_constraints(
             )
 
         # Convert to DataArray: (cluster_risk, intake_step, cause)
-        s_log = combined_log_rr.stack()
-        s_log.index.names = ["cluster_risk", "intake_step", "cause"]
-        da_log = xr.DataArray.from_series(s_log)
+        stacked_log_rr = combined_log_rr.stack()
+        stacked_log_rr.index.names = ["cluster_risk", "intake_step", "cause"]
+        log_rr_by_intake = xr.DataArray.from_series(stacked_log_rr)
 
         # log(RR_{c,r,d}) = Σ_k λ_k log(RR_{r,d}(x_k))
-        contrib = (lambda_var * da_log).sum("intake_step")
+        log_rr_contrib = (lambda_var * log_rr_by_intake).sum("intake_step")
 
         # Accumulate by cluster (sum over risk factors for each cause)
-        c_map = group_map_df.set_index("cluster_risk")["cluster"]
-        present_cr = contrib.coords["cluster_risk"].values
+        cluster_by_label = pairs_df.set_index("cluster_risk")["cluster"]
+        present_labels = log_rr_contrib.coords["cluster_risk"].values
         cluster_grouper = xr.DataArray(
-            c_map.loc[present_cr].values,
-            coords={"cluster_risk": present_cr},
+            cluster_by_label.loc[present_labels].values,
+            coords={"cluster_risk": present_labels},
             dims="cluster_risk",
             name="cluster",
         )
 
         # Σ_r log(RR_{r,d}) for each (cluster, cause)
-        group_total = contrib.groupby(cluster_grouper).sum()
+        log_rr_by_cluster = log_rr_contrib.groupby(cluster_grouper).sum()
 
         # Store expressions for Stage 2
-        causes = group_total.coords["cause"].values
-        clusters = group_total.coords["cluster"].values
+        causes = log_rr_by_cluster.coords["cause"].values
+        clusters = log_rr_by_cluster.coords["cluster"].values
 
         for c in clusters:
             for cause in causes:
-                expr = group_total.sel(cluster=c, cause=cause)
+                expr = log_rr_by_cluster.sel(cluster=c, cause=cause)
                 key = (c, cause)
 
                 if key in log_rr_totals:
@@ -632,7 +679,7 @@ def _add_stage2_constraints(
     log_total_groups: dict[tuple[float, ...], list[tuple[int, str]]],
     cluster_cause_data: dict[tuple[int, str], dict],
     health_stores: pd.DataFrame,
-    store_e: xr.DataArray,
+    store_level_var: xr.DataArray,
     solver_name: str,
     value_per_yll: float,
 ) -> int:
@@ -657,7 +704,7 @@ def _add_stage2_constraints(
         Metadata for each (cluster, cause) pair.
     health_stores
         DataFrame of YLL stores indexed by (health_cluster, cause).
-    store_e
+    store_level_var
         Store energy level variables.
     solver_name
         Solver name for SOS2 implementation selection.
@@ -671,8 +718,8 @@ def _add_stage2_constraints(
     """
     constraints_added = 0
 
-    for coords_key, cluster_cause_pairs in log_total_groups.items():
-        log_total_vals = np.asarray(coords_key, dtype=float)
+    for log_rr_grid, cluster_cause_pairs in log_total_groups.items():
+        log_total_vals = np.asarray(log_rr_grid, dtype=float)
         log_total_steps = pd.Index(range(len(log_total_vals)), name="log_total_step")
 
         # Create cluster-cause labels for vectorized operations
@@ -788,12 +835,12 @@ def _add_stage2_constraints(
             # - If positive: use inequality (objective minimizes store level)
             if value_per_yll == 0:
                 m.add_constraints(
-                    store_e.sel(name=store_name) == yll_expr_myll,
+                    store_level_var.sel(name=store_name) == yll_expr_myll,
                     name=f"health_store_level_c{cluster}_cause{cause}",
                 )
             elif value_per_yll > 0:
                 m.add_constraints(
-                    store_e.sel(name=store_name) >= yll_expr_myll,
+                    store_level_var.sel(name=store_name) >= yll_expr_myll,
                     name=f"health_store_level_c{cluster}_cause{cause}",
                 )
             constraints_added += 1
@@ -903,9 +950,7 @@ def add_health_objective(
 
     # --- Build Store Map ---
     # Map food group stores to health clusters with per-capita coefficients.
-    # Using store levels instead of consumption link flows ensures the health
-    # constraints operate on the same variables as food_group_equal_ constraints.
-    store_e = m.variables["Store-e"].sel(snapshot="now")
+    store_level_var = m.variables["Store-e"].sel(snapshot="now")
 
     store_map = _build_store_to_cluster_map(
         n.stores.static,
@@ -930,7 +975,13 @@ def add_health_objective(
     intake_groups = _group_cluster_risk_pairs(store_map, intake_data)
 
     log_rr_totals = _add_stage1_constraints(
-        m, store_map, intake_groups, intake_data, store_e, solver_name, value_per_yll
+        m,
+        store_map,
+        intake_groups,
+        intake_data,
+        store_level_var,
+        solver_name,
+        value_per_yll,
     )
 
     # --- Stage 2: log(RR) → YLL Store ---
@@ -945,7 +996,7 @@ def add_health_objective(
         len(log_total_groups),
     )
 
-    # Get health store mapping (store_e already loaded above for Stage 1)
+    # Get health store mapping
     health_stores = (
         n.stores.static[
             n.stores.static["carrier"].notna()
@@ -961,7 +1012,7 @@ def add_health_objective(
         log_total_groups,
         cluster_cause_data,
         health_stores,
-        store_e,
+        store_level_var,
         solver_name,
         value_per_yll,
     )
