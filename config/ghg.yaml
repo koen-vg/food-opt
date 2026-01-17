@@ -11,7 +11,7 @@ scenario_defs: "config/ghg_scenarios.yaml"
 
 health:
   enabled: true
-  value_per_yll: 0
+  value_per_yll: 1
 
 # Consumer values derived from baseline consumption patterns
 food_group_incentives:
@@ -29,3 +29,8 @@ solving:
   solver: "gurobi"
   io_api: "direct"
   threads: 2
+  options_gurobi:
+    Method: -1
+    MIPGap: 0.001
+    # MIPFocus: 2
+    # VarBranch: 0

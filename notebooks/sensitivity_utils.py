@@ -121,7 +121,7 @@ def extract_combined_param_value(scenario_name: str) -> tuple[float, float] | No
     """Extract GHG price and YLL value from combined scenario name.
 
     Args:
-        scenario_name: e.g. 'ghg_yll_100' (ghg=100, yll=10000)
+        scenario_name: e.g. 'ghg_yll_100' (ghg=100, yll=40000)
 
     Returns:
         Tuple of (ghg_price, yll_value), or None if pattern doesn't match
@@ -131,7 +131,7 @@ def extract_combined_param_value(scenario_name: str) -> tuple[float, float] | No
     match = re.match(r"ghg_yll_(\d+)", scenario_name)
     if match:
         ghg_price = float(match.group(1))
-        yll_value = ghg_price * 100  # Fixed ratio
+        yll_value = ghg_price * 400  # Fixed ratio (ghg=500 → yll=200000)
         return (ghg_price, yll_value)
     return None
 
