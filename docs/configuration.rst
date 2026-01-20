@@ -70,6 +70,190 @@ To build a specific scenario::
 
 This feature enables systematic sensitivity analysis and comparison across policy scenarios using a single configuration file.
 
+Programmatic Scenario Generation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When conducting sensitivity analyses or parameter sweeps, you often need many scenarios that differ only in one or two parameter values. Writing these out manually is tedious and error-prone. The ``_generators`` DSL allows you to define scenario templates that are automatically expanded into concrete scenarios at configuration load time.
+
+**Basic structure**
+
+A generator specification has three required fields:
+
+.. code-block:: yaml
+
+   _generators:
+     - name: scenario_{param}      # Name pattern with {placeholders}
+       parameters:                 # Parameter definitions
+         param:
+           <value-spec>
+       template:                   # Configuration template
+         some_section:
+           some_key: "{param}"     # Placeholder substitution
+
+When the configuration is loaded, each generator expands into multiple concrete scenarios. The ``{param}`` placeholders in both the name and template are replaced with generated values.
+
+**Generating parameter values**
+
+There are three ways to specify parameter values:
+
+1. **Log-spaced values** (``space: log``): Uses logarithmic spacing, useful when sensitivity varies across orders of magnitude.
+
+   .. code-block:: yaml
+
+      parameters:
+        price:
+          space: log
+          start: 5       # First value
+          stop: 500      # Last value
+          num: 8         # Number of points
+          round: true    # Optional: round to integers
+
+2. **Linear-spaced values** (``space: lin`` or omitted): Uses uniform spacing.
+
+   .. code-block:: yaml
+
+      parameters:
+        fraction:
+          space: lin
+          start: 0.0
+          stop: 1.0
+          num: 11
+
+3. **Explicit values** (``values``): Specify exact values for non-uniform grids.
+
+   .. code-block:: yaml
+
+      parameters:
+        n:
+          values: [3, 5, 10, 20, 50, 100]
+
+**Combination modes**
+
+When a generator has multiple parameters, the ``mode`` field controls how they are combined:
+
+- **Zip mode** (default): Pairs parameters element-wise. All parameter lists must have the same length. Generates N scenarios from N values per parameter. Use this when parameters should vary together along a single dimension.
+
+- **Grid mode**: Computes the Cartesian product. Generates M × N scenarios from M values of one parameter and N of another. Use this to explore a full parameter space.
+
+**Example: Single-parameter sweep**
+
+This generator creates 8 scenarios with log-spaced GHG prices from 5 to 500:
+
+.. code-block:: yaml
+
+   _generators:
+     - name: ghg_{ghg}
+       parameters:
+         ghg:
+           space: log
+           start: 5
+           stop: 500
+           num: 8
+           round: true
+       template:
+         emissions:
+           ghg_price: "{ghg}"
+
+Result: scenarios ``ghg_5``, ``ghg_8``, ``ghg_14``, ..., ``ghg_500`` (8 total).
+
+**Example: Paired parameters (zip mode)**
+
+This generator creates scenarios where GHG price and YLL value increase together:
+
+.. code-block:: yaml
+
+   _generators:
+     - name: ghg_yll_{ghg}
+       mode: zip
+       parameters:
+         ghg:
+           space: log
+           start: 5
+           stop: 500
+           num: 8
+           round: true
+         yll:
+           space: log
+           start: 50
+           stop: 100000
+           num: 8
+           round: true
+       template:
+         emissions:
+           ghg_price: "{ghg}"
+         health:
+           value_per_yll: "{yll}"
+
+Result: 8 scenarios where the i-th GHG value pairs with the i-th YLL value.
+
+**Example: Parameter grid (grid mode)**
+
+This generator explores all combinations of GHG and biomass prices:
+
+.. code-block:: yaml
+
+   _generators:
+     - name: ghg{ghg}_biomass{biomass}
+       mode: grid
+       parameters:
+         ghg:
+           values: [0, 50, 100, 150, 200, 250, 300]
+         biomass:
+           values: [0, 50, 100, 150, 200]
+       template:
+         emissions:
+           ghg_price: "{ghg}"
+         biomass:
+           marginal_cost: "{biomass}"
+
+Result: 35 scenarios (7 × 5 combinations).
+
+**Mixing generators with manual scenarios**
+
+Generators can coexist with manually defined scenarios in the same file:
+
+.. code-block:: yaml
+
+   # Manual scenario
+   baseline:
+     validation:
+       enforce_gdd_baseline: true
+
+   # Generated scenarios
+   _generators:
+     - name: sensitivity_{x}
+       parameters:
+         x:
+           values: [1, 2, 3]
+       template:
+         some_param: "{x}"
+
+**Type preservation**
+
+When a placeholder is the entire value (e.g., ``"{param}"``), the numeric type is preserved. When embedded in a string (e.g., ``"prefix_{param}"``), values are converted to strings. This ensures configuration values have the correct types for downstream processing.
+
+Configuration sections
+----------------------
+
+Scenario Metadata
+~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: scenario_metadata ---
+   :end-before: # --- section: downloads ---
+
+* **planning_horizon**: Target year for optimization (default: 2030). Currently determined only which (projected) population levels to use.
+* **currency_base_year**: Base year for inflation-adjusted USD values (default: 2024). All cost data is automatically converted to real USD in this base year using CPI adjustments. See :doc:`crop_production` (Production Costs section) for details on cost modeling.
+
+Download Options
+~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: downloads ---
+   :end-before: # --- section: validation ---
+
 Validation Options
 ~~~~~~~~~~~~~~~~~~
 
@@ -115,28 +299,6 @@ where :math:`\delta` is the ``max_relative_deviation`` parameter (e.g., 0.2 for 
 * Products with zero baseline production are constrained to zero (no new products introduced)
 * Products missing baseline data are skipped with a warning
 * Multi-cropping is automatically disabled when production stability is enabled
-
-Configuration sections
-----------------------
-
-Scenario Metadata
-~~~~~~~~~~~~~~~~~
-
-.. literalinclude:: ../config/default.yaml
-   :language: yaml
-   :start-after: # --- section: scenario_metadata ---
-   :end-before: # --- section: downloads ---
-
-* **planning_horizon**: Target year for optimization (default: 2030). Currently determined only which (projected) population levels to use.
-* **currency_base_year**: Base year for inflation-adjusted USD values (default: 2024). All cost data is automatically converted to real USD in this base year using CPI adjustments. See :doc:`crop_production` (Production Costs section) for details on cost modeling.
-
-Download Options
-~~~~~~~~~~~~~~~~
-
-.. literalinclude:: ../config/default.yaml
-   :language: yaml
-   :start-after: # --- section: downloads ---
-   :end-before: # --- section: validation ---
 
 Crop Selection
 ~~~~~~~~~~~~~~
