@@ -4,34 +4,13 @@
 
 # Biomass Price Sensitivity Analysis Scenarios
 # ---------------------------------------------
-# Each scenario varies the biomass marginal cost (USD_2024/tonne dry matter)
-# while keeping all other parameters constant. Prices range from 0 to 200 USD/tonne
-# to explore how biomass production responds to different price signals.
+# Uses _generators DSL to vary biomass marginal cost (USD_2024/tonne dry matter).
 
-biomass_0:
-  biomass:
-    marginal_cost: 0
-
-biomass_25:
-  biomass:
-    marginal_cost: 25
-
-biomass_50:
-  biomass:
-    marginal_cost: 50
-
-biomass_75:
-  biomass:
-    marginal_cost: 75
-
-biomass_100:
-  biomass:
-    marginal_cost: 100
-
-biomass_150:
-  biomass:
-    marginal_cost: 150
-
-biomass_200:
-  biomass:
-    marginal_cost: 200
+_generators:
+  - name: biomass_{cost}
+    parameters:
+      cost:
+        values: [0, 25, 50, 75, 100, 150, 200]
+    template:
+      biomass:
+        marginal_cost: "{cost}"

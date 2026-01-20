@@ -4,181 +4,20 @@
 
 # Joint GHG Price and Biomass Price Sensitivity Scenarios
 # --------------------------------------------------------
-# Cross-product of five GHG prices (USD_2024/tCO2-eq) and five biomass prices
-# (USD_2024 per tonne dry matter). GHG prices span 0–200; biomass prices span
-# 0–200. GHG pricing is disabled when the price is zero.
+# Uses _generators DSL to create a grid of GHG prices (0-300 USD_2024/tCO2-eq)
+# and biomass prices (0-200 USD_2024/tonne dry matter).
 
-ghg0_biomass0:
-  emissions:
-    ghg_pricing_enabled: false
-    ghg_price: 0
-  biomass:
-    marginal_cost: 0
-
-ghg0_biomass50:
-  emissions:
-    ghg_pricing_enabled: false
-    ghg_price: 0
-  biomass:
-    marginal_cost: 50
-
-ghg0_biomass100:
-  emissions:
-    ghg_pricing_enabled: false
-    ghg_price: 0
-  biomass:
-    marginal_cost: 100
-
-ghg0_biomass150:
-  emissions:
-    ghg_pricing_enabled: false
-    ghg_price: 0
-  biomass:
-    marginal_cost: 150
-
-ghg0_biomass200:
-  emissions:
-    ghg_pricing_enabled: false
-    ghg_price: 0
-  biomass:
-    marginal_cost: 200
-
-ghg50_biomass0:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 50
-  biomass:
-    marginal_cost: 0
-
-ghg50_biomass50:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 50
-  biomass:
-    marginal_cost: 50
-
-ghg50_biomass100:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 50
-  biomass:
-    marginal_cost: 100
-
-ghg50_biomass150:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 50
-  biomass:
-    marginal_cost: 150
-
-ghg50_biomass200:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 50
-  biomass:
-    marginal_cost: 200
-
-ghg100_biomass0:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 100
-  biomass:
-    marginal_cost: 0
-
-ghg100_biomass50:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 100
-  biomass:
-    marginal_cost: 50
-
-ghg100_biomass100:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 100
-  biomass:
-    marginal_cost: 100
-
-ghg100_biomass150:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 100
-  biomass:
-    marginal_cost: 150
-
-ghg100_biomass200:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 100
-  biomass:
-    marginal_cost: 200
-
-ghg150_biomass0:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 150
-  biomass:
-    marginal_cost: 0
-
-ghg150_biomass50:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 150
-  biomass:
-    marginal_cost: 50
-
-ghg150_biomass100:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 150
-  biomass:
-    marginal_cost: 100
-
-ghg150_biomass150:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 150
-  biomass:
-    marginal_cost: 150
-
-ghg150_biomass200:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 150
-  biomass:
-    marginal_cost: 200
-
-ghg200_biomass0:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 200
-  biomass:
-    marginal_cost: 0
-
-ghg200_biomass50:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 200
-  biomass:
-    marginal_cost: 50
-
-ghg200_biomass100:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 200
-  biomass:
-    marginal_cost: 100
-
-ghg200_biomass150:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 200
-  biomass:
-    marginal_cost: 150
-
-ghg200_biomass200:
-  emissions:
-    ghg_pricing_enabled: true
-    ghg_price: 200
-  biomass:
-    marginal_cost: 200
+_generators:
+  - name: ghg{ghg}_biomass{biomass}
+    mode: grid
+    parameters:
+      ghg:
+        values: [0, 50, 100, 150, 200, 250, 300]
+      biomass:
+        values: [0, 50, 100, 150, 200]
+    template:
+      emissions:
+        ghg_pricing_enabled: true
+        ghg_price: "{ghg}"
+      biomass:
+        marginal_cost: "{biomass}"
