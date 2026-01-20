@@ -13,6 +13,8 @@ import hashlib
 import json
 import yaml
 
+from scenario_generators import expand_scenario_defs
+
 _SCENARIO_CACHE = None
 
 
@@ -32,7 +34,8 @@ def load_scenario_defs():
         path = config.get("scenario_defs")
         if path:
             with open(path, "r", encoding="utf-8") as f:
-                _SCENARIO_CACHE = yaml.safe_load(f) or {}
+                raw_defs = yaml.safe_load(f) or {}
+            _SCENARIO_CACHE = expand_scenario_defs(raw_defs)
         else:
             _SCENARIO_CACHE = {}
     return _SCENARIO_CACHE

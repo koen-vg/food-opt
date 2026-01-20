@@ -5,8 +5,16 @@
 """Utilities for Snakemake workflow execution."""
 
 from pathlib import Path
+import sys
 
 import yaml
+
+# Add workflow directory to path for imports
+_workflow_dir = Path(__file__).parent.parent
+if str(_workflow_dir) not in sys.path:
+    sys.path.insert(0, str(_workflow_dir))
+
+from scenario_generators import expand_scenario_defs  # noqa: E402
 
 
 def _recursive_update(target: dict, source: dict) -> dict:
@@ -38,7 +46,9 @@ def load_scenarios(config: dict) -> dict:
         )
 
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        raw_defs = yaml.safe_load(f)
+
+    return expand_scenario_defs(raw_defs)
 
 
 def apply_scenario_config(config: dict, scenario_name: str) -> None:

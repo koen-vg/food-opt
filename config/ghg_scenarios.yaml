@@ -4,9 +4,8 @@
 
 # GHG Price Sensitivity Analysis Scenarios
 # ----------------------------------------
-# Each scenario varies the GHG price (USD_2024/tCO2-eq) while keeping
-# all other parameters constant. Prices range from 0 to 500 USD/tCO2-eq
-# with finer resolution at low values to capture the transition behavior.
+# Uses _generators DSL to create log-spaced price scenarios.
+# GHG prices range from 5 to 500 USD_2024/tCO2-eq with 8 points.
 
 baseline:
   # Fixed consumption to extract consumer values (dual variables)
@@ -16,7 +15,6 @@ baseline:
     enabled: false
   emissions:
     ghg_price: 0
-  # Note: no constraint on caloric intake
 
 ghg_0:
   emissions:
@@ -25,76 +23,22 @@ ghg_0:
     enabled: true
   macronutrients:
     cal:
-      equal: 2400    # kcal/person/day
+      equal: 2400
 
-ghg_5:
-  emissions:
-    ghg_price: 5
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_10:
-  emissions:
-    ghg_price: 10
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_20:
-  emissions:
-    ghg_price: 20
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_50:
-  emissions:
-    ghg_price: 50
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_100:
-  emissions:
-    ghg_price: 100
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_150:
-  emissions:
-    ghg_price: 150
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_200:
-  emissions:
-    ghg_price: 200
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_500:
-  emissions:
-    ghg_price: 500
-  food_group_incentives:
-    enabled: true
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
+_generators:
+  - name: ghg_{ghg}
+    parameters:
+      ghg:
+        space: log
+        start: 5
+        stop: 500
+        num: 8
+        round: true
+    template:
+      emissions:
+        ghg_price: "{ghg}"
+      food_group_incentives:
+        enabled: true
+      macronutrients:
+        cal:
+          equal: 2400

@@ -4,14 +4,9 @@
 
 # Joint GHG Price and YLL Value Sensitivity Scenarios
 # ----------------------------------------------------
-# Both GHG price (USD_2024/tCO2-eq) and YLL value (USD_2024 per year of life
-# lost) increase together along a single dimension with ratio yll = ghg × 400.
-# At ghg=500, yll=200000, matching the max values of the individual sensitivity
-# analyses. Uses exponential-like spacing for finer resolution at low values.
-#
-# Workflow:
-# 1. "baseline": Fixed consumption, no pricing - extracts consumer values
-# 2. "ghg_yll_*" scenarios: Consumer values in objective + varying prices
+# Uses _generators DSL to create paired log-spaced scenarios.
+# GHG prices (5-500 USD_2024/tCO2-eq) and YLL values (50-100000 USD_2024/YLL)
+# increase together along a single dimension with 8 points each.
 
 baseline:
   # Fixed consumption to extract consumer values (dual variables)
@@ -23,7 +18,6 @@ baseline:
     ghg_price: 0
   health:
     value_per_yll: 0
-  # Note: no constraint on caloric intake
 
 ghg_yll_0:
   food_group_incentives:
@@ -34,81 +28,58 @@ ghg_yll_0:
     value_per_yll: 0
   macronutrients:
     cal:
-      equal: 2400    # kcal/person/day
+      equal: 2400
 
-ghg_yll_5:
-  food_group_incentives:
-    enabled: true
-  emissions:
-    ghg_price: 5
-  health:
-    value_per_yll: 2000
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_yll_10:
-  food_group_incentives:
-    enabled: true
-  emissions:
-    ghg_price: 10
-  health:
-    value_per_yll: 4000
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_yll_20:
-  food_group_incentives:
-    enabled: true
-  emissions:
-    ghg_price: 20
-  health:
-    value_per_yll: 8000
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_yll_50:
-  food_group_incentives:
-    enabled: true
-  emissions:
-    ghg_price: 50
-  health:
-    value_per_yll: 20000
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_yll_100:
-  food_group_incentives:
-    enabled: true
-  emissions:
-    ghg_price: 100
-  health:
-    value_per_yll: 40000
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_yll_200:
-  food_group_incentives:
-    enabled: true
-  emissions:
-    ghg_price: 200
-  health:
-    value_per_yll: 80000
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
-
-ghg_yll_500:
-  food_group_incentives:
-    enabled: true
-  emissions:
-    ghg_price: 500
-  health:
-    value_per_yll: 200000
-  macronutrients:
-    cal:
-      equal: 2400    # kcal/person/day
+_generators:
+  - name: ghg_yll_{ghg}
+    mode: zip
+    parameters:
+      ghg:
+        space: log
+        start: 5
+        stop: 500
+        num: 8
+        round: true
+      yll:
+        space: log
+        start: 50
+        stop: 100000
+        num: 8
+        round: true
+    template:
+      food_group_incentives:
+        enabled: true
+      emissions:
+        ghg_price: "{ghg}"
+      health:
+        value_per_yll: "{yll}"
+      macronutrients:
+        cal:
+          equal: 2400
+  - name: ghg_yll_{ghg}_break15
+    mode: zip
+    parameters:
+      ghg:
+        space: log
+        start: 5
+        stop: 500
+        num: 8
+        round: true
+      yll:
+        space: log
+        start: 50
+        stop: 100000
+        num: 8
+        round: true
+    template:
+      food_group_incentives:
+        enabled: true
+      emissions:
+        ghg_price: "{ghg}"
+      health:
+        value_per_yll: "{yll}"
+        intake_grid_points: 15
+        log_rr_points: 15
+      macronutrients:
+        cal:
+          equal: 2400

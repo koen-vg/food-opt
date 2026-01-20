@@ -1,0 +1,258 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""YAML DSL for programmatic scenario generation.
+
+This module provides functionality to expand generator definitions in scenario
+YAML files into concrete scenarios at load time. This enables parameter sweeps
+(e.g., logarithmically-spaced values) without manually writing repetitive YAML.
+
+Example usage in scenario YAML:
+    _generators:
+      - name: ghg_{ghg}
+        parameters:
+          ghg:
+            space: log
+            start: 5
+            stop: 500
+            num: 8
+            round: true
+        template:
+          emissions:
+            ghg_price: "{ghg}"
+"""
+
+import copy
+import itertools
+
+import numpy as np
+
+
+def expand_scenario_defs(raw_defs: dict) -> dict:
+    """Expand generator definitions into concrete scenarios.
+
+    Parameters
+    ----------
+    raw_defs : dict
+        Raw scenario definitions, possibly containing a "_generators" key
+
+    Returns
+    -------
+    dict
+        Expanded scenario definitions with all generators replaced by
+        concrete scenarios
+    """
+    if raw_defs is None:
+        return {}
+
+    result = {}
+
+    # Copy static scenarios (everything except _generators)
+    for key, value in raw_defs.items():
+        if key != "_generators":
+            result[key] = value
+
+    # Process generators
+    generators = raw_defs.get("_generators", [])
+    for spec in generators:
+        _validate_generator(spec)
+        expanded = _expand_generator(spec)
+        result.update(expanded)
+
+    return result
+
+
+def _validate_generator(spec: dict) -> None:
+    """Validate generator specification syntax.
+
+    Raises
+    ------
+    ValueError
+        If the generator specification is invalid
+    """
+    if "name" not in spec:
+        raise ValueError("Generator must have a 'name' field")
+    if "parameters" not in spec:
+        raise ValueError(f"Generator '{spec['name']}' must have a 'parameters' field")
+    if "template" not in spec:
+        raise ValueError(f"Generator '{spec['name']}' must have a 'template' field")
+
+    for param_name, param_spec in spec["parameters"].items():
+        if "values" in param_spec:
+            # Explicit values mode
+            if not isinstance(param_spec["values"], list):
+                raise ValueError(f"Parameter '{param_name}' 'values' must be a list")
+        else:
+            # Range mode
+            required = ["start", "stop", "num"]
+            missing = [f for f in required if f not in param_spec]
+            if missing:
+                raise ValueError(
+                    f"Parameter '{param_name}' missing required fields: {missing}"
+                )
+            if "space" in param_spec and param_spec["space"] not in ("log", "lin"):
+                raise ValueError(
+                    f"Parameter '{param_name}' space must be 'log' or 'lin'"
+                )
+
+
+def _generate_values(param_spec: dict) -> list:
+    """Generate parameter values from specification.
+
+    Parameters
+    ----------
+    param_spec : dict
+        Parameter specification with either 'values' list or
+        'start'/'stop'/'num'/'space' fields
+
+    Returns
+    -------
+    list
+        List of generated values
+    """
+    if "values" in param_spec:
+        return list(param_spec["values"])
+
+    start = param_spec["start"]
+    stop = param_spec["stop"]
+    num = param_spec["num"]
+    space = param_spec.get("space", "lin")
+    do_round = param_spec.get("round", False)
+
+    if space == "log":
+        values = np.logspace(np.log10(start), np.log10(stop), num)
+    else:
+        values = np.linspace(start, stop, num)
+
+    if do_round:
+        values = np.round(values).astype(int)
+
+    return values.tolist()
+
+
+def _zip_parameters(param_values: dict) -> list[dict]:
+    """Combine parameters using zip (paired) mode.
+
+    Parameters
+    ----------
+    param_values : dict
+        Dict mapping parameter names to lists of values
+
+    Returns
+    -------
+    list[dict]
+        List of dicts, each mapping parameter names to single values
+    """
+    param_names = list(param_values.keys())
+    value_lists = [param_values[name] for name in param_names]
+
+    # Verify all lists have same length
+    lengths = [len(v) for v in value_lists]
+    if len(set(lengths)) > 1:
+        raise ValueError(
+            f"All parameters must have same number of values in zip mode. "
+            f"Got lengths: {dict(zip(param_names, lengths))}"
+        )
+
+    result = []
+    for values in zip(*value_lists):
+        result.append(dict(zip(param_names, values)))
+    return result
+
+
+def _grid_parameters(param_values: dict) -> list[dict]:
+    """Combine parameters using grid (Cartesian product) mode.
+
+    Parameters
+    ----------
+    param_values : dict
+        Dict mapping parameter names to lists of values
+
+    Returns
+    -------
+    list[dict]
+        List of dicts, each mapping parameter names to single values
+    """
+    param_names = list(param_values.keys())
+    value_lists = [param_values[name] for name in param_names]
+
+    result = []
+    for values in itertools.product(*value_lists):
+        result.append(dict(zip(param_names, values)))
+    return result
+
+
+def _substitute_values(template, values: dict):
+    """Recursively substitute parameter values into template.
+
+    Handles both string substitution (for "{param}" patterns) and
+    preserves numeric types when the entire value is a placeholder.
+
+    Parameters
+    ----------
+    template
+        Template structure (dict, list, str, or other)
+    values : dict
+        Mapping of parameter names to values
+
+    Returns
+    -------
+        Template with values substituted
+    """
+    if isinstance(template, dict):
+        return {k: _substitute_values(v, values) for k, v in template.items()}
+    elif isinstance(template, list):
+        return [_substitute_values(item, values) for item in template]
+    elif isinstance(template, str):
+        # Check if the entire string is a single placeholder
+        for param_name, param_value in values.items():
+            placeholder = "{" + param_name + "}"
+            if template == placeholder:
+                # Return the numeric value directly, preserving type
+                return param_value
+            # Otherwise do string substitution
+            template = template.replace(placeholder, str(param_value))
+        return template
+    else:
+        return template
+
+
+def _expand_generator(spec: dict) -> dict:
+    """Expand a single generator specification into concrete scenarios.
+
+    Parameters
+    ----------
+    spec : dict
+        Generator specification with 'name', 'parameters', and 'template'
+
+    Returns
+    -------
+    dict
+        Dict mapping scenario names to their configurations
+    """
+    name_template = spec["name"]
+    template = spec["template"]
+    mode = spec.get("mode", "zip")
+
+    # Generate values for each parameter
+    param_values = {}
+    for param_name, param_spec in spec["parameters"].items():
+        param_values[param_name] = _generate_values(param_spec)
+
+    # Combine parameters according to mode
+    if mode == "grid":
+        combinations = _grid_parameters(param_values)
+    else:  # zip mode (default)
+        combinations = _zip_parameters(param_values)
+
+    # Generate scenarios
+    scenarios = {}
+    for values in combinations:
+        # Format the scenario name
+        scenario_name = name_template.format(**values)
+        # Substitute values into template
+        scenario_config = _substitute_values(copy.deepcopy(template), values)
+        scenarios[scenario_name] = scenario_config
+
+    return scenarios
