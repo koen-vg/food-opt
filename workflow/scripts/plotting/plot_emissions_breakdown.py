@@ -38,7 +38,7 @@ def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
     carrier_map = {
         "residue_incorporation": "Crop residue incorporation",
         "spare_land": "Carbon sequestration",  # Link carrier (not "spared_land" which is bus/store)
-        "fertilizer": "Synthetic fertilizer application",
+        "distribute_fertilizer": "Synthetic fertilizer application",
         "land_conversion": "Land Use Change",  # Link carrier for land expansion
     }
 
@@ -117,7 +117,9 @@ def extract_emissions_by_source(
     }
 
     # Carriers representing conversion links to be excluded (sinks)
-    conversion_carriers = {"co2", "ch4", "n2o"}
+    # - co2, ch4, n2o: links that feed into individual gas buses
+    # - aggregate_emissions: links that move emissions from gas buses to GHG bus
+    conversion_carriers = {"co2", "ch4", "n2o", "aggregate_emissions"}
 
     # Get energy balance with grouping by bus_carrier and carrier
     # This gives us flows into each bus, grouped by component carrier
@@ -173,7 +175,7 @@ def extract_emissions_by_source(
             links_df.loc[produce_mask, "pasture_n2o_share"].fillna(0.0).astype(float)
         )
 
-        p4 = n.links_t.p4.loc[:, produce_mask]
+        p4 = n.links.dynamic["p4"].loc[:, produce_mask]
         weights = n.snapshot_weightings["objective"]
         pasture_t_n2o = -(
             p4.multiply(pasture_share, axis=1).multiply(weights, axis=0).sum().sum()
@@ -195,7 +197,7 @@ def extract_emissions_by_source(
             links_df.loc[produce_mask, "manure_ch4_share"].fillna(0.0).astype(float)
         )
 
-        p2 = n.links_t.p2.loc[:, produce_mask]
+        p2 = n.links.dynamic["p2"].loc[:, produce_mask]
         weights = n.snapshot_weightings["objective"]
         manure_t_ch4 = -(
             p2.multiply(manure_share, axis=1).multiply(weights, axis=0).sum().sum()
