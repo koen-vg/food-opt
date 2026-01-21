@@ -1161,7 +1161,10 @@ def _add_animal_stability_constraints(
         )
 
 
-if __name__ == "__main__":
+def _run_solve() -> None:
+    """Main solve logic, factored out for profiling."""
+    global logger
+
     # Configure logging to write to Snakemake log file
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
     # Suppress the noisy PyPSA shadow-price info log.
@@ -1434,3 +1437,47 @@ if __name__ == "__main__":
             logger.error("Infeasibility diagnosis only available with Gurobi solver")
     else:
         logger.error("Optimization unsuccessful: %s", result)
+
+
+if __name__ == "__main__":
+    import os
+
+    profile_enabled = os.environ.get("PROFILE_SOLVE", "0") == "1"
+
+    if profile_enabled:
+        import cProfile
+        from pathlib import Path
+        import pstats
+
+        # Run with profiling
+        profile_path = Path(snakemake.output.network).with_suffix(".prof")
+        profiler = cProfile.Profile()
+        profiler.enable()
+        try:
+            _run_solve()
+        finally:
+            profiler.disable()
+            # Save raw profile for later analysis (e.g., snakeviz)
+            profiler.dump_stats(str(profile_path))
+
+            # Print summary stats to log
+            stats = pstats.Stats(profiler)
+            stats.strip_dirs()
+            stats.sort_stats("cumulative")
+
+            # Print top 50 functions by cumulative time
+            print("\n" + "=" * 80)
+            print("PROFILING RESULTS - Top 50 by cumulative time")
+            print("=" * 80)
+            stats.print_stats(50)
+
+            print("\n" + "=" * 80)
+            print("PROFILING RESULTS - Top 50 by total time (self)")
+            print("=" * 80)
+            stats.sort_stats("tottime")
+            stats.print_stats(50)
+
+            print(f"\nFull profile saved to: {profile_path}")
+            print("Analyze with: pixi run python -m snakeviz " + str(profile_path))
+    else:
+        _run_solve()

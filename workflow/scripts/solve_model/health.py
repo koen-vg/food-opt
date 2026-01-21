@@ -533,12 +533,22 @@ def _add_stage1_delta(
     _register_auxiliary_variable(m, delta_var.name)
 
     # Fill-up constraints: δ_j ≤ δ_{j-1} for j ≥ 1
+    # Vectorized: use roll() to shift values, then compare slices with aligned coords
     if n_segments > 1:
-        for j in range(1, n_segments):
-            m.add_constraints(
-                delta_var.sel({segment_dim: j}) <= delta_var.sel({segment_dim: j - 1}),
-                name=f"health_delta_fillup_{group_id}_{risk_label}_seg{j}",
-            )
+        # Roll shifts values circularly by -1: [δ0, δ1, ..., δn-1] -> [δ1, δ2, ..., δn-1, δ0]
+        # Select first n-1 elements to get [δ1, δ2, ..., δn-1] with coords [0, 1, ..., n-2]
+        delta_rolled = delta_var.roll({segment_dim: -1})
+        delta_current = delta_rolled.isel(
+            {segment_dim: slice(0, -1)}
+        )  # δ[j] for j=1..n-1
+        delta_prev = delta_var.isel({segment_dim: slice(0, -1)})  # δ[j-1] for j=1..n-1
+
+        # Both have same coords [0, 1, ..., n-2], so comparison works directly
+        # Constraint: δ[j] ≤ δ[j-1]
+        m.add_constraints(
+            delta_current <= delta_prev,
+            name=f"health_delta_fillup_{group_id}_{risk_label}",
+        )
 
     # -----------------------------------------------------------------------
     # Segment indicator variables for correct interpolation
@@ -548,7 +558,6 @@ def _add_stage1_delta(
     #
     # For HiGHS: binary variables
     # For Gurobi: continuous variables with SOS1 constraint
-
     use_binary = solver_name.lower() == "highs"
 
     if use_binary:
@@ -584,22 +593,47 @@ def _add_stage1_delta(
     # Constraints:
     #   δ_i ≥ Σ_{k=i+1}^{n-1} y_k  (δ_i = 1 if active segment is later than i)
     #   δ_i ≤ Σ_{k=i}^{n-1} y_k    (δ_i = 0 if active segment is before i)
-    for i in range(n_segments):
-        # δ_i ≥ Σ_{k>i} y_k
-        if i < n_segments - 1:
-            y_later_sum = y_var.isel({segment_dim: slice(i + 1, None)}).sum(segment_dim)
-            m.add_constraints(
-                delta_var.sel({segment_dim: i}) >= y_later_sum,
-                name=f"health_delta_lower_{group_id}_{risk_label}_seg{i}",
-            )
+    #
+    # Vectorized implementation using suffix sums computed via matrix multiplication.
 
-        # δ_i ≤ Σ_{k≥i} y_k
-        y_this_and_later_sum = y_var.isel({segment_dim: slice(i, None)}).sum(
-            segment_dim
-        )
+    # Build suffix sum coefficient matrix: A[i,j] = 1 if j >= i
+    # y_suffix[i] = Σ_{j>=i} y[j] = (A @ y)[i]
+    suffix_matrix = np.triu(np.ones((n_segments, n_segments)))
+    suffix_coeffs = xr.DataArray(
+        suffix_matrix,
+        dims=[segment_dim, "sum_over"],
+        coords={segment_dim: segment_coords, "sum_over": segment_coords},
+    )
+
+    # Convert y_var to LinearExpression and rename dimension for matrix multiply.
+    # We use to_linexpr() to avoid sos_dim validation issues with Variable.rename().
+    y_linexpr = y_var.to_linexpr()
+    y_linexpr_renamed = y_linexpr.rename({segment_dim: "sum_over"})
+
+    # Compute suffix sums: y_suffix[i] = Σ_{j>=i} y[j]
+    # Shape: (n_cluster_risk, n_segments)
+    y_suffix = (y_linexpr_renamed * suffix_coeffs).sum("sum_over")
+
+    # Upper bound constraints: δ[i] <= y_suffix[i] for all i=0..n-1
+    # Both delta_var and y_suffix have same coords, so direct comparison works
+    m.add_constraints(
+        delta_var <= y_suffix,
+        name=f"health_delta_upper_{group_id}_{risk_label}",
+    )
+
+    # Lower bound constraints: δ[i] >= y_suffix[i+1] for i=0..n-2
+    # y_suffix[i+1] = Σ_{k>i} y_k (the "later" sum)
+    if n_segments > 1:
+        # Use roll to shift y_suffix by -1, then take first n-1 elements
+        # This aligns y_suffix[i+1] with coords [0, 1, ..., n-2]
+        y_later_rolled = y_suffix.roll({segment_dim: -1})
+        y_later = y_later_rolled.isel({segment_dim: slice(0, -1)})  # y_suffix[i+1]
+        delta_for_lower = delta_var.isel({segment_dim: slice(0, -1)})  # δ[i]
+
+        # Both have coords [0, 1, ..., n-2], comparison works directly
         m.add_constraints(
-            delta_var.sel({segment_dim: i}) <= y_this_and_later_sum,
-            name=f"health_delta_upper_{group_id}_{risk_label}_seg{i}",
+            delta_for_lower >= y_later,
+            name=f"health_delta_lower_{group_id}_{risk_label}",
         )
 
     # Intake balance: I_{c,r} = x_0 + Σ_j δ_j Δx_j
@@ -880,12 +914,21 @@ def _add_stage2_delta(
     _register_auxiliary_variable(m, delta_var.name)
 
     # Fill-up constraints: δ_j ≤ δ_{j-1} for j ≥ 1
+    # Vectorized: use roll() to shift values, then compare slices with aligned coords
     if n_points > 2:
-        for j in range(1, n_points - 1):
-            m.add_constraints(
-                delta_var.sel({segment_dim: j}) <= delta_var.sel({segment_dim: j - 1}),
-                name=f"health_delta_total_fillup_{cause_label}_seg{j}",
-            )
+        # Roll shifts values circularly by -1: [δ0, δ1, ..., δn-1] -> [δ1, δ2, ..., δn-1, δ0]
+        # Select first n-2 elements to get [δ1, δ2, ..., δn-2] with coords [0, 1, ..., n-3]
+        delta_rolled = delta_var.roll({segment_dim: -1})
+        delta_current = delta_rolled.isel(
+            {segment_dim: slice(0, -1)}
+        )  # δ[j] for j=1..n-2
+        delta_prev = delta_var.isel({segment_dim: slice(0, -1)})  # δ[j-1] for j=1..n-2
+
+        # Both have same coords, so comparison works directly
+        m.add_constraints(
+            delta_current <= delta_prev,
+            name=f"health_delta_total_fillup_{cause_label}",
+        )
 
     # Perturbation for delta formulation is not needed - the equality constraint
     # on log(RR) uniquely determines delta values, eliminating degeneracy.
@@ -894,44 +937,86 @@ def _add_stage2_delta(
     z_0 = float(coeff_log_total.isel(log_total_step=0).values)
     f_0 = float(coeff_rr.isel(log_total_step=0).values)
 
-    constraints_added = 0
+    # Vectorized log-RR and RR interpolation for all (cluster, cause) pairs at once
+    # log_interp_all has shape (n_cluster_cause,)
+    log_interp_all = z_0 + (delta_var * delta_z).sum(segment_dim)
+    rr_interp_all = f_0 + (delta_var * delta_rr).sum(segment_dim)
 
-    # Process each (cluster, cause) pair
-    for (cluster, cause), label in zip(cluster_cause_pairs, cluster_cause_labels):
-        data = cluster_cause_data[(cluster, cause)]
-        delta_total = delta_var.sel(cluster_cause=label)
+    # Build arrays of per-pair coefficients for vectorized store level computation
+    # Indexed by cluster_cause_index
+    rr_ref_vals = np.array(
+        [cluster_cause_data[(c, d)]["rr_ref"] for c, d in cluster_cause_pairs]
+    )
+    yll_total_vals = np.array(
+        [cluster_cause_data[(c, d)]["yll_total"] for c, d in cluster_cause_pairs]
+    )
+    rr_baseline_vals = np.array(
+        [cluster_cause_data[(c, d)]["rr_baseline"] for c, d in cluster_cause_pairs]
+    )
 
-        # Verify Stage 1 produced log_rr totals for this pair
+    rr_ref = xr.DataArray(
+        rr_ref_vals,
+        coords={"cluster_cause": cluster_cause_index},
+        dims=["cluster_cause"],
+    )
+    scale_factor = xr.DataArray(
+        yll_total_vals / rr_baseline_vals * constants.YLL_TO_MILLION_YLL,
+        coords={"cluster_cause": cluster_cause_index},
+        dims=["cluster_cause"],
+    )
+
+    # Vectorized YLL expression: (RR - RR^ref) * scale_factor
+    yll_expr_all = (rr_interp_all - rr_ref) * scale_factor
+
+    # Build store names array for vectorized store level constraint
+    store_names = [
+        health_stores.loc[(cluster, cause), "name"]
+        for cluster, cause in cluster_cause_pairs
+    ]
+
+    # Verify all log_rr_totals exist and collect them
+    total_exprs = []
+    for cluster, cause in cluster_cause_pairs:
         if (cluster, cause) not in log_rr_totals:
             raise ValueError(
                 f"No log_rr total from Stage 1 for cluster {cluster}, cause {cause}. "
                 f"Check that food group stores exist and map to health clusters."
             )
-        total_expr = log_rr_totals[(cluster, cause)]
+        total_exprs.append(log_rr_totals[(cluster, cause)])
 
-        # log(RR_d) interpolation: z_0 + Σ_j δ_j Δz_j = Σ_r log(RR_{r,d})
-        log_interp = z_0 + (delta_total * delta_z).sum(segment_dim)
+    # Add balance constraints - need to loop since total_exprs are separate expressions
+    # But we can batch the store level constraints
+    for (cluster, cause), label, total_expr in zip(
+        cluster_cause_pairs, cluster_cause_labels, total_exprs
+    ):
+        log_interp = log_interp_all.sel(cluster_cause=label)
         m.add_constraints(
             log_interp == total_expr,
             name=f"health_delta_total_balance_c{cluster}_cause{cause}",
         )
 
-        # RR_d interpolation: f_0 + Σ_j δ_j Δf_j
-        rr_interp = f_0 + (delta_total * delta_rr).sum(segment_dim)
+    # Add store level constraints (still looped due to coordinate complexity)
+    # But we pre-computed the vectorized yll_expr_all above
+    for (cluster, cause), label, store_name in zip(
+        cluster_cause_pairs, cluster_cause_labels, store_names
+    ):
+        yll_expr = yll_expr_all.sel(cluster_cause=label)
+        store_var = store_level_var.sel(name=store_name)
 
-        # Add store level constraint
-        constraints_added += _add_store_level_constraint(
-            m=m,
-            rr_interp=rr_interp,
-            data=data,
-            cluster=cluster,
-            cause=cause,
-            health_stores=health_stores,
-            store_level_var=store_level_var,
-            value_per_yll=value_per_yll,
-        )
+        if value_per_yll == 0:
+            m.add_constraints(
+                store_var == yll_expr,
+                name=f"health_store_level_c{cluster}_cause{cause}",
+            )
+        elif value_per_yll > 0:
+            m.add_constraints(
+                store_var >= yll_expr,
+                name=f"health_store_level_c{cluster}_cause{cause}",
+            )
+        else:
+            raise ValueError(f"value_per_yll must be non-negative, got {value_per_yll}")
 
-    return constraints_added
+    return len(cluster_cause_pairs)
 
 
 def _add_store_level_constraint(
