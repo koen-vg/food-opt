@@ -155,12 +155,12 @@ def compute_health_results(
     )
 
     intake_totals: dict[tuple[int, str], float] = defaultdict(float)
-    p_now = n.links_t.p0.loc["now"]
+    p_now = n.links.dynamic.p0.loc["now"]
 
-    consume_links = n.links[n.links["carrier"].str.startswith("consume_")]
+    consume_links = n.links.static[n.links.static["carrier"].str.startswith("consume_")]
     for link_name in consume_links.index:
-        food = n.links.at[link_name, "food"]
-        country = n.links.at[link_name, "country"]
+        food = n.links.static.at[link_name, "food"]
+        country = n.links.static.at[link_name, "country"]
         sanitized_food = sanitize_food_name(food)
         entries = food_lookup.get(sanitized_food)
         if not entries:

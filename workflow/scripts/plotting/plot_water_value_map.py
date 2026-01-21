@@ -36,11 +36,11 @@ def plot_water_value_map(
     logger.info("Loading solved network from %s", solved_network_path)
     n = pypsa.Network(str(solved_network_path))
 
-    water_buses = n.buses[n.buses["carrier"] == "water"]
+    water_buses = n.buses.static[n.buses.static["carrier"] == "water"]
     if water_buses.empty:
         raise ValueError("No water buses found in network")
 
-    marginal_prices = n.buses_t.marginal_price.iloc[0][water_buses.index]
+    marginal_prices = n.buses.dynamic.marginal_price.iloc[0][water_buses.index]
 
     scale_meta = n.meta.get("carrier_unit_scale", {})
     mm3_per_m3 = float(

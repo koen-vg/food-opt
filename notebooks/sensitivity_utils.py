@@ -10,6 +10,7 @@ and combined_sensitivity notebooks.
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 import re
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,6 +18,7 @@ import pandas as pd
 import pypsa
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
+import yaml
 
 # Constants for unit conversion
 GRAMS_PER_MEGATONNE = 1e12
@@ -29,6 +31,43 @@ PER_100K = 100_000  # epidemiological rate denominator (per 100,000 population)
 # GWP values (AR5 100-year)
 CH4_GWP = 28.0
 N2O_GWP = 265.0
+
+# Figure styling constants
+FIGURE_WIDTH_MM = 180  # Standard figure width in mm
+MM_TO_INCH = 1 / 25.4  # Conversion factor
+
+# Font sizes (in points)
+FONTSIZE_TITLE = 7
+FONTSIZE_AXIS_LABEL = 6
+FONTSIZE_TICK_LABEL = 5
+FONTSIZE_CBAR_LABEL = 6
+FONTSIZE_PANEL_LABEL = 8
+FONTSIZE_CONTOUR_LABEL = 5
+
+
+def log_scale_zero_position(x_values: np.ndarray) -> float:
+    """Calculate the position at which to plot x=0 on a log scale for even spacing.
+
+    Given a sequence of x values that includes 0 and follows a geometric
+    progression (e.g., 0, 1, 2, 4, 8, ...), this function calculates where
+    to plot the 0 value to maintain even spacing on a log scale.
+
+    The formula is: zero_pos = x1² / x2, where x1 and x2 are the first two
+    non-zero values.
+
+    Args:
+        x_values: Array of x values, may include 0.
+
+    Returns:
+        The x position at which to plot 0 for even log-scale spacing.
+        Returns 0.5 as fallback if calculation is not possible.
+    """
+    non_zero = np.sort(x_values[x_values > 0])
+    if len(non_zero) >= 2:
+        x1, x2 = non_zero[0], non_zero[1]
+        return x1 * x1 / x2
+    return 0.5  # Fallback
+
 
 # Pretty names for food groups (including aggregated groups)
 PRETTY_NAMES = {
@@ -72,6 +111,262 @@ PRETTY_NAMES_OBJ = {
     "Consumer values": "Consumer values",
     "Biomass exports": "Biomass exports",
 }
+
+
+# -----------------------------------------------------------------------------
+# Config and scenario loading utilities
+# -----------------------------------------------------------------------------
+
+
+def load_scenario_defs(project_root: Path, config_name: str) -> dict:
+    """Load and expand scenario definitions from a config file.
+
+    Args:
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg', 'yll', 'ghg_yll')
+
+    Returns:
+        Dict of expanded scenario definitions
+    """
+    # Add workflow directory to path for importing scenario_generators
+    workflow_path = project_root / "workflow"
+    if str(workflow_path) not in sys.path:
+        sys.path.insert(0, str(workflow_path))
+
+    from scenario_generators import expand_scenario_defs
+
+    # Load main config to get scenario_defs path
+    config_path = project_root / "config" / f"{config_name}.yaml"
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+
+    scenario_defs_path = project_root / config["scenario_defs"]
+    with open(scenario_defs_path) as f:
+        raw_defs = yaml.safe_load(f)
+
+    return expand_scenario_defs(raw_defs)
+
+
+def extract_scenarios_with_param(
+    project_root: Path,
+    config_name: str,
+    param_path: list[str],
+    scenario_prefix: str,
+) -> list[tuple[float, str, Path]]:
+    """Extract scenarios and their parameter values from config.
+
+    Args:
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg', 'yll')
+        param_path: Path to parameter in scenario config (e.g., ['emissions', 'ghg_price'])
+        scenario_prefix: Prefix to match scenario names (e.g., 'ghg_', 'yll_')
+
+    Returns:
+        List of (param_value, scenario_name, network_path) tuples, sorted by param_value
+    """
+    scenario_defs = load_scenario_defs(project_root, config_name)
+    results_dir = project_root / "results" / config_name / "solved"
+
+    scenarios = []
+    for scenario_name, scenario_config in scenario_defs.items():
+        if scenario_name == "baseline" or not scenario_name.startswith(scenario_prefix):
+            continue
+
+        # Navigate to parameter value
+        value = scenario_config
+        for key in param_path:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                value = None
+                break
+
+        if value is not None:
+            network_path = results_dir / f"model_scen-{scenario_name}.nc"
+            scenarios.append((float(value), scenario_name, network_path))
+
+    scenarios.sort(key=lambda x: x[0])
+    return scenarios
+
+
+def extract_combined_scenarios(
+    project_root: Path,
+    config_name: str,
+    ghg_param_path: list[str],
+    yll_param_path: list[str],
+    scenario_prefix: str,
+) -> list[tuple[float, float, str, Path]]:
+    """Extract scenarios with both GHG price and YLL value parameters.
+
+    Args:
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg_yll')
+        ghg_param_path: Path to GHG price in scenario config
+        yll_param_path: Path to YLL value in scenario config
+        scenario_prefix: Prefix to match scenario names (e.g., 'ghg_yll_')
+
+    Returns:
+        List of (ghg_price, yll_value, scenario_name, network_path) tuples,
+        sorted by ghg_price
+    """
+    scenario_defs = load_scenario_defs(project_root, config_name)
+    results_dir = project_root / "results" / config_name / "solved"
+
+    scenarios = []
+    for scenario_name, scenario_config in scenario_defs.items():
+        if scenario_name == "baseline" or not scenario_name.startswith(scenario_prefix):
+            continue
+
+        # Navigate to GHG price
+        ghg_value = scenario_config
+        for key in ghg_param_path:
+            if isinstance(ghg_value, dict) and key in ghg_value:
+                ghg_value = ghg_value[key]
+            else:
+                ghg_value = None
+                break
+
+        # Navigate to YLL value
+        yll_value = scenario_config
+        for key in yll_param_path:
+            if isinstance(yll_value, dict) and key in yll_value:
+                yll_value = yll_value[key]
+            else:
+                yll_value = None
+                break
+
+        if ghg_value is not None and yll_value is not None:
+            network_path = results_dir / f"model_scen-{scenario_name}.nc"
+            scenarios.append(
+                (float(ghg_value), float(yll_value), scenario_name, network_path)
+            )
+
+    scenarios.sort(key=lambda x: x[0])
+    return scenarios
+
+
+def extract_grid_scenarios(
+    project_root: Path,
+    config_name: str,
+    ghg_param_path: list[str],
+    yll_param_path: list[str],
+    scenario_prefix: str,
+) -> list[tuple[float, float, str, Path]]:
+    """Extract grid scenarios with both GHG price and YLL value parameters.
+
+    Unlike extract_combined_scenarios which expects co-varying parameters,
+    this function extracts all combinations from a 2D grid.
+
+    Args:
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg_yll_grid')
+        ghg_param_path: Path to GHG price in scenario config
+        yll_param_path: Path to YLL value in scenario config
+        scenario_prefix: Prefix to match scenario names (e.g., 'ghg')
+
+    Returns:
+        List of (ghg_price, yll_value, scenario_name, network_path) tuples,
+        sorted by (ghg_price, yll_value)
+    """
+    scenario_defs = load_scenario_defs(project_root, config_name)
+    results_dir = project_root / "results" / config_name / "solved"
+
+    scenarios = []
+    for scenario_name, scenario_config in scenario_defs.items():
+        if scenario_name == "baseline" or not scenario_name.startswith(scenario_prefix):
+            continue
+
+        # Navigate to GHG price
+        ghg_value = scenario_config
+        for key in ghg_param_path:
+            if isinstance(ghg_value, dict) and key in ghg_value:
+                ghg_value = ghg_value[key]
+            else:
+                ghg_value = None
+                break
+
+        # Navigate to YLL value
+        yll_value = scenario_config
+        for key in yll_param_path:
+            if isinstance(yll_value, dict) and key in yll_value:
+                yll_value = yll_value[key]
+            else:
+                yll_value = None
+                break
+
+        if ghg_value is not None and yll_value is not None:
+            network_path = results_dir / f"model_scen-{scenario_name}.nc"
+            scenarios.append(
+                (float(ghg_value), float(yll_value), scenario_name, network_path)
+            )
+
+    # Sort by (ghg_price, yll_value)
+    scenarios.sort(key=lambda x: (x[0], x[1]))
+    return scenarios
+
+
+def get_log_ticks(
+    values: list[float], include_zero: bool = True
+) -> tuple[list[float], list[str]]:
+    """Generate tick positions and labels for a log scale with round numbers.
+
+    Creates tick marks at powers of 10 (1, 10, 100, 1000, etc.) that fall
+    within the range of the provided values.
+
+    Args:
+        values: List of parameter values (e.g., [0, 5, 14, 38, 100, 500])
+        include_zero: Whether to include 0 at position 1 (for log scale)
+
+    Returns:
+        Tuple of (tick_positions, tick_labels)
+    """
+    # Filter out zeros for determining range
+    nonzero_values = [v for v in values if v > 0]
+    if not nonzero_values:
+        return [1], ["0"] if include_zero else ([], [])
+
+    min_val = min(nonzero_values)
+    max_val = max(nonzero_values)
+
+    # Determine the range of powers of 10
+    min_power = int(np.floor(np.log10(max(min_val, 1))))
+    max_power = int(np.ceil(np.log10(max_val)))
+
+    ticks = []
+    labels = []
+
+    # Include 0 at position 1 if requested and 0 is in the values
+    if include_zero and 0 in values:
+        ticks.append(1)
+        labels.append("0")
+
+    # Add powers of 10
+    for power in range(min_power, max_power + 1):
+        tick_val = 10**power
+        if tick_val >= min_val and tick_val <= max_val * 1.1:
+            ticks.append(tick_val)
+            # Format label
+            if tick_val >= 1000:
+                labels.append(f"{tick_val // 1000}k")
+            else:
+                labels.append(str(int(tick_val)))
+
+    # Make sure we have at least the endpoints if no powers of 10 fall in range
+    if len(ticks) == 0 or (include_zero and len(ticks) == 1 and ticks[0] == 1):
+        # Add min and max values as ticks
+        for val in [min_val, max_val]:
+            if val not in ticks:
+                ticks.append(val)
+                if val >= 1000:
+                    labels.append(f"{int(val) // 1000}k")
+                else:
+                    labels.append(str(int(val)))
+        # Sort by tick value
+        combined = sorted(zip(ticks, labels))
+        ticks = [t for t, _ in combined]
+        labels = [label for _, label in combined]
+
+    return ticks, labels
 
 
 # -----------------------------------------------------------------------------
@@ -156,7 +451,7 @@ def _extract_consumption_calories_worker(args):
     network_path, population, food_to_group, pj_to_kcal, days_per_year = args
 
     n = pypsa.Network(network_path)
-    links = n.links
+    links = n.links.static
 
     snapshot = "now" if "now" in n.snapshots else n.snapshots[-1]
 
@@ -298,18 +593,18 @@ def _extract_objective_breakdown_worker(args):
 
     snapshot = n.snapshots[-1] if len(n.snapshots) > 0 else None
 
-    if snapshot is not None and snapshot in n.stores_t.e.index:
-        health_stores = n.stores[n.stores.carrier.str.startswith("yll_")]
+    if snapshot is not None and snapshot in n.stores.dynamic.e.index:
+        health_stores = n.stores.static[n.stores.static.carrier.str.startswith("yll_")]
         if not health_stores.empty:
-            health_levels = n.stores_t.e.loc[snapshot, health_stores.index]
+            health_levels = n.stores.dynamic.e.loc[snapshot, health_stores.index]
             total_myll = health_levels.sum()
             health_cost_bnusd = constant_health_value * total_myll * 1e6 * usd_to_bnusd
             total["Health burden"] = health_cost_bnusd
 
-    if snapshot is not None and snapshot in n.stores_t.e.index:
-        ghg_stores = n.stores[n.stores.carrier == "ghg"]
+    if snapshot is not None and snapshot in n.stores.dynamic.e.index:
+        ghg_stores = n.stores.static[n.stores.static.carrier == "ghg"]
         if not ghg_stores.empty:
-            ghg_levels = n.stores_t.e.loc[snapshot, ghg_stores.index]
+            ghg_levels = n.stores.dynamic.e.loc[snapshot, ghg_stores.index]
             total_mtco2eq = ghg_levels.sum()
             ghg_cost_bnusd = constant_ghg_price * total_mtco2eq * 1e6 * usd_to_bnusd
             total["GHG cost"] = ghg_cost_bnusd
@@ -331,7 +626,7 @@ def build_ghg_links_dataframe(n, p0, ch4_gwp, n2o_gwp):
         "emission:n2o": n2o_gwp * 1e-6,
     }
 
-    links = n.links.copy()
+    links = n.links.static.copy()
     links["link_name"] = links.index
     links["flow"] = p0.reindex(links.index).fillna(0.0)
     links = links[links["flow"] > 1e-12].copy()
@@ -403,8 +698,8 @@ def _extract_ghg_by_food_group_worker(args):
     n = pypsa.Network(network_path)
     snapshot = n.snapshots[-1]
     p0 = (
-        n.links_t.p0.loc[snapshot]
-        if snapshot in n.links_t.p0.index
+        n.links.dynamic.p0.loc[snapshot]
+        if snapshot in n.links.dynamic.p0.index
         else pd.Series(dtype=float)
     )
 
@@ -768,8 +1063,8 @@ def _extract_health_by_risk_factor_worker(args):
     snapshot = n.snapshots[-1]
 
     # Get store levels at the snapshot
-    if snapshot in n.stores_t.e.index:
-        store_levels = n.stores_t.e.loc[snapshot]
+    if snapshot in n.stores.dynamic.e.index:
+        store_levels = n.stores.dynamic.e.loc[snapshot]
     else:
         store_levels = pd.Series(dtype=float)
 
@@ -779,7 +1074,7 @@ def _extract_health_by_risk_factor_worker(args):
 
     for rf in risk_factors:
         carrier = f"group_{rf}"
-        fg_stores = n.stores[n.stores["carrier"] == carrier]
+        fg_stores = n.stores.static[n.stores.static["carrier"] == carrier]
 
         if fg_stores.empty:
             continue
@@ -1006,7 +1301,7 @@ def set_dual_xaxis_labels(
     yll_values: list[float],
     ghg_color: str = "darkgreen",
     yll_color: str = "darkblue",
-    fontsize: int = 7,
+    fontsize: int = FONTSIZE_TICK_LABEL,
 ):
     """Set up dual-colored x-axis tick labels showing both GHG price and YLL value.
 
@@ -1061,7 +1356,7 @@ def set_dual_xlabel(
     ax: plt.Axes,
     ghg_color: str = "darkgreen",
     yll_color: str = "darkblue",
-    fontsize: int = 8,
+    fontsize: int = FONTSIZE_AXIS_LABEL,
 ):
     """Set dual-colored x-axis label for combined GHG/YLL sensitivity.
 
@@ -1138,10 +1433,11 @@ def plot_stacked_sensitivity(
     x_values = df.index.values
     groups = df.columns.tolist()
 
-    # Handle x=0 for log scale
-    x_plot = np.where(x_values == 0, 1, x_values)
+    # Handle x=0 for log scale: calculate position for even spacing
+    zero_pos = log_scale_zero_position(x_values)
+    x_plot = np.where(x_values == 0, zero_pos, x_values)
 
-    x_min, x_max = 1, x_plot.max() * 1.1
+    x_min, x_max = zero_pos, x_plot.max() * 1.1
     x_smooth = np.logspace(np.log10(x_min), np.log10(x_max), 200)
 
     y_smooth = {}
@@ -1169,7 +1465,7 @@ def plot_stacked_sensitivity(
         )
 
     # Add labels
-    label_fontsize = 5
+    label_fontsize = FONTSIZE_TICK_LABEL
     bbox_style = {
         "boxstyle": "round,pad=0.15",
         "facecolor": "white",
@@ -1220,15 +1516,15 @@ def plot_stacked_sensitivity(
         )
 
     ax.set_xscale("log")
-    ax.set_xlabel(xlabel, fontsize=8)
-    ax.set_ylabel(ylabel, fontsize=8)
+    ax.set_xlabel(xlabel, fontsize=FONTSIZE_AXIS_LABEL)
+    ax.set_ylabel(ylabel, fontsize=FONTSIZE_AXIS_LABEL)
 
     ax.text(
         -0.10,
         1.05,
         panel_label,
         transform=ax.transAxes,
-        fontsize=9,
+        fontsize=FONTSIZE_PANEL_LABEL,
         fontweight="bold",
         va="top",
         ha="left",
@@ -1236,7 +1532,7 @@ def plot_stacked_sensitivity(
 
     ax.set_xticks(x_ticks)
     ax.set_xticklabels(x_ticklabels)
-    ax.tick_params(axis="both", labelsize=7)
+    ax.tick_params(axis="both", labelsize=FONTSIZE_TICK_LABEL)
     ax.set_xlim(x_min, x_max)
     if y_max is not None:
         ax.set_ylim(0, y_max)
@@ -1279,8 +1575,9 @@ def plot_objective_sensitivity(
     x_values = df.index.values
     categories = df.columns.tolist()
 
-    x_plot = np.where(x_values == 0, 1, x_values)
-    x_min, x_max = 1, x_plot.max() * 1.1
+    zero_pos = log_scale_zero_position(x_values)
+    x_plot = np.where(x_values == 0, zero_pos, x_values)
+    x_min, x_max = zero_pos, x_plot.max() * 1.1
     x_smooth = np.logspace(np.log10(x_min), np.log10(x_max), 200)
 
     y_smooth = {}
@@ -1393,7 +1690,7 @@ def plot_objective_sensitivity(
             linewidth=0,
         )
 
-    label_fontsize = 5
+    label_fontsize = FONTSIZE_TICK_LABEL
     bbox_style = {
         "boxstyle": "round,pad=0.15",
         "facecolor": "white",
@@ -1493,22 +1790,22 @@ def plot_objective_sensitivity(
             0.97,
             note_text,
             transform=ax.transAxes,
-            fontsize=5,
+            fontsize=FONTSIZE_TICK_LABEL,
             va="top",
             ha="right",
             bbox=note_bbox,
         )
 
     ax.set_xscale("log")
-    ax.set_xlabel(xlabel, fontsize=8)
-    ax.set_ylabel("Cost [billion USD]", fontsize=8)
+    ax.set_xlabel(xlabel, fontsize=FONTSIZE_AXIS_LABEL)
+    ax.set_ylabel("Cost [billion USD]", fontsize=FONTSIZE_AXIS_LABEL)
 
     ax.text(
         -0.10,
         1.05,
         panel_label,
         transform=ax.transAxes,
-        fontsize=9,
+        fontsize=FONTSIZE_PANEL_LABEL,
         fontweight="bold",
         va="top",
         ha="left",
@@ -1516,9 +1813,698 @@ def plot_objective_sensitivity(
 
     ax.set_xticks(x_ticks)
     ax.set_xticklabels(x_ticklabels)
-    ax.tick_params(axis="both", labelsize=7)
+    ax.tick_params(axis="both", labelsize=FONTSIZE_TICK_LABEL)
     ax.set_xlim(x_min, x_max)
 
     ax.axhline(y=0, color="black", linewidth=0.5)
     ax.grid(True, alpha=0.3, which="both")
     ax.set_axisbelow(True)
+
+
+# -----------------------------------------------------------------------------
+# Grid data extraction and heatmap plotting
+# -----------------------------------------------------------------------------
+
+
+def _extract_grid_objective_worker(args):
+    """Worker function for extracting objective components from a single network.
+
+    Note: The model uses billion USD (bnUSD) as its internal cost unit, so
+    n.objective and n.statistics results are already in billion USD.
+
+    Returns a dict with:
+        - total_objective: The actual model objective value (billion USD)
+        - health_myll: Total health burden in MYLL
+        - ghg_mtco2eq: Total GHG emissions in MtCO2eq
+        - crop_production: Crop production cost (billion USD)
+        - trade: Trade cost (billion USD)
+        - consumer_values: Consumer values cost (billion USD)
+    """
+    (network_path,) = args
+
+    n = pypsa.Network(network_path)
+    snapshot = n.snapshots[-1] if len(n.snapshots) > 0 else None
+
+    # Model objective is already in billion USD
+    result = {
+        "total_objective": n.objective,
+        "health_myll": 0.0,
+        "ghg_mtco2eq": 0.0,
+    }
+
+    stores_static = n.stores.static
+
+    # Extract health burden (total MYLL)
+    if snapshot is not None and snapshot in n.stores.dynamic.e.index:
+        health_stores = stores_static[stores_static["carrier"].str.startswith("yll_")]
+        if not health_stores.empty:
+            health_levels = n.stores.dynamic.e.loc[snapshot, health_stores.index]
+            result["health_myll"] = health_levels.sum()
+
+    # Extract GHG emissions (total MtCO2eq)
+    if snapshot is not None and snapshot in n.stores.dynamic.e.index:
+        ghg_stores = stores_static[stores_static["carrier"] == "ghg"]
+        if not ghg_stores.empty:
+            ghg_levels = n.stores.dynamic.e.loc[snapshot, ghg_stores.index]
+            result["ghg_mtco2eq"] = ghg_levels.sum()
+
+    # Extract other cost components using statistics (already in billion USD)
+    capex = n.statistics.capex(groupby=_objective_category)
+    opex = n.statistics.opex(groupby=_objective_category)
+
+    def _to_series(df_or_series):
+        if isinstance(df_or_series, pd.DataFrame):
+            df_or_series = df_or_series.iloc[:, 0]
+        if df_or_series.empty:
+            return pd.Series(dtype=float)
+        idx = df_or_series.index
+        if "category" not in idx.names:
+            idx = idx.set_names([*list(idx.names[:-1]), "category"])
+            df_or_series.index = idx
+        return df_or_series.groupby("category").sum()
+
+    capex_series = _to_series(capex)
+    opex_series = _to_series(opex)
+    total = capex_series.add(opex_series, fill_value=0.0)
+
+    result["crop_production"] = total.get("Crop production", 0.0)
+    result["trade"] = total.get("Trade", 0.0)
+    result["consumer_values"] = total.get("Consumer values", 0.0)
+    result["fertilizer"] = total.get("Fertilizer (synthetic)", 0.0)
+
+    return result
+
+
+def extract_grid_data(
+    scenarios: list[tuple[float, float, str, Path]],
+    cache_path: Path,
+    n_workers: int = 8,
+) -> pd.DataFrame:
+    """Extract objective components for grid scenarios.
+
+    Args:
+        scenarios: List of (ghg_price, yll_value, scenario_name, network_path) tuples
+        cache_path: Path to cache file
+        n_workers: Number of parallel workers
+
+    Returns:
+        DataFrame with MultiIndex (ghg_price, yll_value) and columns:
+        - total_objective: Model objective in billion USD
+        - health_myll: Health burden in MYLL
+        - ghg_mtco2eq: GHG emissions in MtCO2eq
+        - crop_production, trade, consumer_values: Cost components in billion USD
+    """
+    network_paths = [f for _, _, _, f in scenarios]
+
+    if is_cache_valid(cache_path, network_paths):
+        print(f"Loading grid data from cache: {cache_path}")
+        df = pd.read_csv(cache_path, index_col=[0, 1])
+        df.index = pd.MultiIndex.from_tuples(
+            [(float(g), float(y)) for g, y in df.index],
+            names=["ghg_price", "yll_value"],
+        )
+        return df
+
+    print(f"Extracting grid data using {n_workers} workers...")
+
+    worker_args = [(network_path,) for _, _, _, network_path in scenarios]
+
+    grid_data = {}
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = {
+            executor.submit(_extract_grid_objective_worker, args): (ghg, yll, s)
+            for args, (ghg, yll, s, _) in zip(worker_args, scenarios)
+        }
+
+        for future in as_completed(futures):
+            ghg, yll, scenario = futures[future]
+            grid_data[(ghg, yll)] = future.result()
+            print(f"  Loaded ghg={int(ghg)}, yll={int(yll)}")
+
+    df = pd.DataFrame(grid_data).T
+    df.index = pd.MultiIndex.from_tuples(df.index, names=["ghg_price", "yll_value"])
+    df = df.sort_index()
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(cache_path)
+    print(f"Saved grid data to cache: {cache_path}")
+
+    return df
+
+
+def pivot_grid_data(
+    df: pd.DataFrame,
+    value_col: str,
+) -> pd.DataFrame:
+    """Pivot grid data into 2D matrix for heatmap plotting.
+
+    Args:
+        df: DataFrame with MultiIndex (ghg_price, yll_value)
+        value_col: Column to pivot
+
+    Returns:
+        DataFrame with ghg_price as index (rows) and yll_value as columns
+    """
+    df_reset = df.reset_index()
+    return df_reset.pivot(index="ghg_price", columns="yll_value", values=value_col)
+
+
+def plot_heatmap(
+    data: pd.DataFrame,
+    ax: plt.Axes,
+    title: str,
+    cbar_label: str,
+    cmap: str = "viridis",
+    panel_label: str | None = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    log_scale_cbar: bool = False,
+    baseline_value: float | None = None,
+    baseline_label: str = "Baseline",
+    cbar_orientation: str = "vertical",
+):
+    """Plot a heatmap with logarithmic axes.
+
+    Args:
+        data: 2D DataFrame with ghg_price as index and yll_value as columns
+        ax: Matplotlib axes to plot on
+        title: Plot title
+        cbar_label: Colorbar label
+        cmap: Colormap name
+        panel_label: Panel label (e.g., 'a', 'b')
+        vmin: Minimum value for colorbar
+        vmax: Maximum value for colorbar
+        log_scale_cbar: Whether to use log scale for colorbar
+        baseline_value: Value to mark on colorbar (e.g., from (0,0) scenario)
+        baseline_label: Label for the baseline marker
+        cbar_orientation: Colorbar orientation ('vertical' or 'horizontal')
+    """
+    from matplotlib.colors import LogNorm
+
+    ghg_values = data.index.values.astype(float)
+    yll_values = data.columns.values.astype(float)
+
+    # Create cell edges for pcolormesh in log space
+    # For n data points, we need n+1 edges
+    def log_edges(values):
+        """Create cell edges in log space for given center values."""
+        log_vals = np.log10(values)
+        edges = np.zeros(len(values) + 1)
+        # Interior edges are midpoints in log space
+        for i in range(1, len(values)):
+            edges[i] = 10 ** ((log_vals[i - 1] + log_vals[i]) / 2)
+        # Exterior edges extend by half a cell width in log space
+        if len(values) > 1:
+            half_width_left = (log_vals[1] - log_vals[0]) / 2
+            half_width_right = (log_vals[-1] - log_vals[-2]) / 2
+        else:
+            half_width_left = half_width_right = 0.5
+        edges[0] = 10 ** (log_vals[0] - half_width_left)
+        edges[-1] = 10 ** (log_vals[-1] + half_width_right)
+        return edges
+
+    yll_edges = log_edges(yll_values)
+    ghg_edges = log_edges(ghg_values)
+
+    if log_scale_cbar and vmin is not None and vmin > 0:
+        norm = LogNorm(vmin=vmin, vmax=vmax)
+        im = ax.pcolormesh(
+            yll_edges,
+            ghg_edges,
+            data.values,
+            cmap=cmap,
+            norm=norm,
+        )
+    else:
+        im = ax.pcolormesh(
+            yll_edges,
+            ghg_edges,
+            data.values,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+        )
+
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+
+    # Set axis limits to match the cell edges
+    ax.set_xlim(yll_edges[0], yll_edges[-1])
+    ax.set_ylim(ghg_edges[0], ghg_edges[-1])
+
+    # Set ticks at nice log positions plus extremes, no scientific notation
+    from matplotlib.ticker import FuncFormatter, LogLocator
+
+    def _format_tick(x, pos):
+        """Format tick label without scientific notation."""
+        if x >= 1000:
+            if x == int(x):
+                return f"{int(x):,}".replace(",", " ")
+            return f"{x:,.0f}".replace(",", " ")
+        elif x >= 1:
+            return f"{int(x)}" if x == int(x) else f"{x:.1f}"
+        else:
+            return f"{x:.1f}"
+
+    def _get_nice_ticks(vmin, vmax, sparse=False):
+        """Get nice tick positions including extremes."""
+        import math
+
+        ticks = []
+        decade_start = int(math.floor(math.log10(vmin)))
+        decade_end = int(math.ceil(math.log10(vmax)))
+        # Use sparser ticks (1, 5) for x-axis, denser (1, 2, 5) for y-axis
+        mults = [1, 5] if sparse else [1, 2, 5]
+        for decade in range(decade_start, decade_end + 1):
+            base = 10**decade
+            for mult in mults:
+                val = base * mult
+                if vmin <= val <= vmax:
+                    ticks.append(val)
+        # Add extremes if not close to existing ticks
+        for extreme in [vmin, vmax]:
+            if not any(abs(t - extreme) / extreme < 0.1 for t in ticks):
+                ticks.append(extreme)
+        return sorted(ticks)
+
+    def _get_powers_of_10(vmin, vmax):
+        """Get powers of 10 within range for major ticks."""
+        import math
+
+        powers = []
+        start = int(math.floor(math.log10(vmin)))
+        end = int(math.ceil(math.log10(vmax)))
+        for exp in range(start, end + 1):
+            val = 10**exp
+            if vmin <= val <= vmax:
+                powers.append(val)
+        return powers
+
+    # Get nice label positions and powers of 10
+    x_nice = _get_nice_ticks(yll_values.min(), yll_values.max(), sparse=True)
+    y_nice = _get_nice_ticks(ghg_values.min(), ghg_values.max(), sparse=False)
+    x_powers = _get_powers_of_10(yll_values.min(), yll_values.max())
+    y_powers = _get_powers_of_10(ghg_values.min(), ghg_values.max())
+
+    # Major ticks at powers of 10 (longer marks)
+    ax.set_xticks(x_powers)
+    ax.set_yticks(y_powers)
+
+    # Minor ticks at all integer multiples (1-9 within each decade)
+    ax.xaxis.set_minor_locator(LogLocator(base=10, subs=np.arange(1, 10), numticks=100))
+    ax.yaxis.set_minor_locator(LogLocator(base=10, subs=np.arange(1, 10), numticks=100))
+
+    # Custom formatters that show labels at nice positions
+    def _make_selective_formatter(nice_ticks):
+        def _formatter(x, pos):
+            for t in nice_ticks:
+                if abs(x - t) / t < 0.01:
+                    return _format_tick(x, pos)
+            return ""
+
+        return _formatter
+
+    ax.xaxis.set_major_formatter(FuncFormatter(_make_selective_formatter(x_nice)))
+    ax.yaxis.set_major_formatter(FuncFormatter(_make_selective_formatter(y_nice)))
+    ax.xaxis.set_minor_formatter(FuncFormatter(_make_selective_formatter(x_nice)))
+    ax.yaxis.set_minor_formatter(FuncFormatter(_make_selective_formatter(y_nice)))
+
+    # Rotate x-axis labels to avoid overlap and anchor at their tip
+    # Use which="both" to apply to major and minor ticks
+    ax.tick_params(
+        axis="x", which="both", rotation=45, pad=2, labelsize=FONTSIZE_TICK_LABEL
+    )
+    ax.tick_params(axis="y", which="both", pad=2, labelsize=FONTSIZE_TICK_LABEL)
+    plt.setp(ax.get_xticklabels(), ha="right")
+    plt.setp(ax.xaxis.get_minorticklabels(), ha="right")
+
+    ax.set_xlabel("YLL value [USD/YLL]", fontsize=FONTSIZE_AXIS_LABEL)
+    ax.set_ylabel("GHG price [USD/tCO2eq]", fontsize=FONTSIZE_AXIS_LABEL)
+    ax.set_title(title, fontsize=FONTSIZE_TITLE)
+
+    cbar = plt.colorbar(im, ax=ax, orientation=cbar_orientation, pad=0.25)
+    cbar.set_label(cbar_label, fontsize=FONTSIZE_CBAR_LABEL)
+    cbar.ax.tick_params(labelsize=FONTSIZE_TICK_LABEL)
+
+    # Add baseline marker on colorbar
+    if baseline_value is not None:
+        cbar_vmin = vmin if vmin is not None else data.values.min()
+        cbar_vmax = vmax if vmax is not None else data.values.max()
+        # Only show marker if within colorbar range
+        if cbar_vmin <= baseline_value <= cbar_vmax:
+            if cbar_orientation == "horizontal":
+                cbar.ax.axvline(x=baseline_value, color="black", linewidth=1.5)
+            else:
+                cbar.ax.axhline(y=baseline_value, color="black", linewidth=1.5)
+                cbar.ax.plot(
+                    1.0,
+                    baseline_value,
+                    marker="<",
+                    color="black",
+                    markersize=6,
+                    transform=cbar.ax.get_yaxis_transform(),
+                    clip_on=False,
+                )
+
+    ax.tick_params(axis="both", labelsize=FONTSIZE_TICK_LABEL)
+
+    # Make spines faint grey on plot and colorbar
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.5)
+        spine.set_color("0.7")
+    for spine in cbar.ax.spines.values():
+        spine.set_linewidth(0.5)
+        spine.set_color("0.7")
+
+    if panel_label is not None:
+        ax.text(
+            -0.15,
+            1.12,
+            panel_label,
+            transform=ax.transAxes,
+            fontsize=FONTSIZE_PANEL_LABEL,
+            fontweight="bold",
+            va="top",
+            ha="left",
+        )
+
+
+def _nice_contour_levels(vmin: float, vmax: float, n_levels: int = 8) -> np.ndarray:
+    """Generate nice round contour levels between vmin and vmax.
+
+    Prefers values like 1, 2, 5, 10, 20, 50, 100, 200, 500, etc.
+    """
+    data_range = vmax - vmin
+    if data_range <= 0:
+        return np.array([vmin])
+
+    # Estimate rough step size
+    rough_step = data_range / n_levels
+
+    # Find the order of magnitude
+    magnitude = 10 ** np.floor(np.log10(rough_step))
+
+    # Nice step multipliers
+    nice_multipliers = [1, 2, 5, 10, 20, 50]
+
+    # Find the best nice step
+    best_step = None
+    best_n = 0
+    for mult in nice_multipliers:
+        step = mult * magnitude
+        n = int(np.floor((vmax - vmin) / step)) + 1
+        if 4 <= n <= n_levels + 4 and (
+            best_step is None or abs(n - n_levels) < abs(best_n - n_levels)
+        ):
+            best_step = step
+            best_n = n
+
+    if best_step is None:
+        best_step = rough_step
+
+    # Generate levels starting from a nice number
+    start = np.ceil(vmin / best_step) * best_step
+    levels = []
+    level = start
+    while level <= vmax:
+        levels.append(level)
+        level += best_step
+
+    # Ensure we have at least the min and max in range
+    if len(levels) == 0:
+        levels = [vmin, vmax]
+
+    return np.array(levels)
+
+
+def plot_contour(
+    data: pd.DataFrame,
+    ax: plt.Axes,
+    title: str,
+    cbar_label: str,
+    cmap: str = "viridis",
+    panel_label: str | None = None,
+    n_levels: int = 8,
+    n_interp: int = 200,
+    baseline_value: float | None = None,
+    label_fmt: str = "%.0f",
+    vmin: float | None = None,
+    vmax: float | None = None,
+    contour_levels: np.ndarray | None = None,
+    cbar_orientation: str = "vertical",
+):
+    """Plot smoothed contour lines with logarithmic axes.
+
+    Args:
+        data: 2D DataFrame with ghg_price as index and yll_value as columns
+        ax: Matplotlib axes to plot on
+        title: Plot title
+        cbar_label: Colorbar label
+        cmap: Colormap name
+        panel_label: Panel label (e.g., 'a', 'b')
+        n_levels: Approximate number of contour levels (used if contour_levels not provided)
+        n_interp: Number of interpolation points per axis
+        baseline_value: Value to highlight with a dashed contour line
+        label_fmt: Format string for contour labels
+        vmin: Minimum value for color scale
+        vmax: Maximum value for color scale
+        contour_levels: Explicit contour levels (overrides n_levels)
+        cbar_orientation: Colorbar orientation ('vertical' or 'horizontal')
+    """
+    from scipy.interpolate import RegularGridInterpolator
+
+    ghg_values = data.index.values.astype(float)
+    yll_values = data.columns.values.astype(float)
+
+    # Create fine grid in log space for smooth contours
+    log_ghg = np.log10(ghg_values)
+    log_yll = np.log10(yll_values)
+
+    log_ghg_fine = np.linspace(log_ghg.min(), log_ghg.max(), n_interp)
+    log_yll_fine = np.linspace(log_yll.min(), log_yll.max(), n_interp)
+
+    # Interpolate data onto fine grid using cubic interpolation
+    interp = RegularGridInterpolator(
+        (log_ghg, log_yll),
+        data.values,
+        method="cubic",
+        bounds_error=False,
+        fill_value=None,
+    )
+
+    log_yll_mesh, log_ghg_mesh = np.meshgrid(log_yll_fine, log_ghg_fine)
+    points = np.column_stack([log_ghg_mesh.ravel(), log_yll_mesh.ravel()])
+    z_fine = interp(points).reshape(log_ghg_mesh.shape)
+
+    # Convert back to linear scale for plotting
+    yll_fine = 10**log_yll_fine
+    ghg_fine = 10**log_ghg_fine
+
+    # Color scale limits
+    color_vmin = vmin if vmin is not None else data.values.min()
+    color_vmax = vmax if vmax is not None else data.values.max()
+
+    # Plot continuous colors using pcolormesh
+    im = ax.pcolormesh(
+        yll_fine,
+        ghg_fine,
+        z_fine,
+        cmap=cmap,
+        vmin=color_vmin,
+        vmax=color_vmax,
+        shading="gouraud",
+    )
+
+    # Compute nice contour levels
+    if contour_levels is None:
+        contour_levels = _nice_contour_levels(color_vmin, color_vmax, n_levels)
+
+    # Add contour lines at nice levels
+    cs = ax.contour(
+        yll_fine,
+        ghg_fine,
+        z_fine,
+        levels=contour_levels,
+        colors="black",
+        linewidths=0.5,
+        alpha=0.8,
+    )
+
+    # Add contour labels (horizontal to avoid rotation issues with log scales)
+    label_bbox = {
+        "boxstyle": "round,pad=0.15",
+        "facecolor": "white",
+        "alpha": 0.7,
+        "edgecolor": "none",
+    }
+    clabels = ax.clabel(
+        cs, inline=False, fontsize=FONTSIZE_CONTOUR_LABEL, fmt=label_fmt
+    )
+    for label in clabels:
+        label.set_rotation(0)
+        label.set_bbox(label_bbox)
+        label.set_clip_on(True)
+
+    # Add baseline contour if provided
+    if baseline_value is not None:
+        cs_baseline = ax.contour(
+            yll_fine,
+            ghg_fine,
+            z_fine,
+            levels=[baseline_value],
+            colors="black",
+            linewidths=2,
+            linestyles="dashed",
+        )
+        clabels_baseline = ax.clabel(
+            cs_baseline,
+            inline=False,
+            fontsize=FONTSIZE_CONTOUR_LABEL + 1,
+            fmt=label_fmt,
+        )
+        for label in clabels_baseline:
+            label.set_rotation(0)
+            label.set_bbox(label_bbox)
+            label.set_clip_on(True)
+
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+
+    # Set ticks at nice log positions plus extremes, no scientific notation
+    from matplotlib.ticker import FuncFormatter, LogLocator
+
+    def _format_tick(x, pos):
+        """Format tick label without scientific notation."""
+        if x >= 1000:
+            if x == int(x):
+                return f"{int(x):,}".replace(",", " ")
+            return f"{x:,.0f}".replace(",", " ")
+        elif x >= 1:
+            return f"{int(x)}" if x == int(x) else f"{x:.1f}"
+        else:
+            return f"{x:.1f}"
+
+    def _get_nice_ticks(vmin, vmax, sparse=False):
+        """Get nice tick positions including extremes."""
+        import math
+
+        ticks = []
+        decade_start = int(math.floor(math.log10(vmin)))
+        decade_end = int(math.ceil(math.log10(vmax)))
+        # Use sparser ticks (1, 5) for x-axis, denser (1, 2, 5) for y-axis
+        mults = [1, 5] if sparse else [1, 2, 5]
+        for decade in range(decade_start, decade_end + 1):
+            base = 10**decade
+            for mult in mults:
+                val = base * mult
+                if vmin <= val <= vmax:
+                    ticks.append(val)
+        # Add extremes if not close to existing ticks
+        for extreme in [vmin, vmax]:
+            if not any(abs(t - extreme) / extreme < 0.1 for t in ticks):
+                ticks.append(extreme)
+        return sorted(ticks)
+
+    def _get_powers_of_10(vmin, vmax):
+        """Get powers of 10 within range for major ticks."""
+        import math
+
+        powers = []
+        start = int(math.floor(math.log10(vmin)))
+        end = int(math.ceil(math.log10(vmax)))
+        for exp in range(start, end + 1):
+            val = 10**exp
+            if vmin <= val <= vmax:
+                powers.append(val)
+        return powers
+
+    # Get nice label positions and powers of 10
+    x_nice = _get_nice_ticks(yll_values.min(), yll_values.max(), sparse=True)
+    y_nice = _get_nice_ticks(ghg_values.min(), ghg_values.max(), sparse=False)
+    x_powers = _get_powers_of_10(yll_values.min(), yll_values.max())
+    y_powers = _get_powers_of_10(ghg_values.min(), ghg_values.max())
+
+    # Major ticks at powers of 10 (longer marks)
+    ax.set_xticks(x_powers)
+    ax.set_yticks(y_powers)
+
+    # Minor ticks at all integer multiples (1-9 within each decade)
+    ax.xaxis.set_minor_locator(LogLocator(base=10, subs=np.arange(1, 10), numticks=100))
+    ax.yaxis.set_minor_locator(LogLocator(base=10, subs=np.arange(1, 10), numticks=100))
+
+    # Custom formatters that show labels at nice positions
+    def _make_selective_formatter(nice_ticks):
+        def _formatter(x, pos):
+            for t in nice_ticks:
+                if abs(x - t) / t < 0.01:
+                    return _format_tick(x, pos)
+            return ""
+
+        return _formatter
+
+    ax.xaxis.set_major_formatter(FuncFormatter(_make_selective_formatter(x_nice)))
+    ax.yaxis.set_major_formatter(FuncFormatter(_make_selective_formatter(y_nice)))
+    ax.xaxis.set_minor_formatter(FuncFormatter(_make_selective_formatter(x_nice)))
+    ax.yaxis.set_minor_formatter(FuncFormatter(_make_selective_formatter(y_nice)))
+
+    # Rotate x-axis labels to avoid overlap and anchor at their tip
+    # Use which="both" to apply to major and minor ticks
+    ax.tick_params(
+        axis="x", which="both", rotation=45, pad=2, labelsize=FONTSIZE_TICK_LABEL
+    )
+    ax.tick_params(axis="y", which="both", pad=2, labelsize=FONTSIZE_TICK_LABEL)
+    plt.setp(ax.get_xticklabels(), ha="right")
+    plt.setp(ax.xaxis.get_minorticklabels(), ha="right")
+
+    ax.set_xlabel("YLL value [USD/YLL]", fontsize=FONTSIZE_AXIS_LABEL)
+    ax.set_ylabel("GHG price [USD/tCO2eq]", fontsize=FONTSIZE_AXIS_LABEL)
+    ax.set_title(title, fontsize=FONTSIZE_TITLE)
+
+    cbar = plt.colorbar(im, ax=ax, orientation=cbar_orientation, pad=0.25)
+    cbar.set_label(cbar_label, fontsize=FONTSIZE_CBAR_LABEL)
+    cbar.ax.tick_params(labelsize=FONTSIZE_TICK_LABEL)
+
+    # Add baseline marker on colorbar
+    if baseline_value is not None:
+        cbar_vmin = data.values.min()
+        cbar_vmax = data.values.max()
+        if cbar_vmin <= baseline_value <= cbar_vmax:
+            if cbar_orientation == "horizontal":
+                cbar.ax.axvline(
+                    x=baseline_value, color="black", linewidth=1.5, linestyle="--"
+                )
+            else:
+                cbar.ax.axhline(
+                    y=baseline_value, color="black", linewidth=1.5, linestyle="--"
+                )
+                cbar.ax.plot(
+                    1.0,
+                    baseline_value,
+                    marker="<",
+                    color="black",
+                    markersize=6,
+                    transform=cbar.ax.get_yaxis_transform(),
+                    clip_on=False,
+                )
+
+    ax.tick_params(axis="both", labelsize=FONTSIZE_TICK_LABEL)
+
+    # Make spines faint grey on plot and colorbar
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.5)
+        spine.set_color("0.7")
+    for spine in cbar.ax.spines.values():
+        spine.set_linewidth(0.5)
+        spine.set_color("0.7")
+
+    if panel_label is not None:
+        ax.text(
+            -0.15,
+            1.12,
+            panel_label,
+            transform=ax.transAxes,
+            fontsize=FONTSIZE_PANEL_LABEL,
+            fontweight="bold",
+            va="top",
+            ha="left",
+        )

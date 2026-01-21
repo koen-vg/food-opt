@@ -351,9 +351,61 @@ number of clusters is configured via ``health.region_clusters``.
 Solver Compatibility
 ~~~~~~~~~~~~~~~~~~~~
 
-- **Gurobi**: Native SOS2 constraint support; the formulation remains linear
-- **HiGHS**: No native SOS2 support; the implementation uses a compact binary
-  formulation as a fallback
+The piecewise-linear interpolation uses solver-dependent formulations:
+
+- **Gurobi**: Native SOS2 constraint support. Uses λ (lambda) variables with SOS2
+  adjacency constraints for efficient piecewise-linear interpolation.
+
+- **HiGHS**: Uses the **delta (incremental) formulation** that requires no binary
+  variables, keeping the problem as a pure LP.
+
+Delta Formulation for HiGHS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Since HiGHS lacks native SOS2 support, the implementation uses an incremental
+formulation that avoids binary variables entirely. For n breakpoints
+:math:`(x_0, x_1, \ldots, x_{n-1})` with function values
+:math:`(f_0, f_1, \ldots, f_{n-1})`:
+
+**Variables**: δ_j ∈ [0,1] for j = 0, ..., n-2 (one per segment)
+
+**Constraints**:
+
+.. math::
+
+   \delta_j \leq \delta_{j-1} \quad \text{for } j \geq 1 \quad \text{(fill-up ordering)}
+
+   x = x_0 + \sum_j \delta_j \cdot \Delta x_j \quad \text{(input interpolation)}
+
+   f(x) = f_0 + \sum_j \delta_j \cdot \Delta f_j \quad \text{(output interpolation)}
+
+where :math:`\Delta x_j = x_{j+1} - x_j` and :math:`\Delta f_j = f_{j+1} - f_j`.
+
+**Why it works**: The fill-up constraints ensure segments are "filled" from left
+to right. When the input x is fixed by an equality constraint (as in both Stage 1
+and Stage 2), the δ values are uniquely determined without degeneracy.
+
+**Comparison with lambda formulation**:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - Aspect
+     - Lambda + SOS2
+     - Delta (incremental)
+   * - Continuous variables
+     - n (one per breakpoint)
+     - n-1 (one per segment)
+   * - Binary variables
+     - 0 (with native SOS2)
+     - 0
+   * - Additional constraints
+     - Convexity (Σλ=1) + SOS2
+     - Fill-up ordering (n-2)
+   * - Problem type
+     - LP (Gurobi), MIP (old HiGHS)
+     - LP (all solvers)
 
 Data Flow Overview
 ~~~~~~~~~~~~~~~~~~

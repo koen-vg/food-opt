@@ -48,7 +48,7 @@ def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataF
     crop_links = links_df[crop_mask]
 
     if not crop_links.empty:
-        p1 = n.links_t.p1.loc[snapshot, crop_links.index]
+        p1 = n.links.dynamic.p1.loc[snapshot, crop_links.index]
 
         for name in crop_links.index:
             value = p1[name]
@@ -64,7 +64,7 @@ def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataF
     grazing_links = links_df[grazing_mask]
 
     if not grazing_links.empty:
-        p1 = n.links_t.p1.loc[snapshot, grazing_links.index]
+        p1 = n.links.dynamic.p1.loc[snapshot, grazing_links.index]
 
         for name in grazing_links.index:
             value = p1[name]
@@ -96,7 +96,7 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
     crop_links = links_df[crop_mask]
 
     if not crop_links.empty:
-        p0 = n.links_t.p0.loc[snapshot, crop_links.index]
+        p0 = n.links.dynamic.p0.loc[snapshot, crop_links.index]
 
         for name in crop_links.index:
             value = p0[name]
@@ -112,7 +112,7 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
     grazing_links = links_df[grazing_mask]
 
     if not grazing_links.empty:
-        p0 = n.links_t.p0.loc[snapshot, grazing_links.index]
+        p0 = n.links.dynamic.p0.loc[snapshot, grazing_links.index]
 
         for name in grazing_links.index:
             value = p0[name]

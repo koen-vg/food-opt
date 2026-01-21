@@ -147,10 +147,10 @@ def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, 
         return {}
 
     snapshot = n.snapshots[-1]
-    if snapshot not in n.stores_t.e.index:
+    if snapshot not in n.stores.dynamic.e.index:
         return {}
 
-    store_levels = n.stores_t.e.loc[snapshot]
+    store_levels = n.stores.dynamic.e.loc[snapshot]
     if "ghg" not in store_levels.index:
         return {}
 
