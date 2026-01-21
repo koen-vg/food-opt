@@ -36,8 +36,19 @@ piecewise-linear approximation:
     Stage 1: Intake x_r → log(RR_{r,d}) for each (cluster, risk) pair
     Stage 2: Σ_r log(RR_{r,d}) → exp(·) → RR_d → YLL store level
 
-Both stages use SOS2 (Special Ordered Sets Type 2) constraints for
-piecewise-linear interpolation.
+Both stages use delta (incremental) variables for piecewise-linear interpolation:
+
+    δ_j ∈ [0,1], δ_j ≤ δ_{j-1} (fill-up ordering)
+    x = x_0 + Σ_j δ_j Δx_j
+    f(x) = f_0 + Σ_j δ_j Δf_j
+
+**Stage 1** requires segment indicator variables to guarantee correct interpolation
+(dose-response curves may be non-convex):
+    - HiGHS: binary segment indicators y_j ∈ {0,1}
+    - Gurobi: continuous y_j with SOS1 constraint
+
+**Stage 2** needs no segment indicators because exp() is convex and we minimize
+RR. Convexity guarantees the optimizer naturally selects the correct delta pattern.
 
 Code Organization
 -----------------
@@ -46,11 +57,14 @@ Code Organization
     - _build_store_to_cluster_map: Map stores to clusters with per-capita coefficients
     - _build_intake_breakpoints: Build breakpoint grids per risk factor
     - _group_cluster_risk_pairs: Group pairs by shared breakpoints for efficiency
-    - _add_stage1_constraints: Create λ variables, intake balance, log(RR) computation
+    - _add_stage1_constraints: Main Stage 1 logic
+    - _add_stage1_delta: δ variables + segment indicators
 - Stage 2 (log(RR) → YLL):
     - _build_cause_breakpoints: Build log-RR breakpoints per cause
     - _group_cluster_cause_pairs: Group pairs by shared log-RR grids
-    - _add_stage2_constraints: Second SOS2 layer for exp() approximation
+    - _add_stage2_constraints: Main Stage 2 logic
+    - _add_stage2_delta: δ variables + fill-up (no indicators needed)
+    - _add_store_level_constraint: Link RR to YLL store
 - Main entry point: add_health_objective
 """
 
@@ -80,7 +94,6 @@ logger = logging.getLogger(__name__)
 HEALTH_AUX_MAP: dict[int, set[str]] = {}
 
 # Counters for unique variable naming
-_SOS2_COUNTER = [0]
 _LAMBDA_GROUP_COUNTER = itertools.count()
 _TOTAL_GROUP_COUNTER = itertools.count()
 
@@ -89,88 +102,6 @@ def _register_auxiliary_variable(m: linopy.Model, name: str) -> None:
     """Track an auxiliary variable for post-solve cleanup."""
     aux = HEALTH_AUX_MAP.setdefault(id(m), set())
     aux.add(name)
-
-
-# =============================================================================
-# SOS2 Constraint Helper
-# =============================================================================
-
-
-def _add_sos2_with_fallback(
-    m: linopy.Model, variable: xr.DataArray, sos_dim: str, solver_name: str
-) -> list[str]:
-    """Add SOS2 constraint or binary fallback depending on solver support.
-
-    SOS2 constraints ensure at most two adjacent λ_k variables are nonzero,
-    enabling piecewise-linear interpolation:
-
-        x = Σ_k λ_k x_k,  f(x) ≈ Σ_k λ_k f(x_k)
-
-    Parameters
-    ----------
-    m
-        The linopy model.
-    variable
-        Lambda variables with dimension ``sos_dim`` for interpolation points.
-    sos_dim
-        The dimension along which SOS2 adjacency is enforced.
-    solver_name
-        Solver name; HiGHS requires binary fallback since it lacks native SOS2.
-
-    Returns
-    -------
-    list[str]
-        Names of any auxiliary binary variables created (for cleanup tracking).
-    """
-    if solver_name.lower() != "highs":
-        m.add_sos_constraints(variable, sos_type=2, sos_dim=sos_dim)
-        return []
-
-    # HiGHS fallback: implement SOS2 via binary variables
-    coords = variable.coords[sos_dim]
-    n_points = len(coords)
-    if n_points <= 1:
-        return []
-
-    other_dims = [dim for dim in variable.dims if dim != sos_dim]
-
-    # Create unique interval dimension name
-    interval_dim = f"{sos_dim}_interval"
-    suffix = 1
-    while interval_dim in variable.dims:
-        interval_dim = f"{sos_dim}_interval{suffix}"
-        suffix += 1
-
-    interval_index = pd.Index(range(n_points - 1), name=interval_dim)
-    binary_coords = [variable.coords[d] for d in other_dims] + [interval_index]
-
-    # Create binary segment variables
-    _SOS2_COUNTER[0] += 1
-    base_name = f"{variable.name}_segment" if variable.name else "health_segment"
-    binary_name = f"{base_name}_{_SOS2_COUNTER[0]}"
-
-    binaries = m.add_variables(coords=binary_coords, binary=True, name=binary_name)
-
-    # Exactly one segment active
-    m.add_constraints(binaries.sum(interval_dim) == 1)
-
-    # Adjacency: λ_j ≤ binary_{j-1} + binary_j
-    if n_points >= 2:
-        adjacency_data = np.zeros((n_points, n_points - 1))
-        indices = np.arange(n_points - 1)
-        adjacency_data[indices, indices] = 1
-        adjacency_data[indices + 1, indices] = 1
-
-        adjacency = xr.DataArray(
-            adjacency_data,
-            coords={sos_dim: coords, interval_dim: range(n_points - 1)},
-            dims=[sos_dim, interval_dim],
-        )
-
-        rhs = (adjacency * binaries).sum(interval_dim)
-        m.add_constraints(variable <= rhs)
-
-    return [binary_name]
 
 
 # =============================================================================
@@ -385,13 +316,16 @@ def _add_stage1_constraints(
     """Add Stage 1 constraints: store level → log(RR_{r,d}).
 
     Stage 1 transforms food group store levels into log relative risk values
-    using piecewise-linear interpolation (SOS2).
+    using piecewise-linear interpolation with delta (incremental) variables.
 
-    For each (cluster, risk) pair:
-        1. Create λ_k variables for intake breakpoints
-        2. Add convexity: Σ_k λ_k = 1
-        3. Add intake balance: I_{c,r} = Σ_k λ_k x_k
-        4. Compute log(RR_{r,d}) = Σ_k λ_k log(RR_{r,d}(x_k))
+    Both solvers use the delta formulation:
+        - δ_j ∈ [0,1], δ_j ≤ δ_{j-1} (fill-up ordering)
+        - x = x_0 + Σ_j δ_j Δx_j, log(RR) = f_0 + Σ_j δ_j Δf_j
+
+    To guarantee correct interpolation (only one fractional δ), segment
+    indicator variables y_j are added with solver-dependent constraints:
+        - HiGHS: binary y_j ∈ {0,1}
+        - Gurobi: continuous y_j with SOS1 constraint
 
     Parameters
     ----------
@@ -406,7 +340,7 @@ def _add_stage1_constraints(
     store_level_var
         Store level variables (food group stores).
     solver_name
-        Solver name for SOS2 implementation selection.
+        Solver name for formulation selection.
     value_per_yll
         Value per YLL; if zero, skip degeneracy perturbation.
 
@@ -419,126 +353,61 @@ def _add_stage1_constraints(
 
     # Process (cluster, risk) pairs in groups that share the same intake breakpoints.
     # This batches constraint creation for efficiency - pairs with identical
-    # breakpoint grids can share a single λ variable array.
-    for intake_grid, cluster_risk_pairs in intake_groups.items():
+    # breakpoint grids can share a single variable array.
+    for _intake_grid, cluster_risk_pairs in intake_groups.items():
         # Get risk data for this group (all pairs share same breakpoints)
         risk = cluster_risk_pairs[0][1]
         risk_table = intake_data[risk]
-        intake_steps = risk_table["intake_steps"]
+        intake_values = risk_table["intake_values"]
 
-        # -----------------------------------------------------------------------
-        # Create λ variables (SOS2 interpolation weights)
-        # -----------------------------------------------------------------------
-        # λ variables enable piecewise-linear interpolation:
-        #     x = Σ_k λ_k x_k,  f(x) ≈ Σ_k λ_k f(x_k)
-        # SOS2 ensures at most two adjacent λ_k are nonzero.
-
+        # Build labels and dataframes for this group
         cluster_risk_labels = [
             f"c{cluster}_r{risk}" for cluster, risk in cluster_risk_pairs
         ]
         cluster_risk_index = pd.Index(cluster_risk_labels, name="cluster_risk")
-
-        risk_label = str(risk)
-        lambda_var = m.add_variables(
-            lower=0,
-            upper=1,
-            coords=[cluster_risk_index, intake_steps],
-            name=f"health_lambda_group_{next(_LAMBDA_GROUP_COUNTER)}_{risk_label}",
-        )
-
-        _register_auxiliary_variable(m, lambda_var.name)
-
-        # Add small perturbation to break degeneracy (if health has cost)
-        if value_per_yll > 0:
-            rng = np.random.default_rng(seed=42)
-            n_steps = len(intake_steps)
-            perturbation = xr.DataArray(
-                1e-10 * rng.uniform(size=n_steps),
-                coords={"intake_step": intake_steps},
-                dims=["intake_step"],
-            )
-            m.objective += (perturbation * lambda_var).sum()
-
-        # Add SOS2 constraints for adjacency
-        aux_names = _add_sos2_with_fallback(
-            m, lambda_var, sos_dim="intake_step", solver_name=solver_name
-        )
-        for aux_name in aux_names:
-            _register_auxiliary_variable(m, aux_name)
-
-        # Convexity: Σ_k λ_k = 1
-        m.add_constraints(lambda_var.sum("intake_step") == 1)
+        pairs_df = pd.DataFrame(cluster_risk_pairs, columns=["cluster", "risk_factor"])
+        pairs_df["cluster_risk"] = cluster_risk_labels
 
         # -----------------------------------------------------------------------
-        # Intake balance: country stores → cluster intake (g/person/day)
+        # Build intake expression from stores
         # -----------------------------------------------------------------------
         # Each country c in cluster C has a food group store with level s_c (Mt/year).
         # Cluster intake I_C is the population-weighted average:
         #
         #     I_C = Σ_{c∈C} s_c * (10^12 g/Mt) / (365 days * P_C persons)
         #
-        # where P_C is cluster population. The per_capita_coeff converts a country's
-        # store level to its contribution to cluster intake.
-
-        pairs_df = pd.DataFrame(cluster_risk_pairs, columns=["cluster", "risk_factor"])
-        pairs_df["cluster_risk"] = cluster_risk_labels
+        # where P_C is cluster population.
 
         stores_with_labels = store_map.merge(
             pairs_df, on=["cluster", "risk_factor"], how="inner"
         )
 
-        if not stores_with_labels.empty:
-            store_names = stores_with_labels["store_name"].values
-            per_capita_coeffs = xr.DataArray(
-                stores_with_labels["per_capita_coeff"].values,
-                coords={"name": store_names},
-                dims="name",
-            )
-            # Grouper name="cluster_risk" ensures the groupby result dimension
-            # matches intake_expr's dimension for proper constraint alignment
-            grouper = xr.DataArray(
-                stores_with_labels["cluster_risk"].values,
-                coords={"name": store_names},
-                dims="name",
-                name="cluster_risk",
-            )
+        if stores_with_labels.empty:
+            continue
 
-            # LHS: Aggregated store level expression by cluster_risk
-            # Each store is one country's food group; sum stores within cluster
-            store_expr = (
-                (store_level_var.sel(name=store_names) * per_capita_coeffs)
-                .groupby(grouper)
-                .sum()
-            )
+        store_names = stores_with_labels["store_name"].values
+        per_capita_coeffs = xr.DataArray(
+            stores_with_labels["per_capita_coeff"].values,
+            coords={"name": store_names},
+            dims="name",
+        )
+        grouper = xr.DataArray(
+            stores_with_labels["cluster_risk"].values,
+            coords={"name": store_names},
+            dims="name",
+            name="cluster_risk",
+        )
 
-            # RHS: Intake interpolation
-            intake_values = risk_table["intake_values"]
-            intake_expr = (lambda_var * intake_values).sum("intake_step")
-
-            # IMPORTANT: Align coordinates before creating constraint.
-            # The groupby operation may produce different coordinate ordering than
-            # the lambda variable index. We must explicitly reindex to ensure
-            # store_expr[cluster_risk] matches intake_expr[cluster_risk].
-            intake_expr = intake_expr.reindex(
-                cluster_risk=store_expr.data.coords["cluster_risk"]
-            )
-
-            # I_{c,r} = Σ_k λ_k x_k
-            m.add_constraints(
-                store_expr == intake_expr,
-                name=f"health_intake_balance_group_{hash(intake_grid)}",
-            )
+        # Aggregated store level expression by cluster_risk (g/person/day)
+        store_expr = (
+            (store_level_var.sel(name=store_names) * per_capita_coeffs)
+            .groupby(grouper)
+            .sum()
+        )
 
         # -----------------------------------------------------------------------
-        # Compute log(RR) and accumulate by cluster
+        # Build log(RR) breakpoint data
         # -----------------------------------------------------------------------
-        # The multiplicative RR relationship becomes additive in log space:
-        #     RR_d = ∏_r RR_{r,d}  ⟹  log(RR_d) = Σ_r log(RR_{r,d})
-        #
-        # For each (cluster, risk) pair, we compute:
-        #     log(RR_{c,r,d}) = Σ_k λ_k * log(RR_{r,d}(x_k))
-        # Then sum across risk factors for each cluster.
-
         log_rr_frames = [
             intake_data[risk]["log_rr"] for _cluster, risk in cluster_risk_pairs
         ]
@@ -553,7 +422,7 @@ def _add_stage1_constraints(
             names=["cluster_risk", "intake_step"],
         )
 
-        # Check for missing log_rr values - these would silently zero out health effects
+        # Check for missing log_rr values
         if combined_log_rr.isna().any().any():
             missing = combined_log_rr[combined_log_rr.isna().any(axis=1)]
             raise ValueError(
@@ -567,10 +436,26 @@ def _add_stage1_constraints(
         stacked_log_rr.index.names = ["cluster_risk", "intake_step", "cause"]
         log_rr_by_intake = xr.DataArray.from_series(stacked_log_rr)
 
-        # log(RR_{c,r,d}) = Σ_k λ_k log(RR_{r,d}(x_k))
-        log_rr_contrib = (lambda_var * log_rr_by_intake).sum("intake_step")
+        # -----------------------------------------------------------------------
+        # Delta formulation (same structure for both solvers)
+        # -----------------------------------------------------------------------
+        log_rr_contrib = _add_stage1_delta(
+            m=m,
+            store_expr=store_expr,
+            intake_values=intake_values,
+            log_rr_by_intake=log_rr_by_intake,
+            cluster_risk_index=cluster_risk_index,
+            risk_label=str(risk),
+            value_per_yll=value_per_yll,
+            solver_name=solver_name,
+        )
 
-        # Accumulate by cluster (sum over risk factors for each cause)
+        # -----------------------------------------------------------------------
+        # Accumulate log(RR) by cluster
+        # -----------------------------------------------------------------------
+        # The multiplicative RR relationship becomes additive in log space:
+        #     RR_d = ∏_r RR_{r,d}  ⟹  log(RR_d) = Σ_r log(RR_{r,d})
+
         cluster_by_label = pairs_df.set_index("cluster_risk")["cluster"]
         present_labels = log_rr_contrib.coords["cluster_risk"].values
         cluster_grouper = xr.DataArray(
@@ -598,6 +483,186 @@ def _add_stage1_constraints(
                     log_rr_totals[key] = expr
 
     return log_rr_totals
+
+
+def _add_stage1_delta(
+    m: linopy.Model,
+    store_expr: linopy.LinearExpression,
+    intake_values: xr.DataArray,
+    log_rr_by_intake: xr.DataArray,
+    cluster_risk_index: pd.Index,
+    risk_label: str,
+    value_per_yll: float,
+    solver_name: str,
+) -> linopy.LinearExpression:
+    """Stage 1 delta formulation with segment indicators.
+
+    Creates δ variables with fill-up constraints for piecewise-linear interpolation:
+        x = x_0 + Σ_j δ_j Δx_j,  f(x) = f_0 + Σ_j δ_j Δf_j
+
+    Segment indicator variables y_j guarantee correct interpolation:
+        - HiGHS: binary y_j ∈ {0,1} with Σy = 1
+        - Gurobi: continuous y_j with SOS1 constraint
+
+    Linking constraints tie δ and y:
+        - δ_i ≥ Σ_{k>i} y_k  (δ_i = 1 if active segment is later)
+        - δ_i ≤ Σ_{k≥i} y_k  (δ_i = 0 if active segment is earlier)
+
+    Returns log(RR) expression indexed by (cluster_risk, cause).
+    """
+    intake_steps = intake_values.coords["intake_step"]
+    n_points = len(intake_steps)
+    n_segments = n_points - 1
+    segment_dim = "intake_step_seg"
+    segment_coords = pd.Index(range(n_segments), name=segment_dim)
+
+    # Compute segment widths: Δx_j = x_{j+1} - x_j
+    delta_x = intake_values.diff("intake_step")
+    delta_x = delta_x.rename({"intake_step": segment_dim})
+    delta_x = delta_x.assign_coords({segment_dim: segment_coords})
+
+    group_id = next(_LAMBDA_GROUP_COUNTER)
+
+    # Create δ variables
+    delta_var = m.add_variables(
+        lower=0,
+        upper=1,
+        coords=[cluster_risk_index, segment_coords],
+        name=f"health_delta_group_{group_id}_{risk_label}",
+    )
+    _register_auxiliary_variable(m, delta_var.name)
+
+    # Fill-up constraints: δ_j ≤ δ_{j-1} for j ≥ 1
+    if n_segments > 1:
+        for j in range(1, n_segments):
+            m.add_constraints(
+                delta_var.sel({segment_dim: j}) <= delta_var.sel({segment_dim: j - 1}),
+                name=f"health_delta_fillup_{group_id}_{risk_label}_seg{j}",
+            )
+
+    # -----------------------------------------------------------------------
+    # Segment indicator variables for correct interpolation
+    # -----------------------------------------------------------------------
+    # y_j indicates segment j is "active" (contains the fractional δ)
+    # Exactly one segment is active: Σ y_j = 1
+    #
+    # For HiGHS: binary variables
+    # For Gurobi: continuous variables with SOS1 constraint
+
+    use_binary = solver_name.lower() == "highs"
+
+    if use_binary:
+        y_var = m.add_variables(
+            binary=True,
+            coords=[cluster_risk_index, segment_coords],
+            name=f"health_segment_ind_{group_id}_{risk_label}",
+        )
+    else:
+        y_var = m.add_variables(
+            lower=0,
+            upper=1,
+            coords=[cluster_risk_index, segment_coords],
+            name=f"health_segment_ind_{group_id}_{risk_label}",
+        )
+        # Add SOS1 constraint: at most one y_j non-zero per cluster_risk
+        m.add_sos_constraints(y_var, sos_type=1, sos_dim=segment_dim)
+
+    _register_auxiliary_variable(m, y_var.name)
+
+    # Exactly one segment active
+    m.add_constraints(
+        y_var.sum(segment_dim) == 1,
+        name=f"health_segment_sum_{group_id}_{risk_label}",
+    )
+
+    # Linking constraints between δ and y
+    # For segment j active (y_j = 1):
+    #   - δ_0 = δ_1 = ... = δ_{j-1} = 1 (all before are full)
+    #   - δ_j ∈ [0, 1] (the active one is fractional)
+    #   - δ_{j+1} = ... = δ_{n-1} = 0 (all after are empty)
+    #
+    # Constraints:
+    #   δ_i ≥ Σ_{k=i+1}^{n-1} y_k  (δ_i = 1 if active segment is later than i)
+    #   δ_i ≤ Σ_{k=i}^{n-1} y_k    (δ_i = 0 if active segment is before i)
+    for i in range(n_segments):
+        # δ_i ≥ Σ_{k>i} y_k
+        if i < n_segments - 1:
+            y_later_sum = y_var.isel({segment_dim: slice(i + 1, None)}).sum(segment_dim)
+            m.add_constraints(
+                delta_var.sel({segment_dim: i}) >= y_later_sum,
+                name=f"health_delta_lower_{group_id}_{risk_label}_seg{i}",
+            )
+
+        # δ_i ≤ Σ_{k≥i} y_k
+        y_this_and_later_sum = y_var.isel({segment_dim: slice(i, None)}).sum(
+            segment_dim
+        )
+        m.add_constraints(
+            delta_var.sel({segment_dim: i}) <= y_this_and_later_sum,
+            name=f"health_delta_upper_{group_id}_{risk_label}_seg{i}",
+        )
+
+    # Intake balance: I_{c,r} = x_0 + Σ_j δ_j Δx_j
+    x_0 = float(intake_values.isel(intake_step=0).values)
+    intake_expr = x_0 + (delta_var * delta_x).sum(segment_dim)
+    intake_expr = intake_expr.reindex(
+        cluster_risk=store_expr.data.coords["cluster_risk"]
+    )
+    m.add_constraints(
+        store_expr == intake_expr,
+        name=f"health_delta_intake_balance_{group_id}_{risk_label}",
+    )
+
+    # Compute log(RR): log(RR_{c,r,d}) = f_0 + Σ_j δ_j Δf_j
+    # Need to compute delta_f for each cause
+    #
+    # Manually compute differences to ensure coordinate alignment.
+    # diff() can produce misaligned indices that cause broadcasting issues.
+    causes = log_rr_by_intake.coords["cause"].values
+    cluster_risk_vals = cluster_risk_index.values
+
+    # Build delta_log_rr with explicit coordinates
+    delta_log_rr_data = np.zeros(
+        (len(cluster_risk_vals), len(segment_coords), len(causes))
+    )
+    for j in range(len(segment_coords)):
+        delta_log_rr_data[:, j, :] = (
+            log_rr_by_intake.sel(cluster_risk=cluster_risk_vals)
+            .isel(intake_step=j + 1)
+            .values
+            - log_rr_by_intake.sel(cluster_risk=cluster_risk_vals)
+            .isel(intake_step=j)
+            .values
+        )
+
+    delta_log_rr = xr.DataArray(
+        delta_log_rr_data,
+        coords={
+            "cluster_risk": cluster_risk_vals,
+            segment_dim: segment_coords.values,
+            "cause": causes,
+        },
+        dims=["cluster_risk", segment_dim, "cause"],
+    )
+
+    # f_0 is the constant offset (value at first breakpoint)
+    f_0_data = (
+        log_rr_by_intake.sel(cluster_risk=cluster_risk_vals).isel(intake_step=0).values
+    )
+    f_0 = xr.DataArray(
+        f_0_data,
+        coords={"cluster_risk": cluster_risk_vals, "cause": causes},
+        dims=["cluster_risk", "cause"],
+    )
+
+    # Compute expression: f_0 + Σ_j δ_j Δf_j
+    # Note: Use delta_contrib + f_0 (not f_0 + delta_contrib) so that linopy's
+    # __add__ handles the addition properly. DataArray.__add__ doesn't know
+    # how to handle LinearExpressions.
+    delta_contrib = (delta_var * delta_log_rr).sum(segment_dim)
+    log_rr_contrib = delta_contrib + f_0
+
+    return log_rr_contrib
 
 
 # =============================================================================
@@ -680,13 +745,20 @@ def _add_stage2_constraints(
     cluster_cause_data: dict[tuple[int, str], dict],
     health_stores: pd.DataFrame,
     store_level_var: xr.DataArray,
-    solver_name: str,
     value_per_yll: float,
 ) -> int:
     """Add Stage 2 constraints: Σ_r log(RR_{r,d}) → YLL store level.
 
     Stage 2 transforms the summed log-RR values into YLL store levels using
-    a second piecewise-linear interpolation to compute exp(·).
+    piecewise-linear interpolation to compute exp(·).
+
+    Both solvers use the delta formulation without segment indicators:
+        - δ_j ∈ [0,1], δ_j ≤ δ_{j-1} (fill-up ordering)
+        - log(RR) = z_0 + Σ_j δ_j Δz_j, RR = f_0 + Σ_j δ_j Δf_j
+
+    No segment indicators are needed because exp() is convex and we minimize
+    RR (to minimize YLL cost). Convexity guarantees the optimizer naturally
+    selects the correct "fill from left" delta pattern.
 
     The store level represents the health cost normalized by V (value per YLL):
 
@@ -706,8 +778,6 @@ def _add_stage2_constraints(
         DataFrame of YLL stores indexed by (health_cluster, cause).
     store_level_var
         Store energy level variables.
-    solver_name
-        Solver name for SOS2 implementation selection.
     value_per_yll
         Value per YLL; determines constraint type (equality vs inequality).
 
@@ -727,125 +797,203 @@ def _add_stage2_constraints(
             f"c{cluster}_cause{cause}" for cluster, cause in cluster_cause_pairs
         ]
         cluster_cause_index = pd.Index(cluster_cause_labels, name="cluster_cause")
-
-        # Create λ variables for log-RR interpolation
         cause_label = str(cluster_cause_pairs[0][1])
-        lambda_var = m.add_variables(
-            lower=0,
-            upper=1,
-            coords=[cluster_cause_index, log_total_steps],
-            name=f"health_lambda_total_group_{next(_TOTAL_GROUP_COUNTER)}_{cause_label}",
-        )
 
-        _register_auxiliary_variable(m, lambda_var.name)
-
-        # Add small perturbation to break degeneracy (if health has cost)
-        if value_per_yll > 0:
-            rng_total = np.random.default_rng(seed=43)
-            n_total_steps = len(log_total_steps)
-            perturbation_total = xr.DataArray(
-                1e-10 * rng_total.uniform(size=n_total_steps),
-                coords={"log_total_step": log_total_steps},
-                dims=["log_total_step"],
-            )
-            m.objective += (perturbation_total * lambda_var).sum()
-
-        # Add SOS2 constraints
-        aux_names = _add_sos2_with_fallback(
-            m, lambda_var, sos_dim="log_total_step", solver_name=solver_name
-        )
-        for aux_name in aux_names:
-            _register_auxiliary_variable(m, aux_name)
-
-        # Convexity: Σ_k λ_k = 1
-        m.add_constraints(lambda_var.sum("log_total_step") == 1)
-
-        # Coefficient for log-RR interpolation
+        # Build breakpoint arrays for log-RR (z) and RR (exp(z))
         coeff_log_total = xr.DataArray(
             log_total_vals,
             coords={"log_total_step": log_total_steps},
             dims=["log_total_step"],
         )
 
-        # Process each (cluster, cause) pair
-        for (cluster, cause), label in zip(cluster_cause_pairs, cluster_cause_labels):
-            data = cluster_cause_data[(cluster, cause)]
-            lambda_total = lambda_var.sel(cluster_cause=label)
+        # Get RR values at breakpoints (same for all pairs in this group)
+        # Use the first pair's cause_bp since all share the same breakpoints
+        sample_data = cluster_cause_data[cluster_cause_pairs[0]]
+        rr_vals = sample_data["cause_bp"]["rr_total"].values
+        coeff_rr = xr.DataArray(
+            rr_vals,
+            coords={"log_total_step": log_total_steps},
+            dims=["log_total_step"],
+        )
 
-            # Verify Stage 1 produced log_rr totals for this (cluster, cause) pair
-            if (cluster, cause) not in log_rr_totals:
-                raise ValueError(
-                    f"No log_rr total from Stage 1 for cluster {cluster}, cause {cause}. "
-                    f"This indicates no risk factors were processed for this cluster. "
-                    f"Check that food group stores exist and map to health clusters."
-                )
-            total_expr = log_rr_totals[(cluster, cause)]
-            cause_bp = data["cause_bp"]
-
-            # log(RR_d) interpolation: Σ_k λ_k z_k = Σ_r log(RR_{r,d})
-            log_interp = m.linexpr((coeff_log_total, lambda_total)).sum(
-                "log_total_step"
-            )
-            m.add_constraints(
-                log_interp == total_expr,
-                name=f"health_total_balance_c{cluster}_cause{cause}",
-            )
-
-            # RR_d interpolation: Σ_k λ_k exp(z_k)
-            coeff_rr = xr.DataArray(
-                cause_bp["rr_total"].values,
-                coords={"log_total_step": log_total_steps},
-                dims=["log_total_step"],
-            )
-            rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total_step")
-
-            # Get store name
-            if (cluster, cause) not in health_stores.index:
-                raise ValueError(
-                    f"No YLL store found for cluster {cluster}, cause {cause}. "
-                    f"Check that health stores were created during model build."
-                )
-            store_name = health_stores.loc[(cluster, cause), "name"]
-
-            if data["yll_total"] <= 0:
-                logger.warning(
-                    "Health store has non-positive yll_total (cluster=%d, cause=%s); "
-                    "constraint will be non-binding",
-                    cluster,
-                    cause,
-                )
-
-            # Store level = (RR - RR^ref) * (YLL / RR^base) * 10^{-6}
-            #
-            # Health cost is zero at TMREL (where RR = RR^ref) and increases
-            # with deviation from optimal intake. Since TMREL minimizes RR,
-            # we have RR ≥ RR^ref always, so store levels are non-negative.
-            #
-            # Normalizing by RR^base ensures populations with identical
-            # underlying susceptibility incur the same health cost for the
-            # same diet, regardless of baseline consumption patterns.
-            yll_expr_myll = (
-                (rr_interp - data["rr_ref"])
-                * (data["yll_total"] / data["rr_baseline"])
-                * constants.YLL_TO_MILLION_YLL
-            )
-
-            # Constraint type depends on value_per_yll:
-            # - If zero: use equality (store level tracks YLL exactly)
-            # - If positive: use inequality (objective minimizes store level)
-            if value_per_yll == 0:
-                m.add_constraints(
-                    store_level_var.sel(name=store_name) == yll_expr_myll,
-                    name=f"health_store_level_c{cluster}_cause{cause}",
-                )
-            elif value_per_yll > 0:
-                m.add_constraints(
-                    store_level_var.sel(name=store_name) >= yll_expr_myll,
-                    name=f"health_store_level_c{cluster}_cause{cause}",
-                )
-            constraints_added += 1
+        # Delta formulation for both solvers (no segment indicators needed)
+        constraints_added += _add_stage2_delta(
+            m=m,
+            log_rr_totals=log_rr_totals,
+            cluster_cause_pairs=cluster_cause_pairs,
+            cluster_cause_labels=cluster_cause_labels,
+            cluster_cause_index=cluster_cause_index,
+            cluster_cause_data=cluster_cause_data,
+            health_stores=health_stores,
+            store_level_var=store_level_var,
+            coeff_log_total=coeff_log_total,
+            coeff_rr=coeff_rr,
+            cause_label=cause_label,
+            value_per_yll=value_per_yll,
+        )
 
     return constraints_added
+
+
+def _add_stage2_delta(
+    m: linopy.Model,
+    log_rr_totals: dict[tuple[int, str], linopy.LinearExpression],
+    cluster_cause_pairs: list[tuple[int, str]],
+    cluster_cause_labels: list[str],
+    cluster_cause_index: pd.Index,
+    cluster_cause_data: dict[tuple[int, str], dict],
+    health_stores: pd.DataFrame,
+    store_level_var: xr.DataArray,
+    coeff_log_total: xr.DataArray,
+    coeff_rr: xr.DataArray,
+    cause_label: str,
+    value_per_yll: float,
+) -> int:
+    """Stage 2 delta formulation for HiGHS (no binary variables).
+
+    Creates δ variables with fill-up constraints for piecewise-linear interpolation
+    of the exponential function (log(RR) → RR).
+
+    Returns number of store level constraints added.
+    """
+    log_total_steps = coeff_log_total.coords["log_total_step"]
+    n_points = len(log_total_steps)
+    segment_dim = "log_total_step_seg"
+    segment_coords = pd.Index(range(n_points - 1), name=segment_dim)
+
+    # Compute segment widths: Δz_j = z_{j+1} - z_j, Δf_j = f_{j+1} - f_j
+    delta_z = coeff_log_total.diff("log_total_step")
+    delta_z = delta_z.rename({"log_total_step": segment_dim})
+    delta_z = delta_z.assign_coords({segment_dim: segment_coords})
+
+    delta_rr = coeff_rr.diff("log_total_step")
+    delta_rr = delta_rr.rename({"log_total_step": segment_dim})
+    delta_rr = delta_rr.assign_coords({segment_dim: segment_coords})
+
+    # Create δ variables
+    delta_var = m.add_variables(
+        lower=0,
+        upper=1,
+        coords=[cluster_cause_index, segment_coords],
+        name=f"health_delta_total_group_{next(_TOTAL_GROUP_COUNTER)}_{cause_label}",
+    )
+    _register_auxiliary_variable(m, delta_var.name)
+
+    # Fill-up constraints: δ_j ≤ δ_{j-1} for j ≥ 1
+    if n_points > 2:
+        for j in range(1, n_points - 1):
+            m.add_constraints(
+                delta_var.sel({segment_dim: j}) <= delta_var.sel({segment_dim: j - 1}),
+                name=f"health_delta_total_fillup_{cause_label}_seg{j}",
+            )
+
+    # Perturbation for delta formulation is not needed - the equality constraint
+    # on log(RR) uniquely determines delta values, eliminating degeneracy.
+
+    # Base values (at first breakpoint)
+    z_0 = float(coeff_log_total.isel(log_total_step=0).values)
+    f_0 = float(coeff_rr.isel(log_total_step=0).values)
+
+    constraints_added = 0
+
+    # Process each (cluster, cause) pair
+    for (cluster, cause), label in zip(cluster_cause_pairs, cluster_cause_labels):
+        data = cluster_cause_data[(cluster, cause)]
+        delta_total = delta_var.sel(cluster_cause=label)
+
+        # Verify Stage 1 produced log_rr totals for this pair
+        if (cluster, cause) not in log_rr_totals:
+            raise ValueError(
+                f"No log_rr total from Stage 1 for cluster {cluster}, cause {cause}. "
+                f"Check that food group stores exist and map to health clusters."
+            )
+        total_expr = log_rr_totals[(cluster, cause)]
+
+        # log(RR_d) interpolation: z_0 + Σ_j δ_j Δz_j = Σ_r log(RR_{r,d})
+        log_interp = z_0 + (delta_total * delta_z).sum(segment_dim)
+        m.add_constraints(
+            log_interp == total_expr,
+            name=f"health_delta_total_balance_c{cluster}_cause{cause}",
+        )
+
+        # RR_d interpolation: f_0 + Σ_j δ_j Δf_j
+        rr_interp = f_0 + (delta_total * delta_rr).sum(segment_dim)
+
+        # Add store level constraint
+        constraints_added += _add_store_level_constraint(
+            m=m,
+            rr_interp=rr_interp,
+            data=data,
+            cluster=cluster,
+            cause=cause,
+            health_stores=health_stores,
+            store_level_var=store_level_var,
+            value_per_yll=value_per_yll,
+        )
+
+    return constraints_added
+
+
+def _add_store_level_constraint(
+    m: linopy.Model,
+    rr_interp: linopy.LinearExpression,
+    data: dict,
+    cluster: int,
+    cause: str,
+    health_stores: pd.DataFrame,
+    store_level_var: xr.DataArray,
+    value_per_yll: float,
+) -> int:
+    """Add store level constraint linking RR interpolation to YLL store.
+
+    Returns 1 if constraint was added, 0 otherwise.
+    """
+    # Get store name
+    if (cluster, cause) not in health_stores.index:
+        raise ValueError(
+            f"No YLL store found for cluster {cluster}, cause {cause}. "
+            f"Check that health stores were created during model build."
+        )
+    store_name = health_stores.loc[(cluster, cause), "name"]
+
+    if data["yll_total"] <= 0:
+        logger.warning(
+            "Health store has non-positive yll_total (cluster=%d, cause=%s); "
+            "constraint will be non-binding",
+            cluster,
+            cause,
+        )
+
+    # Store level = (RR - RR^ref) * (YLL / RR^base) * 10^{-6}
+    #
+    # Health cost is zero at TMREL (where RR = RR^ref) and increases
+    # with deviation from optimal intake. Since TMREL minimizes RR,
+    # we have RR ≥ RR^ref always, so store levels are non-negative.
+    #
+    # Normalizing by RR^base ensures populations with identical
+    # underlying susceptibility incur the same health cost for the
+    # same diet, regardless of baseline consumption patterns.
+    yll_expr_myll = (
+        (rr_interp - data["rr_ref"])
+        * (data["yll_total"] / data["rr_baseline"])
+        * constants.YLL_TO_MILLION_YLL
+    )
+
+    # Constraint type depends on value_per_yll:
+    # - If zero: use equality (store level tracks YLL exactly)
+    # - If positive: use inequality (objective minimizes store level)
+    if value_per_yll == 0:
+        m.add_constraints(
+            store_level_var.sel(name=store_name) == yll_expr_myll,
+            name=f"health_store_level_c{cluster}_cause{cause}",
+        )
+    elif value_per_yll > 0:
+        m.add_constraints(
+            store_level_var.sel(name=store_name) >= yll_expr_myll,
+            name=f"health_store_level_c{cluster}_cause{cause}",
+        )
+
+    return 1
 
 
 # =============================================================================
@@ -1013,7 +1161,6 @@ def add_health_objective(
         cluster_cause_data,
         health_stores,
         store_level_var,
-        solver_name,
         value_per_yll,
     )
 
