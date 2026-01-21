@@ -28,9 +28,6 @@ import pypsa
 
 from workflow.scripts.logging_config import setup_script_logging
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def extract_optimal_taxes(n: pypsa.Network) -> pd.DataFrame:
     """Extract optimal taxes from food group equality constraint duals.

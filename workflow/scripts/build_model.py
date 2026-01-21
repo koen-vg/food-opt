@@ -32,9 +32,6 @@ from workflow.scripts.build_model import (
 from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.snakemake_utils import apply_scenario_config
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 if __name__ == "__main__":
     # Configure logging

@@ -21,8 +21,6 @@ import pypsa
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PER_100K
 
-pypsa.options.api.new_components_api = True
-
 logger = logging.getLogger(__name__)
 
 

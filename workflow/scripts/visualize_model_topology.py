@@ -21,9 +21,6 @@ from workflow.scripts.logging_config import setup_script_logging
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def categorize_bus(bus_name: str, carrier: str) -> str | None:
     """Categorize a bus into a high-level node type.

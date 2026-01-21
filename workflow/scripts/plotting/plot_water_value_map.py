@@ -29,9 +29,6 @@ import pypsa
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def plot_water_value_map(
     solved_network_path: Path, regions_path: Path, output_path: Path

@@ -21,9 +21,6 @@ import pypsa
 
 from workflow.scripts.logging_config import setup_script_logging
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 logger = logging.getLogger(__name__)
 
 

@@ -28,9 +28,6 @@ from workflow.scripts.population import get_health_cluster_population
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 PLATE_CARREE = ccrs.PlateCarree()
 
 

@@ -16,9 +16,6 @@ from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.population import get_country_population
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def extract_optimal_consumption(
     n: pypsa.Network,

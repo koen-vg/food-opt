@@ -18,9 +18,6 @@ from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 POSITIVE_PREFIX = "slack_positive_group_"
 NEGATIVE_PREFIX = "slack_negative_group_"
 

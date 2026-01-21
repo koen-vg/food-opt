@@ -57,7 +57,7 @@ snakemake = ">=9.13.7, <10"
 food-opt-workflow = { path = ".", editable = true }
 
 # Optimization and modeling; own branches of pypsa and linopy with custom features needed by food-opt
-pypsa = { git = "https://github.com/koen-vg/PyPSA.git", tag = "v1.0.6+food.opt" }
+pypsa = { git = "https://github.com/koen-vg/PyPSA.git", tag = "v1.0.7+food.opt" }
 linopy = { git = "https://github.com/koen-vg/linopy.git", tag = "v0.6.1+food.opt" }
 
 # Geospatial processing
@@ -79,6 +79,7 @@ gurobipy = ">=13.0.0, <14"           # Gurobi commercial MILP solver (requires l
 # Interactive development
 jupyter = ">=1.1.1,<2"               # Jupyter notebook interface
 ipython = ">=9.7.0,<10"              # Enhanced Python REPL
+snakeviz = ">=2.2.2,<3"              # Visualization of profiling results
 
 # Code quality
 prek = ">=0.1.0,<2"                  # Git pre-commit hooks runner
@@ -94,6 +95,10 @@ make = ">=4.4,<5"                    # Build tool for Sphinx Makefile
 
 [feature.dev.pypi-dependencies]
 snakefmt = ">=0.11.2, <0.12"         # Snakemake code formatter
+
+[activation.env]
+# Enable new PyPSA components API globally
+PYPSA_API__NEW_COMPONENTS_API = "true"
 
 [tasks]
 smk = { cmd = "tools/smk" }

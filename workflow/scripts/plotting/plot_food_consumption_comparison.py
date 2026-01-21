@@ -28,9 +28,6 @@ from workflow.scripts.population import get_total_population
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def _per_capita_consumption(
     network: pypsa.Network, food_to_group: dict[str, str], population_total: float

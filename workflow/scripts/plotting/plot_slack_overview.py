@@ -16,9 +16,6 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def _mask_carrier_equals(carrier: str):
     def _mask(columns: pd.Index, generators: pd.DataFrame) -> pd.Series:

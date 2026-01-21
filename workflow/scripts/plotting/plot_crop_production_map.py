@@ -23,9 +23,6 @@ import pypsa
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def _dict_to_df(data: dict[tuple[str, str], float]) -> pd.DataFrame:
     if not data:

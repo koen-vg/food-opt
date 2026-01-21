@@ -19,9 +19,6 @@ import pypsa
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 # Global mass unit conversion: tonne to megatonne
 TONNE_TO_MEGATONNE = 1e-6
 

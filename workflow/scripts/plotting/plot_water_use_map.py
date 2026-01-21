@@ -20,9 +20,6 @@ matplotlib.use("pdf")
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def _setup_regions(regions_path: str) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     gdf = gpd.read_file(regions_path)

@@ -21,9 +21,6 @@ from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 EPSILON = 1e-6  # Threshold for considering values as zero
 BAR_WIDTH = 0.35  # Width of each bar (we'll have 2 per cluster)
 BAR_SPACING = 0.05  # Space between the two bars

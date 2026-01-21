@@ -23,9 +23,6 @@ from workflow.scripts.solve_model.health import (
     add_health_objective,
 )
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 # Module-level logger (replaced by setup_script_logging when run as __main__)
 logger = logging.getLogger(__name__)
 

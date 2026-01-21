@@ -17,9 +17,6 @@ import pypsa
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
     """Categorize an emission source by its carrier and gas type.

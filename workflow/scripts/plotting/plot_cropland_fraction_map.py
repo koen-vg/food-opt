@@ -59,9 +59,6 @@ import xarray as xr
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def _compute_total_land_area_by_region_class(
     classes_ds: xr.Dataset,

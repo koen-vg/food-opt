@@ -14,9 +14,6 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def extract_crop_production(n: pypsa.Network) -> pd.Series:
     """Extract total crop production aggregated across regions/classes."""

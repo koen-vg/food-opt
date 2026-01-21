@@ -16,9 +16,6 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 
 def _compute_water_balance(network: pypsa.Network) -> pd.DataFrame:
     """Return a one-row DataFrame with available, natural supply, slack, total use (Mm³)."""

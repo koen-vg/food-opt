@@ -21,9 +21,6 @@ from workflow.scripts.population import get_total_population
 
 logger = logging.getLogger(__name__)
 
-# Enable new PyPSA components API
-pypsa.options.api.new_components_api = True
-
 # Alias for backwards compatibility with modules that import from here
 KCAL_PER_PJ = PJ_TO_KCAL
 
