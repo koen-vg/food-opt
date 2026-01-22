@@ -2252,6 +2252,7 @@ def plot_contour(
     vmax: float | None = None,
     contour_levels: np.ndarray | None = None,
     cbar_orientation: str = "vertical",
+    sigma: float = 0,
 ):
     """Plot smoothed contour lines with logarithmic axes.
 
@@ -2270,8 +2271,10 @@ def plot_contour(
         vmax: Maximum value for color scale
         contour_levels: Explicit contour levels (overrides n_levels)
         cbar_orientation: Colorbar orientation ('vertical' or 'horizontal')
+        sigma: Gaussian smoothing sigma (0 = no smoothing, applied on interpolated grid)
     """
     from scipy.interpolate import RegularGridInterpolator
+    from scipy.ndimage import gaussian_filter
 
     ghg_values = data.index.values.astype(float)
     yll_values = data.columns.values.astype(float)
@@ -2295,6 +2298,10 @@ def plot_contour(
     log_yll_mesh, log_ghg_mesh = np.meshgrid(log_yll_fine, log_ghg_fine)
     points = np.column_stack([log_ghg_mesh.ravel(), log_yll_mesh.ravel()])
     z_fine = interp(points).reshape(log_ghg_mesh.shape)
+
+    # Apply Gaussian smoothing if sigma > 0
+    if sigma > 0:
+        z_fine = gaussian_filter(z_fine, sigma=sigma)
 
     # Convert back to linear scale for plotting
     yll_fine = 10**log_yll_fine
