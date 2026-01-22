@@ -42,9 +42,11 @@ def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataF
         key = (region, crop)
         data[key] = data.get(key, 0.0) + float(value)
 
-    # Filter crop production links by carrier prefix
+    # Filter crop production links by carrier prefix (produce_*)
     links_df = n.links.static
-    crop_mask = links_df["carrier"].str.startswith("crop_")
+    crop_mask = links_df["carrier"].str.startswith("produce_", na=False)
+    # Exclude grassland production (handled separately)
+    crop_mask = crop_mask & (links_df["carrier"] != "produce_grassland")
     crop_links = links_df[crop_mask]
 
     if not crop_links.empty:
@@ -52,15 +54,18 @@ def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataF
 
         for name in crop_links.index:
             value = p1[name]
-            region = str(crop_links.at[name, "region"])
-            carrier = str(crop_links.at[name, "carrier"])
+            region = crop_links.at[name, "region"]
+            crop = crop_links.at[name, "crop"]
 
-            # Extract crop from carrier (e.g., "crop_maize_rainfed" -> "maize_rainfed")
-            crop = carrier[5:]  # Remove "crop_" prefix
-            add(region, crop, abs(float(value)))
+            # Skip links without region or crop metadata
+            # Also skip multi-crop links (crop column contains string "nan")
+            if pd.isna(region) or pd.isna(crop) or str(crop) == "nan":
+                continue
 
-    # Filter grazing links by carrier
-    grazing_mask = links_df["carrier"] == "feed_ruminant_grassland"
+            add(str(region), str(crop), abs(float(value)))
+
+    # Filter grassland production links by carrier
+    grazing_mask = links_df["carrier"] == "produce_grassland"
     grazing_links = links_df[grazing_mask]
 
     if not grazing_links.empty:
@@ -68,8 +73,10 @@ def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataF
 
         for name in grazing_links.index:
             value = p1[name]
-            region = str(grazing_links.at[name, "region"])
-            add(region, "grassland", abs(float(value)))
+            region = grazing_links.at[name, "region"]
+            if pd.isna(region):
+                continue
+            add(str(region), "grassland", abs(float(value)))
 
     df = _dict_to_df(data)
     if "grassland" not in df.columns:
@@ -90,9 +97,11 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
         key = (region, crop)
         data[key] = data.get(key, 0.0) + float(value)
 
-    # Filter crop production links by carrier prefix
+    # Filter crop production links by carrier prefix (produce_*)
     links_df = n.links.static
-    crop_mask = links_df["carrier"].str.startswith("crop_")
+    crop_mask = links_df["carrier"].str.startswith("produce_", na=False)
+    # Exclude grassland production (handled separately)
+    crop_mask = crop_mask & (links_df["carrier"] != "produce_grassland")
     crop_links = links_df[crop_mask]
 
     if not crop_links.empty:
@@ -100,15 +109,18 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
 
         for name in crop_links.index:
             value = p0[name]
-            region = str(crop_links.at[name, "region"])
-            carrier = str(crop_links.at[name, "carrier"])
+            region = crop_links.at[name, "region"]
+            crop = crop_links.at[name, "crop"]
 
-            # Extract crop from carrier (e.g., "crop_maize_rainfed" -> "maize_rainfed")
-            crop = carrier[5:]  # Remove "crop_" prefix
-            add(region, crop, max(float(value), 0.0) * 1e6)
+            # Skip links without region or crop metadata
+            # Also skip multi-crop links (crop column contains string "nan")
+            if pd.isna(region) or pd.isna(crop) or str(crop) == "nan":
+                continue
 
-    # Filter grazing links by carrier
-    grazing_mask = links_df["carrier"] == "feed_ruminant_grassland"
+            add(str(region), str(crop), max(float(value), 0.0) * 1e6)
+
+    # Filter grassland production links by carrier
+    grazing_mask = links_df["carrier"] == "produce_grassland"
     grazing_links = links_df[grazing_mask]
 
     if not grazing_links.empty:
@@ -116,8 +128,10 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
 
         for name in grazing_links.index:
             value = p0[name]
-            region = str(grazing_links.at[name, "region"])
-            add(region, "grassland", max(float(value), 0.0) * 1e6)
+            region = grazing_links.at[name, "region"]
+            if pd.isna(region):
+                continue
+            add(str(region), "grassland", max(float(value), 0.0) * 1e6)
 
     df = _dict_to_df(data)
     if "grassland" not in df.columns:

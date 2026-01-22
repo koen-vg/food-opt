@@ -227,6 +227,7 @@ def add_feed_supply_links(
     all_bus1 = []
     all_countries = []
     all_feed_categories = []
+    all_crops = []
 
     for _, row in ruminant_feeds.iterrows():
         item = row["feed_item"]
@@ -236,12 +237,15 @@ def add_feed_supply_links(
         if source_type == "crop":
             bus_prefix = "crop"
             link_prefix = "convert"
+            crop_value = item
         elif source_type == "food":
             bus_prefix = "food"
             link_prefix = "convert_food"
+            crop_value = pd.NA
         else:
             bus_prefix = "residue"
             link_prefix = "convert_residue"
+            crop_value = pd.NA
 
         for country in countries:
             all_names.append(f"{link_prefix}:{item}_to_ruminant_{category}:{country}")
@@ -249,6 +253,7 @@ def add_feed_supply_links(
             all_bus1.append(f"feed:ruminant_{category}:{country}")
             all_countries.append(country)
             all_feed_categories.append(f"ruminant_{category}")
+            all_crops.append(crop_value)
 
     # Build monogastric links
     for _, row in monogastric_feeds.iterrows():
@@ -259,12 +264,15 @@ def add_feed_supply_links(
         if source_type == "crop":
             bus_prefix = "crop"
             link_prefix = "convert"
+            crop_value = item
         elif source_type == "food":
             bus_prefix = "food"
             link_prefix = "convert_food"
+            crop_value = pd.NA
         else:
             bus_prefix = "residue"
             link_prefix = "convert_residue"
+            crop_value = pd.NA
 
         for country in countries:
             all_names.append(
@@ -274,6 +282,7 @@ def add_feed_supply_links(
             all_bus1.append(f"feed:monogastric_{category}:{country}")
             all_countries.append(country)
             all_feed_categories.append(f"monogastric_{category}")
+            all_crops.append(crop_value)
 
     if not all_names:
         logger.info("No feed supply links to create; check crop/food lists")
@@ -288,6 +297,7 @@ def add_feed_supply_links(
         p_nom_extendable=True,
         country=all_countries,
         feed_category=all_feed_categories,
+        crop=all_crops,
     )
 
     logger.info(

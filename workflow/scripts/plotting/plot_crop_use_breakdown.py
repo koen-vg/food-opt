@@ -51,8 +51,9 @@ def _extract_crop_production(
             continue
 
         # Use crop column for metadata
+        # Skip links without crop metadata or multi-crop links (crop='nan' string)
         crop = links_df.at[link, "crop"]
-        if pd.isna(crop):
+        if pd.isna(crop) or str(crop) == "nan":
             continue
         crop_token = str(crop)
 
@@ -95,7 +96,11 @@ def _extract_crop_production(
 
 
 def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
-    """Return crop use split into human consumption vs. animal feed (megatonnes)."""
+    """Return crop use split into human consumption vs. animal feed (megatonnes).
+
+    Human consumption is tracked via pathway links (crop → food processing).
+    Animal feed is tracked via convert_to_feed links from crop buses.
+    """
 
     if "now" not in n.snapshots:
         raise ValueError("Expected snapshot 'now' in solved network")
@@ -123,13 +128,15 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
 
         carrier = str(links_df.at[link, "carrier"])
 
-        if carrier.startswith("consume_"):
-            # Use food column from consumption link
-            food = links_df.at[link, "food"]
-            if pd.notna(food):
-                human_use[str(food)] += flow_in
-        elif carrier.startswith("convert_to_feed"):
-            # Use crop column for feed conversion links
+        # Human consumption: track via pathway links (crop → food processing)
+        # These links have the crop column set and represent crop use for food
+        if carrier.startswith("pathway_"):
+            crop = links_df.at[link, "crop"]
+            if pd.notna(crop):
+                human_use[str(crop)] += flow_in
+        # Animal feed: track via convert_to_feed links from crop buses
+        # Only count direct crop→feed conversions (links with crop column set)
+        elif carrier == "convert_to_feed":
             crop = links_df.at[link, "crop"]
             if pd.notna(crop):
                 feed_use[str(crop)] += flow_in
