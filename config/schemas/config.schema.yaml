@@ -12,6 +12,7 @@ required:
   - planning_horizon
   - currency_base_year
   - downloads
+  - netcdf
   - validation
   - food_group_incentives
   - optimal_taxes
@@ -74,6 +75,29 @@ properties:
       show_progress:
         type: boolean
         description: "Whether to show download progress bars"
+
+  netcdf:
+    type: object
+    description: "NetCDF export settings for PyPSA network files"
+    required: [float32, compression]
+    additionalProperties: false
+    properties:
+      float32:
+        type: boolean
+        description: "Downcast float64 to float32 to reduce file size"
+      compression:
+        oneOf:
+          - type: object
+            additionalProperties: false
+            properties:
+              zlib:
+                type: boolean
+              complevel:
+                type: integer
+                minimum: 1
+                maximum: 9
+          - type: "null"
+        description: "Compression settings passed to xarray.Dataset.to_netcdf; null disables compression"
 
   validation:
     type: object
@@ -1205,7 +1229,7 @@ properties:
 
   solving:
     type: object
-    required: [solver, io_api, threads, calculate_fixed_duals, options_gurobi, options_highs, netcdf_compression]
+    required: [solver, io_api, threads, calculate_fixed_duals, options_gurobi, options_highs]
     additionalProperties: false
     properties:
       solver:
@@ -1239,18 +1263,6 @@ properties:
               - type: number
               - type: string
         description: "HiGHS solver options"
-      netcdf_compression:
-        oneOf:
-          - type: "null"
-          - type: object
-            properties:
-              zlib:
-                type: boolean
-              complevel:
-                type: integer
-                minimum: 0
-                maximum: 9
-        description: "NetCDF export compression settings"
 
   plotting:
     type: object

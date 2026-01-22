@@ -136,6 +136,7 @@ rule build_model:
         health_reference_year=lambda w: get_effective_config(w.scenario)["health"][
             "reference_year"
         ],
+        netcdf=lambda w: get_effective_config(w.scenario)["netcdf"],
         # Only used to force correct reruns when scenario_defs changes.
         scenario_hash=lambda w: scenario_override_hash(w.scenario),
     output:
@@ -253,9 +254,7 @@ rule solve_model:
         calculate_fixed_duals=lambda w: get_effective_config(w.scenario)["solving"][
             "calculate_fixed_duals"
         ],
-        netcdf_compression=lambda w: get_effective_config(w.scenario)["solving"][
-            "netcdf_compression"
-        ],
+        netcdf=lambda w: get_effective_config(w.scenario)["netcdf"],
         macronutrients=lambda w: get_effective_config(w.scenario)["macronutrients"],
         food_group_constraints=lambda w: get_effective_config(w.scenario)[
             "food_groups"

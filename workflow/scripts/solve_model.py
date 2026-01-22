@@ -1195,7 +1195,7 @@ def _run_solve() -> None:
         solver_threads,
     )
     io_api = snakemake.params.io_api
-    netcdf_compression = snakemake.params.netcdf_compression
+    netcdf_config = snakemake.params.netcdf
 
     # Configure Gurobi to write detailed logs to the same file
     if solver_name.lower() == "gurobi" and snakemake.log:
@@ -1396,7 +1396,8 @@ def _run_solve() -> None:
 
         n.export_to_netcdf(
             snakemake.output.network,
-            compression=netcdf_compression,
+            compression=netcdf_config["compression"],
+            float32=netcdf_config["float32"],
         )
     elif condition in {"infeasible", "infeasible_or_unbounded"}:
         logger.error("Model is infeasible or unbounded!")

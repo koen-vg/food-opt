@@ -12,6 +12,14 @@ currency_base_year: 2024  # Base year for inflation-adjusted USD values
 downloads:
   show_progress: true
 
+# --- section: netcdf ---
+# NetCDF export settings for PyPSA network files (build and solve outputs)
+netcdf:
+  float32: true  # Downcast float64 to float32 to reduce file size
+  compression:   # Passed to xarray.Dataset.to_netcdf; set to null to disable
+    zlib: true
+    complevel: 4
+
 # --- section: validation ---
 validation:
   use_actual_yields: false
@@ -919,11 +927,6 @@ solving:
   options_highs:
     solver: "choose"
     mip_rel_gap: 0.001  # align relative gap with gurobi setting
-  # NetCDF export settings for solved network
-  # Passed to xarray.Dataset.to_netcdf via PyPSA; None disables compression.
-  netcdf_compression:
-    zlib: true
-    complevel: 4
 
 # --- section: plotting ---
 plotting:

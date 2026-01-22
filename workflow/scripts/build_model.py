@@ -32,7 +32,6 @@ from workflow.scripts.build_model import (
 from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.snakemake_utils import apply_scenario_config
 
-
 if __name__ == "__main__":
     # Configure logging
     logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
@@ -708,4 +707,9 @@ if __name__ == "__main__":
     logger.info("Stores: %d", len(n.stores.static))
     logger.info("Links: %d", len(n.links.static))
 
-    n.export_to_netcdf(snakemake.output.network)
+    netcdf_config = snakemake.params.netcdf
+    n.export_to_netcdf(
+        snakemake.output.network,
+        compression=netcdf_config["compression"],
+        float32=netcdf_config["float32"],
+    )
