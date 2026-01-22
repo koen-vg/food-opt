@@ -30,9 +30,9 @@ _generators:
     parameters:
       ghg:
         space: log
-        start: 5
+        start: 1
         stop: 500
-        num: 8
+        num: 10
         round: true
     template:
       emissions:

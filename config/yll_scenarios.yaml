@@ -30,9 +30,9 @@ _generators:
     parameters:
       yll:
         space: log
-        start: 50
+        start: 5
         stop: 100000
-        num: 8
+        num: 10
         round: true
     template:
       food_group_incentives:
