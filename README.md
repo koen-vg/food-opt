@@ -25,7 +25,7 @@ Documentation (model design, configuration reference, data provenance, API) live
 ### Prerequisites
 
 1. Install [Git](https://git-scm.com/) and [pixi](https://pixi.sh/) (cross-platform package manager)
-2. Ensure ~30 GB of free disk space for datasets
+2. Ensure at least ~20 GB of free disk space for datasets, software dependencies and intermediate results.
 
 ### Installation
 
@@ -56,7 +56,7 @@ pixi install
 tools/smk -j4 --configfile config/validation.yaml
 ```
 
-The first run downloads several gigabytes of global datasets (GAEZ, GADM, land cover, etc.) and may take 30+ minutes.
+The first run downloads several gigabytes of global datasets (GAEZ, GADM, land cover, etc.) and may take 30+ minutes. Once the data downloading and preprocessing steps are complete, subsequent model runs are relatively fast. Building and solving a typical model instance at default resolution will typically take only a few minutes and require about 3 GB of RAM.
 
 ### Solver options
 
