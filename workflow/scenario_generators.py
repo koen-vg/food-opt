@@ -21,6 +21,19 @@ Example usage in scenario YAML:
         template:
           emissions:
             ghg_price: "{ghg}"
+
+Parameters can specify a `name_format` to transform values for scenario names
+while keeping original values in the template. The format is a Python lambda:
+
+    _generators:
+      - name: land_limit_{limit}
+        parameters:
+          limit:
+            values: [0.1, 0.3, 0.5, 0.7, 1.0]
+            name_format: "lambda x: int(x * 100)"  # 0.1 -> "10"
+        template:
+          land:
+            regional_limit: "{limit}"  # Uses original value 0.1
 """
 
 import copy
@@ -218,6 +231,30 @@ def _substitute_values(template, values: dict):
         return template
 
 
+def _get_name_formatters(parameters: dict) -> dict:
+    """Build name formatter functions from parameter specs.
+
+    Parameters
+    ----------
+    parameters : dict
+        Parameter specifications, possibly containing 'name_format' fields
+
+    Returns
+    -------
+    dict
+        Mapping of parameter names to formatter functions (identity if no format specified)
+    """
+    formatters = {}
+    for param_name, param_spec in parameters.items():
+        if "name_format" in param_spec:
+            fmt = param_spec["name_format"]
+            # Evaluate lambda expressions
+            formatters[param_name] = eval(fmt)
+        else:
+            formatters[param_name] = lambda x: x
+    return formatters
+
+
 def _expand_generator(spec: dict) -> dict:
     """Expand a single generator specification into concrete scenarios.
 
@@ -240,6 +277,9 @@ def _expand_generator(spec: dict) -> dict:
     for param_name, param_spec in spec["parameters"].items():
         param_values[param_name] = _generate_values(param_spec)
 
+    # Build name formatters
+    name_formatters = _get_name_formatters(spec["parameters"])
+
     # Combine parameters according to mode
     if mode == "grid":
         combinations = _grid_parameters(param_values)
@@ -249,9 +289,10 @@ def _expand_generator(spec: dict) -> dict:
     # Generate scenarios
     scenarios = {}
     for values in combinations:
-        # Format the scenario name
-        scenario_name = name_template.format(**values)
-        # Substitute values into template
+        # Format values for scenario name
+        name_values = {k: name_formatters[k](v) for k, v in values.items()}
+        scenario_name = name_template.format(**name_values)
+        # Substitute values into template (using original values)
         scenario_config = _substitute_values(copy.deepcopy(template), values)
         scenarios[scenario_name] = scenario_config
 
