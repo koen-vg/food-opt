@@ -495,13 +495,9 @@ Or for all crops automatically via dependencies of the ``build_model`` rule.
 
        tools/smk results/{name}/plots/crop_production.pdf
 
-   **Spatial distribution**::
+   **Land use intensity** (gridcell-level map showing dominant crop group and utilization)::
 
-       tools/smk results/{name}/plots/crop_production_map.pdf
-
-   **Land use by crop**::
-
-       tools/smk results/{name}/plots/crop_land_use_map.pdf
+       tools/smk results/{name}/plots/scen-default/crop_production_map.pdf
 
    **Crop utilization** (food vs. feed vs. waste)::
 

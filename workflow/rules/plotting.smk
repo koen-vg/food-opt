@@ -5,8 +5,6 @@
 
 gaez = config["data"]["gaez"]
 plotting_cfg = config.get("plotting", {})
-crop_color_overrides = plotting_cfg.get("colors", {}).get("crops", {})
-crop_fallback_cmap = plotting_cfg.get("fallback_cmaps", {}).get("crops", "Set3")
 food_group_colors = plotting_cfg.get("colors", {}).get("food_groups", {})
 comparison_scenarios = plotting_cfg["comparison_scenarios"]
 
@@ -176,12 +174,11 @@ rule plot_crop_production_map:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",
         regions="processing/{name}/regions.geojson",
+        resource_classes="processing/{name}/resource_classes.nc",
+        land_area_by_class="processing/{name}/land_area_by_class.csv",
+        land_grazing_only="processing/{name}/land_grazing_only_by_class.csv",
     output:
-        production_pdf="results/{name}/plots/scen-{scenario}/crop_production_map.pdf",
-        land_pdf="results/{name}/plots/scen-{scenario}/crop_land_use_map.pdf",
-    params:
-        crop_colors=crop_color_overrides,
-        fallback_cmap=crop_fallback_cmap,
+        pdf="results/{name}/plots/scen-{scenario}/crop_production_map.pdf",
     log:
         "logs/{name}/plot_crop_production_map_scen-{scenario}.log",
     script:
@@ -344,11 +341,11 @@ rule plot_food_consumption_baseline_map:
     input:
         diet="processing/{name}/dietary_intake.csv",
         population="processing/{name}/population.csv",
-        clusters="processing/{name}/health/scen-default/country_clusters.csv",
+        clusters="processing/{name}/health/scen-{scenario}/country_clusters.csv",
         regions="processing/{name}/regions.geojson",
     output:
-        pdf="results/{name}/plots/food_consumption_baseline_map.pdf",
-        csv="results/{name}/plots/food_consumption_baseline_map.csv",
+        pdf="results/{name}/plots/scen-{scenario}/food_consumption_baseline_map.pdf",
+        csv="results/{name}/plots/scen-{scenario}/food_consumption_baseline_map.csv",
     params:
         age=config.get("diet", {}).get("baseline_age", "All ages"),
         reference_year=config.get("diet", {}).get(
@@ -356,7 +353,7 @@ rule plot_food_consumption_baseline_map:
         ),
         group_colors=food_group_colors,
     log:
-        "logs/{name}/plot_food_consumption_baseline_map.log",
+        "logs/{name}/plot_food_consumption_baseline_map-{scenario}.log",
     script:
         "../scripts/plotting/plot_baseline_food_consumption_map.py"
 

@@ -154,8 +154,7 @@ Visualization Rules
 **Plots and maps** (see ``workflow/rules/plotting.smk``):
   * ``plot_regions_map``: Optimization region boundaries
   * ``plot_resource_classes_map``: Resource class spatial distribution
-  * ``plot_crop_production_map``: Crop production by region
-  * ``plot_crop_land_use_map``: Land use by crop
+  * ``plot_crop_production_map``: Land use intensity gridcell map
   * ``plot_cropland_fraction_map``: Cropland fraction of each region
   * ``plot_water_value_map``: Water shadow prices (economic value)
   * ``plot_health_impacts``: Health risk and baseline maps

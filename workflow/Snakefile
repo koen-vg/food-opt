@@ -81,7 +81,6 @@ ALL_RULE_TARGETS = [
     # "results/{name}/plots/scen-default/health_baseline_by_region.csv",
     # objective-specific maps
     "results/{name}/plots/scen-default/crop_production_map.pdf",
-    "results/{name}/plots/scen-default/crop_land_use_map.pdf",
     "results/{name}/plots/scen-default/cropland_fraction_map.pdf",
     "results/{name}/plots/scen-default/irrigated_cropland_fraction_map.pdf",
     "results/{name}/plots/scen-default/crop_use_breakdown.pdf",
