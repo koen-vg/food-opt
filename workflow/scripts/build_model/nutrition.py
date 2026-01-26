@@ -226,10 +226,9 @@ def add_food_nutrition_links(
             ", ".join(sorted(byproduct_foods)),
         )
 
-    # Add consume carriers for all consumable foods
-    consume_carriers = sorted({f"consume_{food}" for food in consumable_foods})
-    if consume_carriers:
-        n.carriers.add(consume_carriers, unit="Mt")
+    # Add food_consumption carrier
+    if "food_consumption" not in n.carriers.static.index:
+        n.carriers.add("food_consumption", unit="Mt")
 
     nutrients = list(nutrition.index.get_level_values("nutrient").unique())
     for food in consumable_foods:
@@ -254,7 +253,7 @@ def add_food_nutrition_links(
         # Food bus flows are Mt/year, so efficiencies below represent nutrient fractions.
         params = {
             "bus0": bus0,
-            "carrier": f"consume_{food}",
+            "carrier": "food_consumption",
             "marginal_cost": _LOW_DEFAULT_MARGINAL_COST,
         }
         for i, buses in enumerate(out_bus_lists, start=1):

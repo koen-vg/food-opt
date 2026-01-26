@@ -43,11 +43,9 @@ def add_food_conversion_links(
     # Filter foods DataFrame to only include configured crops
     foods = foods[foods["crop"].isin(crop_list)].copy()
 
-    # Add pathway carriers for all unique pathways
-    unique_pathways = foods["pathway"].dropna().unique()
-    pathway_carriers = sorted({f"pathway_{str(p).strip()}" for p in unique_pathways})
-    if pathway_carriers:
-        n.carriers.add(pathway_carriers, unit="Mt")
+    # Add food_processing carrier
+    if "food_processing" not in n.carriers.static.index:
+        n.carriers.add("food_processing", unit="Mt")
 
     # Load loss/waste data (already validated by prepare_food_loss_waste.py)
     loss_waste_pairs: dict[tuple[str, str], tuple[float, float]] = {}
@@ -100,11 +98,12 @@ def add_food_conversion_links(
         # simple mass fractions after accounting for losses.
         link_params = {
             "bus0": bus0,
-            "carrier": f"pathway_{pathway}",
+            "carrier": "food_processing",
             "marginal_cost": _LOW_PROCESSING_COST,
             "p_nom_extendable": True,
             "country": normalized_countries,
             "crop": crop,
+            "pathway": pathway,
         }
 
         # Add each output food as a separate bus with its efficiency
@@ -288,11 +287,15 @@ def add_feed_supply_links(
         logger.info("No feed supply links to create; check crop/food lists")
         return
 
+    # Add feed_conversion carrier
+    if "feed_conversion" not in n.carriers.static.index:
+        n.carriers.add("feed_conversion", unit="Mt")
+
     n.links.add(
         all_names,
         bus0=all_bus0,
         bus1=all_bus1,
-        carrier="convert_to_feed",
+        carrier="feed_conversion",
         marginal_cost=_LOW_PROCESSING_COST,
         p_nom_extendable=True,
         country=all_countries,

@@ -47,10 +47,9 @@ def add_regional_crop_production_links(
     residue_lookup = residue_lookup or {}
     harvested_area_data = harvested_area_data or {}
 
-    # Add produce carriers for all crops
-    produce_carriers = sorted({f"produce_{crop}" for crop in crop_list})
-    if produce_carriers:
-        n.carriers.add(produce_carriers, unit="Mt")
+    # Add crop production carrier
+    if "crop_production" not in n.carriers.static.index:
+        n.carriers.add("crop_production", unit="Mt")
 
     for crop in crop_list:
         # Get fertilizer N application rate (kg N/ha/year) for this crop
@@ -168,8 +167,7 @@ def add_regional_crop_production_links(
             # the efficiency terms remain the raw yield values.
             link_params = {
                 "name": df.index,
-                # Use the crop's own carrier so no extra carrier is needed
-                "carrier": f"produce_{crop}",
+                "carrier": "crop_production",
                 "bus0": bus0_series,
                 "bus1": df["country"].apply(lambda c, crop=crop: f"crop:{crop}:{c}"),
                 # Output: Mt crop per Mha land (already Mt-aware)
@@ -468,7 +466,7 @@ def add_multi_cropping_links(
 
     index_df = base.reset_index()
     index_df["resource_class"] = index_df["resource_class"].astype(int)
-    index_df["carrier"] = "produce_multi"
+    index_df["carrier"] = "crop_production_multi"
     index_df["bus0"] = (
         "land:pool:"
         + index_df["region"].astype(str)
@@ -502,9 +500,8 @@ def add_multi_cropping_links(
     if index_df.empty:
         return
 
-    carriers = sorted(index_df["carrier"].unique())
-    if carriers:
-        n.carriers.add(carriers, unit="Mha")
+    if "crop_production_multi" not in n.carriers.static.index:
+        n.carriers.add("crop_production_multi", unit="Mha")
 
     water_req = index_df["water_requirement_m3_per_ha"].astype(float)
     water_valid = (
@@ -666,7 +663,20 @@ def add_multi_cropping_links(
         "p_nom_max",
         "marginal_cost",
     ]
-    link_df = link_df[component_cols]
+    # Metadata columns for filtering
+    metadata_cols = [
+        "country",
+        "region",
+        "resource_class",
+        "water_supply",
+        "combination",
+    ]
+    # Prepare metadata values
+    link_df["water_supply"] = link_df["water_supply"].map(
+        {"r": "rainfed", "i": "irrigated"}
+    )
+    link_df["crop"] = link_df["combination"]  # combination = "maize+soybean" etc.
+    link_df = link_df[component_cols + metadata_cols + ["crop"]]
     link_df = link_df.join(bus_wide, how="left").join(eff_wide, how="left")
 
     bus_cols = sorted(
@@ -702,9 +712,8 @@ def add_multi_cropping_links(
         link_df[col] = link_df[col].fillna(0.0)
 
     link_names = link_df.index.tolist()
-    kwargs = {
-        col: link_df[col].tolist() for col in component_cols + bus_cols + eff_cols
-    }
+    all_cols = component_cols + metadata_cols + ["crop"] + bus_cols + eff_cols
+    kwargs = {col: link_df[col].tolist() for col in all_cols}
     n.links.add(link_names, **kwargs)
 
 

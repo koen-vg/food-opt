@@ -81,6 +81,8 @@ def _add_trade_hubs_and_links(
     hub_name_prefix: str,
     link_name_prefix: str,
     log_label: str,
+    link_carrier: str,
+    item_column: str,
 ) -> None:
     """Shared implementation for adding trade hubs and links for a set of items."""
 
@@ -172,6 +174,8 @@ def _add_trade_hubs_and_links(
     link_bus1: list[str] = []
     link_costs: list[float] = []
 
+    link_items: list[str] = []
+
     if valid_countries:
         for item in tradable_items:
             item_label = str(item)
@@ -189,6 +193,7 @@ def _add_trade_hubs_and_links(
                 link_bus0.append(country_bus)
                 link_bus1.append(hub_bus)
                 link_costs.append(cost)
+                link_items.append(item_label)
 
                 link_names.append(
                     f"{link_name_prefix}:{item_label}:hub{hub_idx}_to_{c}"
@@ -196,14 +201,20 @@ def _add_trade_hubs_and_links(
                 link_bus0.append(hub_bus)
                 link_bus1.append(country_bus)
                 link_costs.append(cost)
+                link_items.append(item_label)
 
     if link_names:
+        # Add trade carrier if not present
+        if link_carrier not in n.carriers.static.index:
+            n.carriers.add(link_carrier, unit="Mt")
         n.links.add(
             link_names,
             bus0=link_bus0,
             bus1=link_bus1,
             marginal_cost=link_costs,
             p_nom_extendable=True,
+            carrier=link_carrier,
+            **{item_column: link_items},
         )
 
     if n_hubs >= 2:
@@ -217,6 +228,7 @@ def _add_trade_hubs_and_links(
         hub_link_bus0: list[str] = []
         hub_link_bus1: list[str] = []
         hub_link_costs: list[float] = []
+        hub_link_items: list[str] = []
 
         if len(ii) > 0:
             dists_km = hub_distances[ii, jj]
@@ -230,6 +242,7 @@ def _add_trade_hubs_and_links(
                     hub_link_bus0.append(f"{hub_name_prefix}:{i}_{item_label}")
                     hub_link_bus1.append(f"{hub_name_prefix}:{j}_{item_label}")
                     hub_link_costs.append(float(dist) * item_cost)
+                    hub_link_items.append(item_label)
 
         if hub_link_names:
             n.links.add(
@@ -238,6 +251,8 @@ def _add_trade_hubs_and_links(
                 bus1=hub_link_bus1,
                 marginal_cost=hub_link_costs,
                 p_nom_extendable=True,
+                carrier=link_carrier,
+                **{item_column: hub_link_items},
             )
 
 
@@ -267,6 +282,8 @@ def add_crop_trade_hubs_and_links(
         hub_name_prefix="hub:crop",
         link_name_prefix="trade",
         log_label="crop",
+        link_carrier="trade_crop",
+        item_column="crop",
     )
 
 
@@ -296,6 +313,8 @@ def add_food_trade_hubs_and_links(
         hub_name_prefix="hub:food",
         link_name_prefix="trade_food",
         log_label="food",
+        link_carrier="trade_food",
+        item_column="food",
     )
 
 
@@ -342,4 +361,6 @@ def add_feed_trade_hubs_and_links(
         hub_name_prefix="hub:feed",
         link_name_prefix="trade_feed",
         log_label="feed",
+        link_carrier="trade_feed",
+        item_column="feed_category",
     )

@@ -177,9 +177,9 @@ def add_feed_to_animal_product_links(
         If None, marginal_cost defaults to 0.
     """
 
-    produce_carriers = sorted({f"produce_{product!s}" for product in animal_products})
-    if produce_carriers:
-        n.carriers.add(produce_carriers, unit="Mt")
+    # Add animal_production carrier
+    if "animal_production" not in n.carriers.static.index:
+        n.carriers.add("animal_production", unit="Mt")
 
     if not animal_products:
         logger.info("No animal products configured; skipping feed→animal links")
@@ -304,7 +304,7 @@ def add_feed_to_animal_product_links(
         all_bus0.append(feed_bus)
         all_bus1.append(food_bus)
         all_bus3.append(f"fertilizer:{country}")
-        all_carrier.append(f"produce_{row['product']}")
+        all_carrier.append("animal_production")
         all_efficiency.append(adjusted_efficiency)
         # Convert per-tonne emissions to per-Mt flows (CH4, N2O in t; feed in Mt)
         # Manure N needs no conversion: t N / t feed = Mt N / Mt feed (ratio is scale-invariant)

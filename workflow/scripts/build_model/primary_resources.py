@@ -93,7 +93,7 @@ def add_primary_resources(
 
     # Add GHG aggregation store and links from individual gases
     # Note: GHG pricing is applied at solve time, not build time
-    n.carriers.add("aggregate_emissions", unit="MtCO2e")
+    n.carriers.add("emission_aggregation", unit="MtCO2e")
     n.stores.add(
         "store:emission:ghg",
         bus="emission:ghg",
@@ -106,7 +106,7 @@ def add_primary_resources(
         "aggregate:co2_to_ghg",
         bus0="emission:co2",
         bus1="emission:ghg",
-        carrier="aggregate_emissions",
+        carrier="emission_aggregation",
         efficiency=1.0,
         p_min_pu=-1.0,  # allow negative emissions flow
         p_nom_extendable=True,
@@ -115,7 +115,7 @@ def add_primary_resources(
         "aggregate:ch4_to_ghg",
         bus0="emission:ch4",
         bus1="emission:ghg",
-        carrier="aggregate_emissions",
+        carrier="emission_aggregation",
         efficiency=ch4_to_co2_factor * constants.TONNE_TO_MEGATONNE,
         p_nom_extendable=True,
     )
@@ -123,7 +123,7 @@ def add_primary_resources(
         "aggregate:n2o_to_ghg",
         bus0="emission:n2o",
         bus1="emission:ghg",
-        carrier="aggregate_emissions",
+        carrier="emission_aggregation",
         efficiency=n2o_to_co2_factor * constants.TONNE_TO_MEGATONNE,
         p_nom_extendable=True,
     )
@@ -151,13 +151,13 @@ def add_fertilizer_distribution_links(
     if not country_list:
         return
 
-    n.carriers.add("distribute_fertilizer", unit="Mt")
+    n.carriers.add("fertilizer_distribution", unit="Mt")
 
     names = [f"distribute:fertilizer:{country}" for country in country_list]
     params: dict[str, object] = {
         "bus0": "fertilizer:supply",
         "bus1": [f"fertilizer:{country}" for country in country_list],
-        "carrier": "distribute_fertilizer",
+        "carrier": "fertilizer_distribution",
         "efficiency": 1.0,
         "p_nom_extendable": True,
         "country": country_list,

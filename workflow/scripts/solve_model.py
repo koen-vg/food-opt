@@ -430,8 +430,8 @@ def add_residue_feed_constraints(
     link_p = m.variables["Link-p"].sel(snapshot="now")
     links_df = n.links.static
 
-    # Find residue feed links (carrier="convert_to_feed", bus0 starts with "residue:")
-    feed_mask = (links_df["carrier"] == "convert_to_feed") & (
+    # Find residue feed links (carrier="feed_conversion", bus0 starts with "residue:")
+    feed_mask = (links_df["carrier"] == "feed_conversion") & (
         links_df["bus0"].str.startswith("residue:")
     )
     feed_links_df = links_df[feed_mask]
@@ -578,8 +578,8 @@ def add_animal_production_constraints(
     links_df = n.links.static
 
     # Filter to animal production links using carrier
-    # Animal production links have carriers starting with "produce_"
-    prod_mask = links_df["carrier"].str.startswith("produce_")
+    # Animal production links have carrier "animal_production"
+    prod_mask = links_df["carrier"] == "animal_production"
     prod_links = links_df[prod_mask]
 
     if prod_links.empty:
@@ -1377,7 +1377,10 @@ def _run_solve() -> None:
         production_slack = {}
         if "crop_production_slack" in n.model.variables:
             crop_slack_sol = n.model.variables["crop_production_slack"].solution
-            production_slack["crop"] = crop_slack_sol.to_series().to_dict()
+            # Convert tuple keys to strings for JSON serialization
+            production_slack["crop"] = {
+                str(k): v for k, v in crop_slack_sol.to_series().to_dict().items()
+            }
             total_crop_slack = float(crop_slack_sol.sum())
             if total_crop_slack > 1e-6:
                 logger.info(
@@ -1385,7 +1388,10 @@ def _run_solve() -> None:
                 )
         if "animal_production_slack" in n.model.variables:
             animal_slack_sol = n.model.variables["animal_production_slack"].solution
-            production_slack["animal"] = animal_slack_sol.to_series().to_dict()
+            # Convert tuple keys to strings for JSON serialization
+            production_slack["animal"] = {
+                str(k): v for k, v in animal_slack_sol.to_series().to_dict().items()
+            }
             total_animal_slack = float(animal_slack_sol.sum())
             if total_animal_slack > 1e-6:
                 logger.info(

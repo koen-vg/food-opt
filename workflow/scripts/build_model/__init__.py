@@ -73,17 +73,29 @@ Generators::
 Carrier Column
 --------------
 
-Use the ``carrier`` column for type identification. Carriers follow these patterns:
+Use the ``carrier`` column for type identification. Carriers identify **link type only**;
+specific items (crops, foods, products) are stored in metadata columns.
 
 - Buses: ``crop_{crop}``, ``food_{food}``, ``feed_{category}``, ``residue_{item}``,
   ``group_{group}``, ``{nutrient}``, ``land``, ``land_existing``, ``land_new``,
   ``water``, ``fertilizer``, ``co2``, ``ch4``, ``n2o``, ``ghg``
 
-- Links: ``produce_{crop}``, ``produce_grassland``, ``produce_multi``,
-  ``pathway_{pathway}``, ``convert_to_feed``, ``animal_{product}``,
-  ``consume_{food}``, ``land_use``, ``land_conversion``, ``spare_land``,
-  ``distribute_fertilizer``, ``residue_incorporation``, ``aggregate_emissions``,
-  ``trade_{commodity}``, ``biomass_{item}``
+- Links:
+  - ``crop_production``: Crop production (use ``crop`` column for specific crop)
+  - ``crop_production_multi``: Multi-cropping production (use ``crop`` column for combination)
+  - ``grassland_production``: Grassland/pasture production
+  - ``animal_production``: Animal product production (use ``product``, ``feed_category`` columns)
+  - ``food_consumption``: Food consumption (use ``food``, ``food_group`` columns)
+  - ``food_processing``: Food processing pathways (use ``pathway``, ``crop`` columns)
+  - ``feed_conversion``: Crop/food to feed conversion (use ``crop``, ``feed_category`` columns)
+  - ``trade_crop``: Crop trade (use ``crop`` column)
+  - ``trade_food``: Food trade (use ``food`` column)
+  - ``trade_feed``: Feed trade (use ``feed_category`` column)
+  - ``biomass_crop``: Crop to biomass (use ``crop`` column)
+  - ``biomass_byproduct``: Byproduct to biomass (use ``food`` column)
+  - ``fertilizer_distribution``: Fertilizer distribution
+  - ``emission_aggregation``: GHG emission aggregation
+  - ``land_use``, ``land_conversion``, ``spare_land``, ``residue_incorporation``: unchanged
 
 Custom Columns
 --------------
@@ -134,14 +146,15 @@ no components found::
 
     # Get crop production links for a specific country
     crop_links = n.links.static[
-        (n.links.static["carrier"] == f"produce_{crop}") &
+        (n.links.static["carrier"] == "crop_production") &
+        (n.links.static["crop"] == crop) &
         (n.links.static["country"] == country)
     ]
     if crop_links.empty:
         raise ValueError(f"No production links for crop '{crop}' in '{country}'")
 
     # Get all consumption links
-    consume_links = n.links.static[n.links.static["carrier"].str.startswith("consume_")]
+    consume_links = n.links.static[n.links.static["carrier"] == "food_consumption"]
 """
 
 # Re-export submodules for convenience

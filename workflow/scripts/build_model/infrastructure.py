@@ -45,9 +45,12 @@ def add_carriers_and_buses(
     ]
     crop_carriers = [f"crop_{crop}" for country in countries for crop in crop_list]
     crop_countries = [country for country in countries for _ in crop_list]
+    crop_names = [crop for _ in countries for crop in crop_list]
     if crop_buses:
         n.carriers.add(sorted({f"crop_{crop}" for crop in crop_list}), unit="Mt")
-        n.buses.add(crop_buses, carrier=crop_carriers, country=crop_countries)
+        n.buses.add(
+            crop_buses, carrier=crop_carriers, country=crop_countries, crop=crop_names
+        )
 
     # Residues per country
     residue_items_sorted = sorted(dict.fromkeys(residue_feed_items))
@@ -63,8 +66,14 @@ def add_carriers_and_buses(
         residue_countries = [
             country for country in countries for _ in residue_items_sorted
         ]
+        residue_names = [item for _ in countries for item in residue_items_sorted]
         n.carriers.add(sorted(set(residue_carriers)), unit="Mt")
-        n.buses.add(residue_buses, carrier=residue_carriers, country=residue_countries)
+        n.buses.add(
+            residue_buses,
+            carrier=residue_carriers,
+            country=residue_countries,
+            residue=residue_names,
+        )
 
     # Foods per country
     food_buses = [
@@ -72,9 +81,12 @@ def add_carriers_and_buses(
     ]
     food_carriers = [f"food_{food}" for country in countries for food in food_list]
     food_countries = [country for country in countries for _ in food_list]
+    food_names = [food for _ in countries for food in food_list]
     if food_buses:
         n.carriers.add(sorted({f"food_{food}" for food in food_list}), unit="Mt")
-        n.buses.add(food_buses, carrier=food_carriers, country=food_countries)
+        n.buses.add(
+            food_buses, carrier=food_carriers, country=food_countries, food=food_names
+        )
 
     # Food groups per country
     group_buses = [
@@ -143,7 +155,7 @@ def add_carriers_and_buses(
         n.carriers.add(sorted(set(feed_carriers)), unit="Mt")
         n.buses.add(feed_buses, carrier=feed_carriers, country=feed_countries)
 
-    n.carriers.add("convert_to_feed", unit="Mt")
+    n.carriers.add("feed_conversion", unit="Mt")
 
     # Water carrier (buses added per region below)
     n.carriers.add("water", unit="Mm^3")

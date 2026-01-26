@@ -71,8 +71,9 @@ def add_biomass_byproduct_links(
     combos["name"] = "biomass:byproduct_" + combos["item"] + ":" + combos["country"]
     combos = combos.set_index("name")
 
-    carrier = "byproduct_to_biomass"
-    n.carriers.add(carrier, unit="MtDM")
+    carrier = "biomass_byproduct"
+    if carrier not in n.carriers.static.index:
+        n.carriers.add(carrier, unit="MtDM")
 
     n.links.add(
         combos.index,
@@ -81,6 +82,7 @@ def add_biomass_byproduct_links(
         carrier=carrier,
         p_nom_extendable=True,
         country=combos["country"],
+        food=combos["item"],
     )
 
 
@@ -101,8 +103,9 @@ def add_biomass_crop_links(
     combos["name"] = "biomass:crop_" + combos["crop"] + ":" + combos["country"]
     combos = combos.set_index("name")
 
-    carrier = "crop_to_biomass"
-    n.carriers.add(carrier, unit="MtDM")
+    carrier = "biomass_crop"
+    if carrier not in n.carriers.static.index:
+        n.carriers.add(carrier, unit="MtDM")
     n.links.add(
         combos.index,
         bus0=combos["bus0"],

@@ -123,9 +123,9 @@ def add_grassland_feed_links(
     pasture_utilization_rate : float, optional
         Fraction of grassland biomass actually consumed by animals, by default 1.0.
     """
-    # Add produce_grassland carrier
-    if "produce_grassland" not in n.carriers.static.index:
-        n.carriers.add("produce_grassland", unit="Mt")
+    # Add grassland_production carrier
+    if "grassland_production" not in n.carriers.static.index:
+        n.carriers.add("grassland_production", unit="Mt")
 
     grass_df = grassland.copy()
     grass_df = grass_df[np.isfinite(grass_df["yield"]) & (grass_df["yield"] > 0)]
@@ -251,7 +251,7 @@ def add_grassland_feed_links(
         # Index by name for proper alignment with PyPSA component names
         work_indexed = work.set_index("name")
         params = {
-            "carrier": "produce_grassland",
+            "carrier": "grassland_production",
             "bus0": work_indexed["bus0"],
             "bus1": work_indexed["bus1"],
             "efficiency": efficiencies,
@@ -261,6 +261,8 @@ def add_grassland_feed_links(
             "region": work_indexed["region"],
             "resource_class": work_indexed["resource_class"],
             "country": work_indexed["country"],
+            "crop": "grassland",
+            "water_supply": "rainfed",
         }
         if use_actual_production:
             params["p_nom"] = available_mha
