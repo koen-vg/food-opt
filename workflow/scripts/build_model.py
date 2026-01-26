@@ -460,6 +460,11 @@ if __name__ == "__main__":
         min_area_ha=min_area_ha,
     )
 
+    # Apply the same min_area_ha filter to land_rainfed_df so that grassland
+    # links are only created for regions that have corresponding land pool buses.
+    if min_area_ha > 0:
+        land_rainfed_df = land_rainfed_df[land_rainfed_df["area_ha"] >= min_area_ha]
+
     # Marginal land buses (grazing-only)
     marginal_bus_names: list[str] = []
     if grazing_only_area_series is not None and not grazing_only_area_series.empty:
