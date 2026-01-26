@@ -39,17 +39,6 @@ def _select_snapshot(network: pypsa.Network) -> pd.Index | str:
     raise ValueError("Expected snapshot 'now' or single snapshot in solved network")
 
 
-def _bus_column_to_leg(column: str) -> int | None:
-    if not column.startswith("bus"):
-        return None
-    suffix = column[len("bus") :]
-    if not suffix:
-        return 0
-    if suffix.isdigit():
-        return int(suffix)
-    return None
-
-
 def _link_dispatch_at_snapshot(
     network: pypsa.Network, snapshot
 ) -> dict[int, pd.Series]:
@@ -146,32 +135,6 @@ def _aggregate_cluster_group_mass(
     df = series.unstack(fill_value=0.0).sort_index(axis=0).sort_index(axis=1)
     df.index.name = "health_cluster"
     return df
-
-
-def _cluster_population(
-    population_df: pd.DataFrame,
-    iso_to_cluster: Mapping[str, int],
-) -> dict[int, float]:
-    if population_df.empty:
-        return {}
-    pop_df = population_df.copy()
-    if "iso3" not in pop_df.columns:
-        raise ValueError("Population table must contain an 'iso3' column")
-    pop_df = pop_df.assign(iso3=lambda df: df["iso3"].str.upper())
-    pop_df = pop_df[pop_df["iso3"].isin(iso_to_cluster.keys())]
-    pop_df = pop_df.dropna(subset=["population"])
-    pop_df["population"] = pop_df["population"].astype(float)
-
-    result: dict[int, float] = {}
-    for iso, group_df in pop_df.groupby("iso3"):
-        cluster = iso_to_cluster.get(iso)
-        if cluster is None:
-            continue
-        value = float(group_df["population"].sum())
-        if value <= 0.0:
-            continue
-        result[int(cluster)] = result.get(int(cluster), 0.0) + value
-    return result
 
 
 def _colors_for_groups(

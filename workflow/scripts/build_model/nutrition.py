@@ -167,7 +167,6 @@ def add_food_group_buses_and_loads(
 def add_macronutrient_loads(
     n: pypsa.Network,
     all_nutrients: list,
-    macronutrients_config: dict,
     countries: list,
     population: pd.Series,
     nutrient_units: dict[str, str],

@@ -33,17 +33,6 @@ def _select_snapshot(network: pypsa.Network) -> pd.Index | str:
     raise ValueError("Expected snapshot 'now' or single snapshot in solved network")
 
 
-def _bus_column_to_leg(column: str) -> int | None:
-    if not column.startswith("bus"):
-        return None
-    suffix = column[len("bus") :]
-    if not suffix:
-        return 0
-    if suffix.isdigit():
-        return int(suffix)
-    return None
-
-
 def _link_dispatch_at_snapshot(
     network: pypsa.Network, snapshot
 ) -> dict[int, pd.Series]:

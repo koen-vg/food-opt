@@ -281,7 +281,6 @@ if __name__ == "__main__":
     )
     planning_year = int(population_df["year"].iloc[0])
 
-    diet_cfg = snakemake.params.diet
     health_reference_year = int(snakemake.params.health_reference_year)
 
     region_to_country = regions_df.set_index("region")["country"]
@@ -391,8 +390,6 @@ if __name__ == "__main__":
     )
     # All nutrients from nutrition data get buses (tracked but not necessarily constrained)
     all_nutrient_names = list(nutrient_units.keys())
-    # Only configured macronutrients get constraints applied
-    macronutrient_names = list(macronutrient_cfg.keys()) if macronutrient_cfg else []
 
     # Infrastructure: carriers and buses
     infrastructure.add_carriers_and_buses(
@@ -650,7 +647,6 @@ if __name__ == "__main__":
     nutrition.add_macronutrient_loads(
         n,
         all_nutrient_names,
-        macronutrient_cfg,
         cfg_countries,
         population,
         nutrient_units,

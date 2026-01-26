@@ -87,13 +87,6 @@ GLEAM_TO_PRODUCT = {
     "Sheep": ["meat-sheep"],
 }
 
-# Map feed category patterns to LPS (Livestock Production System)
-# For ruminants: grassland feed -> Grassland LPS, others -> Mixed LPS
-RUMINANT_LPS_MAPPING = {
-    "grassland": "Grassland",
-    "default": "Mixed",
-}
-
 # Map monogastric products to their primary LPS
 MONOGASTRIC_LPS_MAPPING = {
     "meat-pig": ["Industrial", "Intermediate"],  # Average these

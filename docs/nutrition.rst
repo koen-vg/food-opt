@@ -135,8 +135,6 @@ The model works with total annual flows (Mt/year) but nutritional requirements a
 
    \text{Total requirement (Mt/year)} = \frac{\text{per capita (g/day)} \times \text{population} \times 365}{10^{12}}
 
-This is handled internally by ``_per_capita_to_bus_units()`` in ``workflow/scripts/build_model.py``.
-
 From the model's perspective:
 
 * Food buses carry total food availability (Mt)

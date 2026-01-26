@@ -12,8 +12,6 @@ from workflow.scripts.logging_config import setup_script_logging
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
 
-GADM_URL = "https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-levels.zip"
-
 
 def _remove_small_islands(
     gdf: gpd.GeoDataFrame, min_area_m2: float

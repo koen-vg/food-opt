@@ -8,7 +8,6 @@ This module contains data loading helpers, unit conversion functions,
 and other utility functions used across the model building process.
 """
 
-from collections.abc import Sequence
 import logging
 
 import numpy as np
@@ -44,38 +43,6 @@ def _nutrition_efficiency_factor(unit: str) -> float:
         return constants.SUPPORTED_NUTRITION_UNITS[unit]["efficiency_factor"]
     except KeyError as exc:
         raise ValueError(f"Unsupported nutrition unit '{unit}'") from exc
-
-
-def _per_capita_to_bus_units(
-    value_per_person_per_day: float,
-    population: float,
-    unit: str,
-) -> float:
-    kind = _nutrient_kind(unit)
-    if kind == "mass":
-        return _per_capita_mass_to_mt_per_year(value_per_person_per_day, population)
-    if kind == "energy":
-        return (
-            value_per_person_per_day
-            * population
-            * constants.DAYS_PER_YEAR
-            * constants.KCAL_TO_PJ
-        )
-    raise ValueError(f"Unsupported nutrient kind '{kind}' for unit '{unit}'")
-
-
-def _log_food_group_target_summary(group: str, values: Sequence[float]) -> None:
-    """Emit a concise log message for the enforced equality targets."""
-    arr = np.array(values, dtype=float)
-    logger.info(
-        "Food group '%s': equality constraint for %d countries "
-        "(median %.1f g/person/day, min %.1f, max %.1f)",
-        group,
-        len(values),
-        float(np.median(arr)),
-        float(np.min(arr)),
-        float(np.max(arr)),
-    )
 
 
 def _carrier_unit_for_nutrient(unit: str) -> str:
@@ -131,24 +98,6 @@ def _load_crop_yield_table(path: str) -> tuple[pd.DataFrame, dict[str, str | flo
         pivot[column] = pd.to_numeric(pivot[column], errors="coerce")
 
     return pivot, units
-
-
-def _gaez_code_to_crop_map(mapping_df: pd.DataFrame) -> dict[str, str]:
-    code_columns = [c for c in mapping_df.columns if c.endswith("_code")]
-    mapping: dict[str, str] = {}
-    for _, row in mapping_df.iterrows():
-        crop_name = str(row.get("crop_name", "")).strip()
-        if not crop_name:
-            continue
-        for col in code_columns:
-            code = row.get(col)
-            if pd.isna(code):
-                continue
-            code_str = str(code).strip().lower()
-            if not code_str:
-                continue
-            mapping[code_str] = crop_name
-    return mapping
 
 
 def _fresh_mass_conversion_factors(

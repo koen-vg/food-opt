@@ -176,29 +176,6 @@ def query_unsd_series(series_code: str) -> pd.DataFrame:
     return df
 
 
-def map_un_food_category_to_model_groups(un_category_code: str) -> list[str]:
-    """Map UN SDG food categories to internal model food groups.
-
-    UN Categories (Type of product dimension):
-    - CRL_PUL: Cereals and pulses
-    - FRT_VGT: Fruits and vegetables
-    - RT_TBR: Roots, tubers and oil-bearing crops
-    - ANMPROD: Animal products
-    - FSH_FSHPROD: Fish and fish products
-    - ALP: Total or no breakdown
-
-    Args:
-        un_category_code: UN SDG product type code
-
-    Returns:
-        List of internal food group names
-    """
-    groups = UN_TO_MODEL_FOOD_GROUPS.get(un_category_code)
-    if groups is None:
-        return []
-    return list(groups)
-
-
 def process_food_loss_data(
     df: pd.DataFrame,
     countries: list[str],

@@ -28,26 +28,11 @@ COLORS = {
     "danger": "#e76f51",  # Red-orange
 }
 
-# Map styling defaults
-MAP_STYLE = {
-    "edgecolor": "white",
-    "linewidth": 0.5,
-    "alpha": 0.85,
-}
-
 
 def _cmap_with_white_base(name: str) -> mcolors.ListedColormap:
     base = cm.get_cmap(name, 256)
     colors = base(np.linspace(0, 1, 256))
     colors[0, :] = np.array([1.0, 1.0, 1.0, 1.0])
-    return mcolors.ListedColormap(colors, name=f"{name}_white")
-
-
-def _diverging_with_white_mid(name: str) -> mcolors.ListedColormap:
-    base = cm.get_cmap(name, 256)
-    colors = base(np.linspace(0, 1, 256))
-    mid = colors.shape[0] // 2
-    colors[mid - 1 : mid + 1, :] = np.array([1.0, 1.0, 1.0, 1.0])
     return mcolors.ListedColormap(colors, name=f"{name}_white")
 
 
@@ -86,30 +71,6 @@ FONT_SIZES = {
 
 # Standard DPI for output
 OUTPUT_DPI = 100  # For SVG this doesn't matter much, but good for consistency
-
-
-def get_crop_colors_from_config(config: dict) -> dict:
-    """Extract crop color mapping from Snakemake config.
-
-    Args:
-        config: Snakemake configuration dictionary
-
-    Returns:
-        Dictionary mapping crop names to hex colors
-    """
-    return config.get("plotting", {}).get("colors", {}).get("crops", {})
-
-
-def get_crop_fallback_cmap(config: dict) -> str:
-    """Get fallback colormap for crops not in config.
-
-    Args:
-        config: Snakemake configuration dictionary
-
-    Returns:
-        Matplotlib colormap name
-    """
-    return config.get("plotting", {}).get("fallback_cmaps", {}).get("crops", "Set3")
 
 
 class _FindfontFilter(logging.Filter):

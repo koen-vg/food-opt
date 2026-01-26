@@ -85,22 +85,3 @@ def get_health_cluster_population(n: pypsa.Network) -> dict[int, float]:
         )
     # Convert string keys back to int (JSON serialization converts int keys to strings)
     return {int(k): float(v) for k, v in cluster_pop.items()}
-
-
-def get_planning_year(n: pypsa.Network) -> int:
-    """Get the planning year for population data.
-
-    Parameters
-    ----------
-    n : pypsa.Network
-        Network with population data in n.meta["population"].
-
-    Returns
-    -------
-    int
-        Planning year.
-    """
-    pop_meta = n.meta.get("population")
-    if pop_meta is None:
-        raise KeyError("Population data not found in network metadata.")
-    return int(pop_meta["year"])

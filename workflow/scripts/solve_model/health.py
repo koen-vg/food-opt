@@ -64,7 +64,6 @@ Code Organization
     - _group_cluster_cause_pairs: Group pairs by shared log-RR grids
     - _add_stage2_constraints: Main Stage 2 logic
     - _add_stage2_delta: δ variables + fill-up (no indicators needed)
-    - _add_store_level_constraint: Link RR to YLL store
 - Main entry point: add_health_objective
 """
 
@@ -1017,68 +1016,6 @@ def _add_stage2_delta(
             raise ValueError(f"value_per_yll must be non-negative, got {value_per_yll}")
 
     return len(cluster_cause_pairs)
-
-
-def _add_store_level_constraint(
-    m: linopy.Model,
-    rr_interp: linopy.LinearExpression,
-    data: dict,
-    cluster: int,
-    cause: str,
-    health_stores: pd.DataFrame,
-    store_level_var: xr.DataArray,
-    value_per_yll: float,
-) -> int:
-    """Add store level constraint linking RR interpolation to YLL store.
-
-    Returns 1 if constraint was added, 0 otherwise.
-    """
-    # Get store name
-    if (cluster, cause) not in health_stores.index:
-        raise ValueError(
-            f"No YLL store found for cluster {cluster}, cause {cause}. "
-            f"Check that health stores were created during model build."
-        )
-    store_name = health_stores.loc[(cluster, cause), "name"]
-
-    if data["yll_total"] <= 0:
-        logger.warning(
-            "Health store has non-positive yll_total (cluster=%d, cause=%s); "
-            "constraint will be non-binding",
-            cluster,
-            cause,
-        )
-
-    # Store level = (RR - RR^ref) * (YLL / RR^base) * 10^{-6}
-    #
-    # Health cost is zero at TMREL (where RR = RR^ref) and increases
-    # with deviation from optimal intake. Since TMREL minimizes RR,
-    # we have RR ≥ RR^ref always, so store levels are non-negative.
-    #
-    # Normalizing by RR^base ensures populations with identical
-    # underlying susceptibility incur the same health cost for the
-    # same diet, regardless of baseline consumption patterns.
-    yll_expr_myll = (
-        (rr_interp - data["rr_ref"])
-        * (data["yll_total"] / data["rr_baseline"])
-        * constants.YLL_TO_MILLION_YLL
-    )
-
-    # Constraint type depends on value_per_yll:
-    # - If zero: use equality (store level tracks YLL exactly)
-    # - If positive: use inequality (objective minimizes store level)
-    if value_per_yll == 0:
-        m.add_constraints(
-            store_level_var.sel(name=store_name) == yll_expr_myll,
-            name=f"health_store_level_c{cluster}_cause{cause}",
-        )
-    elif value_per_yll > 0:
-        m.add_constraints(
-            store_level_var.sel(name=store_name) >= yll_expr_myll,
-            name=f"health_store_level_c{cluster}_cause{cause}",
-        )
-
-    return 1
 
 
 # =============================================================================

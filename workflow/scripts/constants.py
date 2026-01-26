@@ -9,7 +9,6 @@ unit definitions used throughout the model building process.
 """
 
 # Unit conversion factors
-KM3_PER_M3 = 1e-9  # convert cubic metres to cubic kilometres
 MM3_PER_M3 = 1e-6  # convert cubic metres to million cubic metres
 TONNE_TO_MEGATONNE = 1e-6  # convert tonnes to megatonnes
 MEGATONNE_TO_TONNE = 1e6  # convert megatonnes to tonnes
