@@ -23,6 +23,8 @@ import numpy as np
 import pandas as pd
 import pypsa
 
+from workflow.scripts.constants import TONNE_TO_MEGATONNE
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,7 +73,12 @@ def build_ghg_links_dataframe(
     - link_name, bus0, bus1, flow, efficiency, emissions_co2e
     """
     # GWP factors (CH4/N2O are in tonnes, convert to MtCO2e)
-    gwp = {"co2": 1.0, "ch4": ch4_gwp * 1e-6, "n2o": n2o_gwp * 1e-6}
+    # Bus names include "emission:" prefix (e.g., "emission:co2")
+    gwp = {
+        "emission:co2": 1.0,
+        "emission:ch4": ch4_gwp * TONNE_TO_MEGATONNE,
+        "emission:n2o": n2o_gwp * TONNE_TO_MEGATONNE,
+    }
 
     links = n.links.static.copy()
     links["link_name"] = links.index

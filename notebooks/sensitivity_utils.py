@@ -1734,134 +1734,49 @@ def plot_objective_sensitivity(
 
 
 # -----------------------------------------------------------------------------
-# Grid data extraction and heatmap plotting
+# Grid data loading and heatmap plotting
 # -----------------------------------------------------------------------------
 
 
-def _extract_grid_objective_worker(args):
-    """Worker function for extracting objective components from a single network.
-
-    Note: The model uses billion USD (bnUSD) as its internal cost unit, so
-    n.objective and n.statistics results are already in billion USD.
-
-    Returns a dict with:
-        - total_objective: The actual model objective value (billion USD)
-        - health_myll: Total health burden in MYLL
-        - ghg_mtco2eq: Total GHG emissions in MtCO2eq
-        - crop_production: Crop production cost (billion USD)
-        - trade: Trade cost (billion USD)
-        - consumer_values: Consumer values cost (billion USD)
-    """
-    (network_path,) = args
-
-    n = pypsa.Network(network_path)
-    snapshot = n.snapshots[-1] if len(n.snapshots) > 0 else None
-
-    # Model objective is already in billion USD
-    result = {
-        "total_objective": n.objective,
-        "health_myll": 0.0,
-        "ghg_mtco2eq": 0.0,
-    }
-
-    stores_static = n.stores.static
-
-    # Extract health burden (total MYLL)
-    if snapshot is not None and snapshot in n.stores.dynamic.e.index:
-        health_stores = stores_static[stores_static["carrier"].str.startswith("yll_")]
-        if not health_stores.empty:
-            health_levels = n.stores.dynamic.e.loc[snapshot, health_stores.index]
-            result["health_myll"] = health_levels.sum()
-
-    # Extract GHG emissions (total MtCO2eq)
-    if snapshot is not None and snapshot in n.stores.dynamic.e.index:
-        ghg_stores = stores_static[stores_static["carrier"] == "ghg"]
-        if not ghg_stores.empty:
-            ghg_levels = n.stores.dynamic.e.loc[snapshot, ghg_stores.index]
-            result["ghg_mtco2eq"] = ghg_levels.sum()
-
-    # Extract other cost components using statistics (already in billion USD)
-    capex = n.statistics.capex(groupby=_objective_category)
-    opex = n.statistics.opex(groupby=_objective_category)
-
-    def _to_series(df_or_series):
-        if isinstance(df_or_series, pd.DataFrame):
-            df_or_series = df_or_series.iloc[:, 0]
-        if df_or_series.empty:
-            return pd.Series(dtype=float)
-        idx = df_or_series.index
-        if "category" not in idx.names:
-            idx = idx.set_names([*list(idx.names[:-1]), "category"])
-            df_or_series.index = idx
-        return df_or_series.groupby("category").sum()
-
-    capex_series = _to_series(capex)
-    opex_series = _to_series(opex)
-    total = capex_series.add(opex_series, fill_value=0.0)
-
-    result["crop_production"] = total.get("Crop production", 0.0)
-    result["trade"] = total.get("Trade", 0.0)
-    result["consumer_values"] = total.get("Consumer values", 0.0)
-    result["fertilizer"] = total.get("Fertilizer (synthetic)", 0.0)
-
-    return result
-
-
-def extract_grid_data(
+def load_grid_data_from_statistics(
     scenarios: list[tuple[float, float, str, Path]],
-    cache_path: Path,
-    n_workers: int = 8,
+    project_root: Path,
+    config_name: str,
 ) -> pd.DataFrame:
-    """Extract objective components for grid scenarios.
+    """Load grid data from pre-computed analysis CSVs.
 
     Args:
         scenarios: List of (ghg_price, yll_value, scenario_name, network_path) tuples
-        cache_path: Path to cache file
-        n_workers: Number of parallel workers
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg_yll_grid')
 
     Returns:
-        DataFrame with MultiIndex (ghg_price, yll_value) and columns:
-        - total_objective: Model objective in billion USD
-        - health_myll: Health burden in MYLL
-        - ghg_mtco2eq: GHG emissions in MtCO2eq
-        - crop_production, trade, consumer_values: Cost components in billion USD
+        DataFrame with MultiIndex (ghg_price, yll_value) and columns for
+        cost components (billion USD), health_myll, and ghg_mtco2eq.
     """
-    network_paths = [f for _, _, _, f in scenarios]
-
-    if is_cache_valid(cache_path, network_paths):
-        print(f"Loading grid data from cache: {cache_path}")
-        df = pd.read_csv(cache_path, index_col=[0, 1])
-        df.index = pd.MultiIndex.from_tuples(
-            [(float(g), float(y)) for g, y in df.index],
-            names=["ghg_price", "yll_value"],
-        )
-        return df
-
-    print(f"Extracting grid data using {n_workers} workers...")
-
-    worker_args = [(network_path,) for _, _, _, network_path in scenarios]
+    results_dir = project_root / "results" / config_name
 
     grid_data = {}
-    with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        futures = {
-            executor.submit(_extract_grid_objective_worker, args): (ghg, yll, s)
-            for args, (ghg, yll, s, _) in zip(worker_args, scenarios)
-        }
+    for ghg_price, yll_value, scenario_name, _ in scenarios:
+        analysis_dir = results_dir / "analysis" / f"scen-{scenario_name}"
 
-        for future in as_completed(futures):
-            ghg, yll, scenario = futures[future]
-            grid_data[(ghg, yll)] = future.result()
-            print(f"  Loaded ghg={int(ghg)}, yll={int(yll)}")
+        obj_df = pd.read_csv(analysis_dir / "objective_breakdown.csv")
+        ghg_df = pd.read_csv(analysis_dir / "ghg_totals.csv")
+        health_df = pd.read_csv(analysis_dir / "health_totals.csv")
+
+        grid_data[(ghg_price, yll_value)] = {
+            "crop_production": obj_df["crop_production"].iloc[0],
+            "trade": obj_df["trade"].iloc[0],
+            "consumer_values": obj_df.get("consumer_values", pd.Series([0.0])).iloc[0],
+            "fertilizer": obj_df["fertilizer"].iloc[0],
+            "ghg_mtco2eq": ghg_df["ghg_mtco2eq"].sum(),
+            "health_myll": health_df["yll_myll"].sum(),
+            "total_objective": obj_df.iloc[0].sum(),
+        }
 
     df = pd.DataFrame(grid_data).T
     df.index = pd.MultiIndex.from_tuples(df.index, names=["ghg_price", "yll_value"])
-    df = df.sort_index()
-
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(cache_path)
-    print(f"Saved grid data to cache: {cache_path}")
-
-    return df
+    return df.sort_index()
 
 
 def pivot_grid_data(
