@@ -4,7 +4,7 @@
 
 
 rule extract_ghg_intensity:
-    """Extract GHG intensity by food and country."""
+    """Extract GHG intensity and totals by food and country."""
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",
         food_groups="data/food_groups.csv",
@@ -15,6 +15,7 @@ rule extract_ghg_intensity:
         n2o_gwp=config["emissions"]["n2o_to_co2_factor"],
     output:
         csv="results/{name}/analysis/scen-{scenario}/ghg_intensity.csv",
+        totals="results/{name}/analysis/scen-{scenario}/ghg_totals.csv",
     log:
         "logs/{name}/extract_ghg_intensity_scen-{scenario}.log",
     script:
@@ -22,8 +23,9 @@ rule extract_ghg_intensity:
 
 
 rule extract_health_impacts:
-    """Extract health impacts (marginal YLL) by food group and country."""
+    """Extract marginal health impacts and totals by food group and country."""
     input:
+        network="results/{name}/solved/model_scen-{scenario}.nc",
         food_group_consumption="results/{name}/analysis/scen-{scenario}/food_group_consumption.csv",
         risk_breakpoints="processing/{name}/health/scen-{scenario}/risk_breakpoints.csv",
         health_cluster_cause="processing/{name}/health/scen-{scenario}/cluster_cause_baseline.csv",
@@ -36,7 +38,8 @@ rule extract_health_impacts:
         ],
         health_risk_factors=config["health"]["risk_factors"],
     output:
-        csv="results/{name}/analysis/scen-{scenario}/health_impacts.csv",
+        marginals="results/{name}/analysis/scen-{scenario}/health_marginals.csv",
+        totals="results/{name}/analysis/scen-{scenario}/health_totals.csv",
     log:
         "logs/{name}/extract_health_impacts_scen-{scenario}.log",
     script:
@@ -57,3 +60,15 @@ rule extract_statistics:
         "logs/{name}/extract_statistics_scen-{scenario}.log",
     script:
         "../scripts/analysis/extract_statistics.py"
+
+
+rule extract_objective_breakdown:
+    """Extract objective function breakdown by cost category."""
+    input:
+        network="results/{name}/solved/model_scen-{scenario}.nc",
+    output:
+        objective_breakdown="results/{name}/analysis/scen-{scenario}/objective_breakdown.csv",
+    log:
+        "logs/{name}/extract_objective_breakdown_scen-{scenario}.log",
+    script:
+        "../scripts/analysis/extract_objective_breakdown.py"

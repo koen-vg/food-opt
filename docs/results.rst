@@ -29,7 +29,10 @@ The various output files are structured as follows::
     │       ├── food_consumption.csv    # Consumption by food
     │       ├── food_group_consumption.csv  # Consumption by food group
     │       ├── ghg_intensity.csv       # GHG intensity by food
-    │       └── health_impacts.csv      # Health impacts by food group
+    │       ├── ghg_totals.csv          # Total GHG by country/food group
+    │       ├── health_marginals.csv    # Marginal health impacts by food group
+    │       ├── health_totals.csv       # Total YLL by health cluster
+    │       └── objective_breakdown.csv # Cost categories breakdown
     └── plots/
         └── scen-{scenario}/
             └── *.pdf                   # Visualizations

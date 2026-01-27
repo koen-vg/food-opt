@@ -190,27 +190,6 @@ def plot_yll_bar(
     logger.info("Wrote YLL bar chart to %s", output_path)
 
 
-def save_csv(ghg_df: pd.DataFrame, health_df: pd.DataFrame, output_path: Path) -> None:
-    """Save global averages to CSV by merging GHG and health data."""
-    # Merge the two DataFrames on food_group
-    if ghg_df.empty:
-        result = health_df.copy()
-        result["consumption_mt"] = 0.0
-        result["ghg_kgco2e_per_kg"] = 0.0
-    elif health_df.empty:
-        result = ghg_df.copy()
-        result["yll_per_kg"] = 0.0
-    else:
-        result = ghg_df.merge(health_df, on="food_group", how="outer")
-        result = result.fillna(
-            {"consumption_mt": 0.0, "ghg_kgco2e_per_kg": 0.0, "yll_per_kg": 0.0}
-        )
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    result.to_csv(output_path, index=False, float_format="%.6g")
-    logger.info("Wrote global averages to %s", output_path)
-
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
@@ -218,9 +197,9 @@ if __name__ == "__main__":
     ghg_df = pd.read_csv(snakemake.input.ghg_intensity)
     logger.info("Loaded %d rows from GHG intensity", len(ghg_df))
 
-    # Load health impacts data (at food_group level)
-    health_df = pd.read_csv(snakemake.input.health_impacts)
-    logger.info("Loaded %d rows from health impacts", len(health_df))
+    # Load health marginals data (at food_group level)
+    health_df = pd.read_csv(snakemake.input.health_marginals)
+    logger.info("Loaded %d rows from health marginals", len(health_df))
 
     # Compute global GHG averages (aggregates food to food_group)
     global_ghg = compute_global_ghg_averages(ghg_df)
@@ -236,4 +215,3 @@ if __name__ == "__main__":
     # Create plots
     plot_ghg_bar(global_ghg, Path(snakemake.output.ghg_pdf), group_colors)
     plot_yll_bar(global_health, Path(snakemake.output.yll_pdf), group_colors)
-    save_csv(global_ghg, global_health, Path(snakemake.output.csv))

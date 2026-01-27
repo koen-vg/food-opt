@@ -16,17 +16,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pypsa
-from scipy import sparse
-from scipy.sparse.linalg import spsolve
 import yaml
 
-# Constants for unit conversion
-GRAMS_PER_MEGATONNE = 1e12
-DAYS_PER_YEAR = 365
-KCAL_TO_PJ = 4.184e-12
-PJ_TO_KCAL = 1.0 / KCAL_TO_PJ
-USD_TO_BNUSD = 1e-9
-PER_100K = 100_000  # epidemiological rate denominator (per 100,000 population)
+# Import constants from workflow instead of redefining
+from workflow.scripts.constants import (
+    DAYS_PER_YEAR,
+    GRAMS_PER_MEGATONNE,
+    PER_100K,
+    PJ_TO_KCAL,
+    USD_TO_BNUSD,
+)
 
 # GWP values (AR5 100-year)
 CH4_GWP = 28.0
@@ -374,24 +373,32 @@ def get_log_ticks(
 # -----------------------------------------------------------------------------
 
 
-def is_cache_valid(cache_path: Path, network_files: list[Path]) -> bool:
-    """Check if cache file is newer than all network files."""
+def is_cache_valid(cache_path: Path, source_files: list[Path]) -> bool:
+    """Check if cache file is newer than all source files."""
     if not cache_path.exists():
         return False
     cache_mtime = cache_path.stat().st_mtime
-    return all(nf.stat().st_mtime <= cache_mtime for nf in network_files)
+    return all(sf.stat().st_mtime <= cache_mtime for sf in source_files)
 
 
-def load_population_from_network(network_path: Path) -> float:
-    """Load total global population from network metadata."""
-    n = pypsa.Network(network_path)
-    pop_meta = n.meta.get("population")
-    if pop_meta is None:
-        raise KeyError(
-            "Population data not found in network metadata. "
-            "Ensure the model was built with population embedding enabled."
+def load_population(project_root: Path, config_name: str) -> float:
+    """Load total global population from processing CSV.
+
+    Args:
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg', 'yll', 'ghg_yll')
+
+    Returns:
+        Total global population
+    """
+    pop_path = project_root / "processing" / config_name / "population.csv"
+    if not pop_path.exists():
+        raise FileNotFoundError(
+            f"Population file not found: {pop_path}. "
+            f"Run the workflow to generate processing files first."
         )
-    return sum(pop_meta["country"].values())
+    pop_df = pd.read_csv(pop_path)
+    return pop_df["population"].sum()
 
 
 def extract_param_value(scenario_name: str, prefix: str) -> float | None:
@@ -438,71 +445,8 @@ def load_food_to_group(project_root: Path) -> dict[str, str]:
 
 
 # -----------------------------------------------------------------------------
-# Worker functions for parallel data extraction
+# Worker functions for objective breakdown extraction
 # -----------------------------------------------------------------------------
-
-
-def _extract_consumption_calories_worker(args):
-    """Worker function for parallel extraction of caloric consumption.
-
-    Takes all necessary data as args since module-level constants
-    aren't available in subprocess.
-    """
-    network_path, population, food_to_group, pj_to_kcal, days_per_year = args
-
-    n = pypsa.Network(network_path)
-    links = n.links.static
-
-    snapshot = "now" if "now" in n.snapshots else n.snapshots[-1]
-
-    legs = []
-    for col in links.columns:
-        if col.startswith("bus") and col[3:].isdigit():
-            leg = int(col[3:])
-            if leg > 0:
-                legs.append(leg)
-    legs = sorted(legs)
-
-    time_series_lookup = {}
-    for leg in legs:
-        attr = f"p{leg}"
-        series = getattr(n.links_t, attr, None)
-        if series is not None and snapshot in series.index:
-            time_series_lookup[leg] = series.loc[snapshot]
-
-    totals = {}
-    for link_name in links.index:
-        food = links.at[link_name, "food"]
-        if pd.isna(food):
-            continue
-
-        group_name = food_to_group.get(str(food))
-        if group_name is None:
-            continue
-
-        kcal_leg = None
-        for leg in legs:
-            column = f"bus{leg}"
-            bus_value = links.at[link_name, column]
-            if pd.notna(bus_value) and str(bus_value).startswith("nutrient:cal:"):
-                kcal_leg = leg
-                break
-
-        if kcal_leg is None:
-            continue
-
-        series = time_series_lookup.get(kcal_leg)
-        if series is None:
-            continue
-
-        value_pj = abs(float(series.get(link_name, 0.0)))
-        if value_pj > 0.0:
-            totals[group_name] = totals.get(group_name, 0.0) + value_pj
-
-    calories_series = pd.Series(totals, dtype=float)
-    calories_series = calories_series * pj_to_kcal / (population * days_per_year)
-
-    return calories_series
 
 
 def _objective_category(n: pypsa.Network, component: str, **_) -> pd.Series:
@@ -614,181 +558,62 @@ def _extract_objective_breakdown_worker(args):
 
 
 # -----------------------------------------------------------------------------
-# GHG emission attribution functions
+# Data loading from workflow analysis outputs
 # -----------------------------------------------------------------------------
 
 
-def build_ghg_links_dataframe(n, p0, ch4_gwp, n2o_gwp):
-    """Build DataFrame of links with flows and GHG emissions."""
-    gwp = {
-        "emission:co2": 1.0,
-        "emission:ch4": ch4_gwp * 1e-6,
-        "emission:n2o": n2o_gwp * 1e-6,
-    }
-
-    links = n.links.static.copy()
-    links["link_name"] = links.index
-    links["flow"] = p0.reindex(links.index).fillna(0.0)
-    links = links[links["flow"] > 1e-12].copy()
-
-    if links.empty:
-        return pd.DataFrame()
-
-    links["efficiency"] = links["efficiency"].fillna(1.0)
-    links["emissions_co2e"] = 0.0
-
-    for bus_col, eff_col in [
-        ("bus2", "efficiency2"),
-        ("bus3", "efficiency3"),
-        ("bus4", "efficiency4"),
-    ]:
-        if bus_col not in links.columns:
-            continue
-        emission_bus = links[bus_col].fillna("")
-        eff = links[eff_col].fillna(0.0) if eff_col in links.columns else 0.0
-        for gas, gwp_factor in gwp.items():
-            mask = (emission_bus == gas) & (eff > 0)
-            links.loc[mask, "emissions_co2e"] += eff[mask] * gwp_factor
-
-    result_cols = ["link_name", "bus0", "bus1", "flow", "efficiency", "emissions_co2e"]
-    if "food" in links.columns:
-        result_cols.append("food")
-    return links[result_cols]
-
-
-def solve_emission_intensities(links_df):
-    """Solve for emission intensity at each bus using sparse matrix."""
-    all_buses = pd.concat([links_df["bus0"], links_df["bus1"]]).unique()
-    bus_to_idx = {bus: i for i, bus in enumerate(all_buses)}
-    n_buses = len(all_buses)
-
-    links_df = links_df.copy()
-    links_df["idx0"] = links_df["bus0"].map(bus_to_idx)
-    links_df["idx1"] = links_df["bus1"].map(bus_to_idx)
-
-    links_df["outflow"] = links_df["flow"] * links_df["efficiency"]
-    total_outflow = links_df.groupby("idx1")["outflow"].transform("sum")
-    links_df["weight"] = links_df["flow"] / total_outflow
-    links_df["emission_contrib"] = (
-        links_df["flow"] * links_df["emissions_co2e"] / total_outflow
-    )
-
-    row = links_df["idx1"].values
-    col = links_df["idx0"].values
-    data = links_df["weight"].values
-
-    adj_matrix = sparse.coo_matrix((data, (row, col)), shape=(n_buses, n_buses)).tocsr()
-
-    e = np.zeros(n_buses)
-    np.add.at(e, links_df["idx1"].values, links_df["emission_contrib"].values)
-
-    identity = sparse.eye(n_buses, format="csr")
-    system_matrix = identity - adj_matrix
-
-    rho = spsolve(system_matrix, e)
-
-    idx_to_bus = {i: bus for bus, i in bus_to_idx.items()}
-    return {idx_to_bus[i]: float(rho[i]) for i in range(n_buses)}
-
-
-def _extract_ghg_by_food_group_worker(args):
-    """Worker function to extract GHG emissions by food group."""
-    network_path, food_to_group, ch4_gwp, n2o_gwp = args
-
-    n = pypsa.Network(network_path)
-    snapshot = n.snapshots[-1]
-    p0 = (
-        n.links.dynamic.p0.loc[snapshot]
-        if snapshot in n.links.dynamic.p0.index
-        else pd.Series(dtype=float)
-    )
-
-    links_df = build_ghg_links_dataframe(n, p0, ch4_gwp, n2o_gwp)
-
-    if links_df.empty:
-        return pd.Series(dtype=float)
-
-    bus_intensities = solve_emission_intensities(links_df)
-
-    if "food" not in links_df.columns:
-        return pd.Series(dtype=float)
-
-    consume_df = links_df[links_df["food"].notna()].copy()
-    consume_df["intensity"] = consume_df["bus0"].map(bus_intensities).fillna(0.0)
-    consume_df["ghg_mtco2e"] = consume_df["flow"] * consume_df["intensity"]
-
-    totals = {}
-    for _, row in consume_df.iterrows():
-        food = row["food"]
-        group = food_to_group.get(food)
-        if group:
-            totals[group] = totals.get(group, 0.0) + row["ghg_mtco2e"]
-
-    return pd.Series(totals, dtype=float)
-
-
-# -----------------------------------------------------------------------------
-# Data extraction orchestrators
-# -----------------------------------------------------------------------------
-
-
-def extract_consumption_data(
+def load_consumption_from_statistics(
     scenarios: list[tuple[float, str, Path]],
-    food_to_group: dict,
-    cache_path: Path,
+    project_root: Path,
+    config_name: str,
     param_name: str = "param_value",
-    n_workers: int = 8,
 ) -> pd.DataFrame:
-    """Extract caloric consumption data for all scenarios.
+    """Load consumption data from extract_statistics rule outputs.
+
+    Reads pre-computed statistics CSVs from the workflow analysis outputs.
+
+    Requires running the Snakemake extract_statistics rule first:
+        tools/smk --configfile config/{name}.yaml -- results/{name}/analysis/scen-{scenario}/food_group_consumption.csv
 
     Args:
         scenarios: List of (param_value, scenario_name, network_path) tuples
-        food_to_group: Mapping from food to food group
-        cache_path: Path to cache file
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg', 'yll', 'ghg_yll')
         param_name: Name for the parameter (used as index name)
-        n_workers: Number of parallel workers
 
     Returns:
-        DataFrame with param_value as index and food groups as columns
+        DataFrame with param_value as index and food groups as columns (kcal/person/day)
     """
-    network_paths = [f for _, _, f in scenarios]
+    population = load_population(project_root, config_name)
+    results_dir = project_root / "results" / config_name
 
-    if is_cache_valid(cache_path, network_paths):
-        print(f"Loading consumption data from cache: {cache_path}")
-        return pd.read_csv(cache_path, index_col=param_name)
+    data = {}
+    for param_value, scenario_name, _ in scenarios:
+        csv_path = (
+            results_dir
+            / "analysis"
+            / f"scen-{scenario_name}"
+            / "food_group_consumption.csv"
+        )
+        if not csv_path.exists():
+            raise FileNotFoundError(
+                f"Statistics file not found: {csv_path}. "
+                f"Run the extract_statistics rule first."
+            )
 
-    # Load population from first network's embedded metadata
-    population = load_population_from_network(network_paths[0])
-    print(f"Total population: {population:,.0f}")
-    print(f"Extracting consumption data using {n_workers} workers...")
+        df = pd.read_csv(csv_path)
 
-    worker_args = [
-        (network_path, population, food_to_group, PJ_TO_KCAL, DAYS_PER_YEAR)
-        for _, _, network_path in scenarios
-    ]
-    param_values = [pv for pv, _, _ in scenarios]
+        # Sum cal_pj across countries for each food group
+        total_pj = df.groupby("food_group")["cal_pj"].sum()
 
-    consumption_data = {}
-    with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        futures = {
-            executor.submit(_extract_consumption_calories_worker, args): pv
-            for args, pv in zip(worker_args, param_values)
-        }
+        # Convert to global kcal/person/day
+        kcal_per_person_day = total_pj * PJ_TO_KCAL / (population * DAYS_PER_YEAR)
 
-        for future in as_completed(futures):
-            param_value = futures[future]
-            consumption_data[param_value] = future.result()
-            print(f"  Loaded {param_name}={int(param_value)}")
+        data[param_value] = kcal_per_person_day
 
-    df = pd.DataFrame(consumption_data).T.fillna(0)
-    df.index.name = param_name
-    df = df.sort_index()
-
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(cache_path)
-    print(f"Saved consumption data to cache: {cache_path}")
-
-    return df
+    result = pd.DataFrame(data).T.fillna(0)
+    result.index.name = param_name
+    return result.sort_index()
 
 
 def extract_objective_data(
@@ -848,62 +673,149 @@ def extract_objective_data(
     return df
 
 
-def extract_ghg_data(
+def load_ghg_from_statistics(
     scenarios: list[tuple[float, str, Path]],
-    food_to_group: dict,
-    cache_path: Path,
+    project_root: Path,
+    config_name: str,
     param_name: str = "param_value",
-    n_workers: int = 8,
 ) -> pd.DataFrame:
-    """Extract GHG emissions by food group for all scenarios.
+    """Load GHG emissions data from extract_ghg_intensity rule outputs.
+
+    Reads pre-computed ghg_intensity.csv files from the workflow analysis outputs.
+
+    Requires running the Snakemake extract_ghg_intensity rule first.
 
     Args:
         scenarios: List of (param_value, scenario_name, network_path) tuples
-        food_to_group: Mapping from food to food group
-        cache_path: Path to cache file
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg', 'yll', 'ghg_yll')
         param_name: Name for the parameter (used as index name)
-        n_workers: Number of parallel workers
 
     Returns:
         DataFrame with param_value as index and food groups as columns (in GtCO2eq)
     """
-    network_paths = [f for _, _, f in scenarios]
+    results_dir = project_root / "results" / config_name
 
-    if is_cache_valid(cache_path, network_paths):
-        print(f"Loading GHG data from cache: {cache_path}")
-        return pd.read_csv(cache_path, index_col=param_name)
+    data = {}
+    for param_value, scenario_name, _ in scenarios:
+        csv_path = (
+            results_dir / "analysis" / f"scen-{scenario_name}" / "ghg_intensity.csv"
+        )
+        if not csv_path.exists():
+            raise FileNotFoundError(
+                f"GHG intensity file not found: {csv_path}. "
+                f"Run the extract_ghg_intensity rule first."
+            )
 
-    print(f"Extracting GHG data using {n_workers} workers...")
+        df = pd.read_csv(csv_path)
 
-    worker_args = [
-        (network_path, food_to_group, CH4_GWP, N2O_GWP)
-        for _, _, network_path in scenarios
-    ]
-    param_values = [pv for pv, _, _ in scenarios]
+        # Compute total emissions per food_group:
+        # consumption_mt * ghg_kgco2e_per_kg = MtCO2e (since kgCO2e/kg = MtCO2e/Mt)
+        df["ghg_mtco2e"] = df["consumption_mt"] * df["ghg_kgco2e_per_kg"]
 
-    ghg_data = {}
-    with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        futures = {
-            executor.submit(_extract_ghg_by_food_group_worker, args): pv
-            for args, pv in zip(worker_args, param_values)
-        }
+        # Sum by food_group and convert to GtCO2e
+        totals = df.groupby("food_group")["ghg_mtco2e"].sum() / 1000
 
-        for future in as_completed(futures):
-            param_value = futures[future]
-            ghg_data[param_value] = future.result()
-            print(f"  Loaded {param_name}={int(param_value)}")
+        data[param_value] = totals
 
-    df = pd.DataFrame(ghg_data).T.fillna(0)
-    df.index.name = param_name
-    df = df.sort_index()
+    result = pd.DataFrame(data).T.fillna(0)
+    result.index.name = param_name
+    return result.sort_index()
 
-    # Convert MtCO2e to GtCO2e
-    df = df / 1000
 
-    df.to_csv(cache_path)
-    print(f"Saved GHG data to cache: {cache_path}")
+def load_objective_from_statistics(
+    scenarios: list[tuple[float, str, Path]],
+    project_root: Path,
+    config_name: str,
+    param_name: str = "param_value",
+    constant_health_value: float = 10000,
+    constant_ghg_price: float = 100,
+) -> pd.DataFrame:
+    """Load objective breakdown from extract_objective_breakdown rule outputs.
 
-    return df
+    Reads pre-computed objective_breakdown.csv, ghg_totals.csv, and
+    health_totals.csv files. Recomputes health/GHG costs at constant prices
+    for comparability across scenarios with different price assumptions.
+
+    Requires running the Snakemake analysis rules first (extract_objective_breakdown,
+    extract_ghg_intensity, extract_health_impacts).
+
+    Args:
+        scenarios: List of (param_value, scenario_name, network_path) tuples
+        project_root: Path to project root directory
+        config_name: Name of the config (e.g., 'ghg', 'yll', 'ghg_yll')
+        param_name: Name for the parameter (used as index name)
+        constant_health_value: USD/YLL for health burden calculation
+        constant_ghg_price: USD/tCO2eq for GHG cost calculation
+
+    Returns:
+        DataFrame with param_value as index and cost categories as columns (billion USD)
+    """
+    results_dir = project_root / "results" / config_name
+
+    data = {}
+    for param_value, scenario_name, _ in scenarios:
+        analysis_dir = results_dir / "analysis" / f"scen-{scenario_name}"
+
+        # Load objective breakdown
+        obj_path = analysis_dir / "objective_breakdown.csv"
+        if not obj_path.exists():
+            raise FileNotFoundError(
+                f"Objective breakdown file not found: {obj_path}. "
+                f"Run the extract_objective_breakdown rule first."
+            )
+        obj_df = pd.read_csv(obj_path)
+
+        # Start with the breakdown categories (excluding health/GHG cost columns
+        # which we recompute at constant prices)
+        row = {}
+        skip_cols = {"health_burden", "ghg_cost"}
+        for col in obj_df.columns:
+            if col not in skip_cols:
+                row[col] = obj_df[col].iloc[0]
+
+        # Load GHG totals and compute cost at constant price
+        ghg_totals_path = analysis_dir / "ghg_totals.csv"
+        if ghg_totals_path.exists():
+            ghg_totals_df = pd.read_csv(ghg_totals_path)
+            ghg_mtco2eq = ghg_totals_df["ghg_mtco2eq"].sum()
+            # MtCO2eq * USD/tCO2eq * 1e6 t/Mt * 1e-9 bn/USD = MtCO2eq * USD/tCO2eq * 1e-3
+            ghg_cost_bnusd = ghg_mtco2eq * constant_ghg_price * 1e-3
+            row["GHG cost"] = ghg_cost_bnusd
+
+        # Load health totals and compute cost at constant price
+        health_totals_path = analysis_dir / "health_totals.csv"
+        if health_totals_path.exists():
+            health_totals_df = pd.read_csv(health_totals_path)
+            health_myll = health_totals_df["yll_myll"].sum()
+            # MYLL * USD/YLL * 1e6 YLL/MYLL * 1e-9 bn/USD = MYLL * USD/YLL * 1e-3
+            health_cost_bnusd = health_myll * constant_health_value * 1e-3
+            row["Health burden"] = health_cost_bnusd
+
+        data[param_value] = pd.Series(row)
+
+    result = pd.DataFrame(data).T.fillna(0)
+    result.index.name = param_name
+
+    # Rename columns to human-readable format
+    column_map = {
+        "crop_production": "Crop production",
+        "trade": "Trade",
+        "fertilizer": "Fertilizer (synthetic)",
+        "processing": "Processing",
+        "consumption": "Consumption",
+        "animal_production": "Animal production",
+        "feed_conversion": "Feed conversion",
+        "consumer_values": "Consumer values",
+        "biomass_exports": "Biomass exports",
+        "biomass_routing": "Biomass routing",
+        "slack_penalties": "Slack penalties",
+        "resource_supply": "Resource supply",
+        "nutrient_tracking": "Nutrient tracking",
+    }
+    result = result.rename(columns=column_map)
+
+    return result.sort_index()
 
 
 # -----------------------------------------------------------------------------
@@ -1323,8 +1235,8 @@ def set_dual_xaxis_labels(
     # Add colored labels below axis
     for x, ghg, yll in zip(x_ticks, ghg_values, yll_values):
         # Format values nicely
-        ghg_str = f"{int(ghg)}" if ghg < 1000 else f"{int(ghg/1000)}k"
-        yll_str = f"{int(yll)}" if yll < 1000 else f"{int(yll/1000)}k"
+        ghg_str = f"{int(ghg)}" if ghg < 1000 else f"{int(ghg / 1000)}k"
+        yll_str = f"{int(yll)}" if yll < 1000 else f"{int(yll / 1000)}k"
 
         # GHG label (top, dark green)
         ax.text(
@@ -2178,7 +2090,7 @@ def plot_heatmap(
 
     if panel_label is not None:
         ax.text(
-            -0.15,
+            -0.05,
             1.12,
             panel_label,
             transform=ax.transAxes,
@@ -2506,7 +2418,7 @@ def plot_contour(
 
     if panel_label is not None:
         ax.text(
-            -0.15,
+            -0.05,
             1.12,
             panel_label,
             transform=ax.transAxes,

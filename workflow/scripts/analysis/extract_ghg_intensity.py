@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Extract GHG intensity by food and country.
+"""Extract GHG intensity and totals by food and country.
 
 This script computes consumption-attributed GHG emissions by tracing emissions
 through trade and processing networks back to production using flow-based
@@ -11,7 +11,9 @@ attribution via sparse matrix algebra.
 Uses food_consumption.csv from extract_statistics for consumption amounts,
 avoiding duplicate extraction of consumption data from the network.
 
-Output: ghg_intensity.csv at the food level (not aggregated to food_group).
+Outputs:
+- ghg_intensity.csv: Intensity at the food level (kgCO2e/kg, USD/t)
+- ghg_totals.csv: Total emissions by country and food_group (MtCO2eq)
 """
 
 import logging
@@ -255,6 +257,36 @@ def add_monetary_value(df: pd.DataFrame, ghg_price: float) -> pd.DataFrame:
     return df
 
 
+def compute_ghg_totals(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute total GHG emissions by country and food_group.
+
+    Parameters
+    ----------
+    df : DataFrame with columns consumption_mt, ghg_kgco2e_per_kg, country, food_group
+
+    Returns
+    -------
+    DataFrame with columns: country, food_group, ghg_mtco2eq
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["country", "food_group", "ghg_mtco2eq"])
+
+    # Total emissions = consumption_mt * kgCO2e/kg
+    # Since kgCO2e/kg = MtCO2e/Mt, this gives MtCO2e directly
+    df = df.copy()
+    df["ghg_mtco2eq"] = df["consumption_mt"] * df["ghg_kgco2e_per_kg"]
+
+    # Aggregate by country and food_group
+    totals = (
+        df.groupby(["country", "food_group"], as_index=False)["ghg_mtco2eq"]
+        .sum()
+        .sort_values(["country", "food_group"])
+        .reset_index(drop=True)
+    )
+
+    return totals
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -293,11 +325,23 @@ def main() -> None:
     # Sort for consistent output
     result = result.sort_values(["country", "food"]).reset_index(drop=True)
 
-    # Write output
+    # Compute totals by country and food_group
+    logger.info("Computing GHG totals...")
+    totals = compute_ghg_totals(result)
+    total_ghg = totals["ghg_mtco2eq"].sum()
+    logger.info(
+        "Total GHG: %.4f MtCO2eq across %d country-group pairs", total_ghg, len(totals)
+    )
+
+    # Write outputs
     output_path = Path(snakemake.output.csv)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(output_path, index=False)
     logger.info("Wrote GHG intensity to %s (%d rows)", output_path, len(result))
+
+    totals_path = Path(snakemake.output.totals)
+    totals.to_csv(totals_path, index=False)
+    logger.info("Wrote GHG totals to %s (%d rows)", totals_path, len(totals))
 
 
 if __name__ == "__main__":

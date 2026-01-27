@@ -2,16 +2,19 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Extract health impacts (marginal YLL) by food group and country.
+"""Extract health impacts by food group and country.
 
-This script computes marginal years of life lost per unit of food consumed,
-based on the derivative of piecewise-linear dose-response curves at current
-population intake levels.
+This script computes:
+1. Marginal YLL per unit of food consumed, based on derivatives of
+   piecewise-linear dose-response curves at current population intake levels.
+2. Total YLL from the optimization result, read from the network's YLL stores.
 
 Uses food_group_consumption.csv from extract_statistics for consumption amounts,
 avoiding duplicate extraction of consumption data from the network.
 
-Output: health_impacts.csv at the food_group level (risk factors).
+Outputs:
+- health_marginals.csv: Marginal YLL at the food_group level (YLL/Mt, USD/t)
+- health_totals.csv: Total YLL by health cluster (MYLL)
 """
 
 from collections import defaultdict
@@ -22,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pypsa
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PER_100K
 
@@ -339,11 +343,65 @@ def add_monetary_value(df: pd.DataFrame, value_per_yll: float) -> pd.DataFrame:
     return df
 
 
+def extract_yll_totals(n: pypsa.Network) -> pd.DataFrame:
+    """Extract total YLL by health cluster from network stores.
+
+    YLL stores have carriers like 'yll_cluster_0', 'yll_cluster_1', etc.
+    The store's energy level (e) at the final snapshot gives total YLL.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        Solved network with YLL stores.
+
+    Returns
+    -------
+    DataFrame with columns: health_cluster, yll_myll
+        Total YLL in millions (MYLL) by health cluster.
+    """
+    # Find YLL stores by carrier pattern
+    stores = n.stores.static
+    yll_mask = stores["carrier"].str.startswith("yll_")
+
+    if not yll_mask.any():
+        logger.warning("No YLL stores found in network")
+        return pd.DataFrame(columns=["health_cluster", "yll_myll"])
+
+    yll_stores = stores[yll_mask].copy()
+
+    # Extract cluster ID from carrier (e.g., 'yll_cluster_0' -> 0)
+    yll_stores["health_cluster"] = (
+        yll_stores["carrier"].str.replace("yll_cluster_", "").astype(int)
+    )
+
+    # Get energy level at final snapshot
+    snapshot = n.snapshots[-1]
+    e = n.stores.dynamic.e.loc[snapshot]
+
+    # Build result
+    records = []
+    for store_name, row in yll_stores.iterrows():
+        cluster = row["health_cluster"]
+        # Store e is in the model's unit (YLL), convert to MYLL
+        yll_value = e.get(store_name, 0.0)
+        records.append({"health_cluster": cluster, "yll_myll": yll_value / 1e6})
+
+    result = pd.DataFrame(records)
+    if not result.empty:
+        result = result.sort_values("health_cluster").reset_index(drop=True)
+
+    return result
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    # Load network for YLL totals
+    n = pypsa.Network(snakemake.input.network)
+    logger.info("Loaded network with %d stores", len(n.stores))
 
     # Load food group consumption from extract_statistics output
     food_group_consumption = pd.read_csv(snakemake.input.food_group_consumption)
@@ -374,11 +432,21 @@ def main() -> None:
     # Sort for consistent output
     result = result.sort_values(["country", "food_group"]).reset_index(drop=True)
 
-    # Write output
-    output_path = Path(snakemake.output.csv)
+    # Extract YLL totals from network stores
+    logger.info("Extracting YLL totals from network...")
+    totals = extract_yll_totals(n)
+    total_yll = totals["yll_myll"].sum()
+    logger.info("Total YLL: %.4f MYLL across %d clusters", total_yll, len(totals))
+
+    # Write outputs
+    output_path = Path(snakemake.output.marginals)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(output_path, index=False)
-    logger.info("Wrote health impacts to %s (%d rows)", output_path, len(result))
+    logger.info("Wrote health marginals to %s (%d rows)", output_path, len(result))
+
+    totals_path = Path(snakemake.output.totals)
+    totals.to_csv(totals_path, index=False)
+    logger.info("Wrote health totals to %s (%d rows)", totals_path, len(totals))
 
 
 if __name__ == "__main__":

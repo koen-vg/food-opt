@@ -165,7 +165,7 @@ Running the GHG Extraction
    tools/smk -j4 --configfile config/<name>.yaml -- \
        results/{name}/analysis/scen-default/ghg_intensity.csv
 
-Output file:
+Output files:
 
 ``results/{name}/analysis/scen-{scenario}/ghg_intensity.csv``
    Per-country, per-food GHG intensity including:
@@ -179,6 +179,16 @@ Output file:
       ``consumption_mt``, float, Mt, "Consumption quantity"
       ``ghg_kgco2e_per_kg``, float, kgCO2e/kg, "GHG intensity"
       ``ghg_usd_per_t``, float, USD/t, "Monetized GHG damage"
+
+``results/{name}/analysis/scen-{scenario}/ghg_totals.csv``
+   Total GHG emissions by country and food group:
+
+   .. csv-table::
+      :header: Column, Type, Unit, Description
+
+      ``country``, string, —, "ISO 3166-1 alpha-3 country code"
+      ``food_group``, string, —, "Food group"
+      ``ghg_mtco2eq``, float, MtCO2eq, "Total emissions attributed to consumption"
 
 Health Impacts
 --------------
@@ -222,22 +232,31 @@ Running the Health Extraction
 
 .. code-block:: bash
 
-   # Extract health impacts for a scenario
+   # Extract health marginals for a scenario
    tools/smk -j4 --configfile config/<name>.yaml -- \
-       results/{name}/analysis/scen-default/health_impacts.csv
+       results/{name}/analysis/scen-default/health_marginals.csv
 
-Output file:
+Output files:
 
-``results/{name}/analysis/scen-{scenario}/health_impacts.csv``
-   Per-country, per-food-group health impacts including:
+``results/{name}/analysis/scen-{scenario}/health_marginals.csv``
+   Per-country, per-food-group marginal health impacts including:
 
    .. csv-table::
       :header: Column, Type, Unit, Description
 
       ``country``, string, —, "ISO 3166-1 alpha-3 country code"
       ``food_group``, string, —, "Food group (risk factor)"
-      ``yll_per_mt``, float, YLL/Mt, "Years of life lost per megatonne"
-      ``health_usd_per_t``, float, USD/t, "Monetized health damage"
+      ``yll_per_mt``, float, YLL/Mt, "Marginal years of life lost per megatonne"
+      ``health_usd_per_t``, float, USD/t, "Monetized marginal health damage"
+
+``results/{name}/analysis/scen-{scenario}/health_totals.csv``
+   Total years of life lost by health cluster:
+
+   .. csv-table::
+      :header: Column, Type, Unit, Description
+
+      ``health_cluster``, int, —, "Health cluster identifier"
+      ``yll_myll``, float, MYLL, "Total years of life lost in millions"
 
 Sample Results
 ~~~~~~~~~~~~~~
@@ -278,5 +297,44 @@ Generating Global Average Plots
        results/{name}/plots/scen-default/marginal_ghg_global.pdf \
        results/{name}/plots/scen-default/marginal_yll_global.pdf
 
-``results/{name}/plots/scen-{scenario}/ghg_health_global.csv``
-   Consumption-weighted global averages by food group.
+Objective Breakdown
+-------------------
+
+The objective breakdown analysis extracts the cost components that make up the
+model's objective function, grouped into high-level categories. This enables
+analysis of how different cost drivers contribute to the total system cost.
+
+Running the Objective Extraction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # Extract objective breakdown for a scenario
+   tools/smk -j4 --configfile config/<name>.yaml -- \
+       results/{name}/analysis/scen-default/objective_breakdown.csv
+
+Output file:
+
+``results/{name}/analysis/scen-{scenario}/objective_breakdown.csv``
+   Single-row CSV with cost categories in billion USD:
+
+   .. csv-table::
+      :header: Column, Type, Unit, Description
+
+      ``crop_production``, float, bn USD, "Land use and yield-related costs"
+      ``trade``, float, bn USD, "Import/export costs"
+      ``fertilizer``, float, bn USD, "Synthetic fertilizer costs"
+      ``processing``, float, bn USD, "Food processing/conversion costs"
+      ``consumption``, float, bn USD, "Consumption-related costs"
+      ``animal_production``, float, bn USD, "Livestock production costs"
+      ``feed_conversion``, float, bn USD, "Feed processing costs"
+      ``consumer_values``, float, bn USD, "Utility from food consumption (negative)"
+      ``biomass_exports``, float, bn USD, "Revenue from biomass exports (negative)"
+      ``biomass_routing``, float, bn USD, "Internal biomass flow costs"
+      ``health_burden``, float, bn USD, "Health costs from YLL"
+      ``ghg_cost``, float, bn USD, "Emissions costs"
+
+The script validates that extracted categories sum to the model's reported
+objective value and raises an error if they don't match (within 1% tolerance).
+It also raises errors for unrecognized component patterns to ensure the
+analysis is updated when the model structure changes.

@@ -246,7 +246,7 @@ def plot_yll_bar(
 
 def main(
     ghg_intensity_path: str,
-    health_impacts_path: str,
+    health_marginals_path: str,
     ghg_svg_path: str,
     ghg_png_path: str,
     yll_svg_path: str,
@@ -255,7 +255,7 @@ def main(
     """Generate both GHG and health figures."""
     # Load data
     ghg_df = pd.read_csv(ghg_intensity_path)
-    health_df = pd.read_csv(health_impacts_path)
+    health_df = pd.read_csv(health_marginals_path)
 
     # Compute global averages
     global_ghg = compute_global_ghg_averages(ghg_df)
@@ -269,7 +269,7 @@ def main(
 if __name__ == "__main__":
     main(
         ghg_intensity_path=snakemake.input.ghg_intensity,  # type: ignore[name-defined]
-        health_impacts_path=snakemake.input.health_impacts,  # type: ignore[name-defined]
+        health_marginals_path=snakemake.input.health_marginals,  # type: ignore[name-defined]
         ghg_svg_path=snakemake.output.ghg_svg,  # type: ignore[name-defined]
         ghg_png_path=snakemake.output.ghg_png,  # type: ignore[name-defined]
         yll_svg_path=snakemake.output.yll_svg,  # type: ignore[name-defined]

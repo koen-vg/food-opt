@@ -312,7 +312,7 @@ rule doc_fig_analysis_ghg_health:
     """Generate GHG and health impact bar charts for documentation."""
     input:
         ghg_intensity=f"results/{DOC_FIG_NAME}/analysis/scen-default/ghg_intensity.csv",
-        health_impacts=f"results/{DOC_FIG_NAME}/analysis/scen-default/health_impacts.csv",
+        health_marginals=f"results/{DOC_FIG_NAME}/analysis/scen-default/health_marginals.csv",
     output:
         ghg_svg="docs/_static/figures/analysis_marginal_ghg.svg",
         ghg_png="docs/_static/figures/analysis_marginal_ghg.png",
