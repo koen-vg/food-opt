@@ -90,6 +90,9 @@ def multi_cropping_inputs(_wildcards):
             water_supplies = [water_supplies]
         for ws in water_supplies:
             crops_by_supply[ws].update(entry["crops"])
+    yield_kind = (
+        "actual_yield" if config["validation"]["use_actual_yields"] else "yield"
+    )
     inputs = {
         "classes": "processing/{name}/resource_classes.nc",
         "regions": "processing/{name}/regions.geojson",
@@ -98,7 +101,7 @@ def multi_cropping_inputs(_wildcards):
     for ws in ("r", "i"):
         for crop in sorted(crops_by_supply[ws]):
             prefix = f"{crop}_{ws}"
-            inputs[f"{prefix}_yield_raster"] = gaez_path("yield", ws, crop)
+            inputs[f"{prefix}_yield_raster"] = gaez_path(yield_kind, ws, crop)
             inputs[f"{prefix}_suitability_raster"] = gaez_path("suitability", ws, crop)
             inputs[f"{prefix}_growing_season_start_raster"] = gaez_path(
                 "growing_season_start", ws, crop
@@ -120,6 +123,7 @@ def multi_cropping_inputs(_wildcards):
 rule build_multi_cropping:
     input:
         unpack(multi_cropping_inputs),
+        moisture_content="data/crop_moisture_content.csv",
     params:
         combinations=lambda wildcards: config["multiple_cropping"],
         use_actual_yields=config["validation"]["use_actual_yields"],

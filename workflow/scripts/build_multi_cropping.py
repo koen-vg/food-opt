@@ -195,6 +195,7 @@ if __name__ == "__main__":
     classes_nc = inputs.pop("classes")
     regions_path = inputs.pop("regions")
     conv_csv = inputs.pop("yield_unit_conversions")
+    moisture_csv = inputs.pop("moisture_content")
 
     # Group crop rasters by (crop, water_supply)
     crop_files: dict[tuple[str, str], dict[str, str]] = {}
@@ -244,6 +245,12 @@ if __name__ == "__main__":
 
     conv_df = pd.read_csv(conv_csv, comment="#").set_index("code")
     KG_TO_TONNE = 0.001
+
+    # Load moisture content for fresh-to-dry-matter conversion (actual yields only)
+    moisture_lookup: dict[str, float] = {}
+    if use_actual_yields:
+        moisture_df = pd.read_csv(moisture_csv, comment="#").set_index("crop")
+        moisture_lookup = moisture_df["moisture_fraction"].astype(float).to_dict()
 
     ds = xr.load_dataset(classes_nc)
     if "resource_class" not in ds:
@@ -319,7 +326,11 @@ if __name__ == "__main__":
                 f"Growing season length raster for '{crop}' ({ws}) has unexpected dimensions"
             )
 
-        yield_data[(crop, ws)] = y_arr * factor
+        y_scaled = y_arr * factor
+        if use_actual_yields and crop in moisture_lookup:
+            # GAEZ actual yields are fresh weight; convert to dry matter
+            y_scaled = y_scaled * (1.0 - moisture_lookup[crop])
+        yield_data[(crop, ws)] = y_scaled
         suitability_data[(crop, ws)] = scale_fraction(suitability_arr)
         start_data[(crop, ws)] = start_arr
         length_data[(crop, ws)] = length_arr
