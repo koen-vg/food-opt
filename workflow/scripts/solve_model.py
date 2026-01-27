@@ -1184,7 +1184,7 @@ def _run_solve() -> None:
 
     # Create the linopy model
     logger.info("Creating linopy model...")
-    n.optimize.create_model()
+    n.optimize.create_model(include_objective_constant=False)
     logger.info("Linopy model created.")
 
     solver_name = snakemake.params.solver
