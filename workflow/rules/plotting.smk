@@ -71,23 +71,6 @@ rule plot_resource_classes_map:
         "../scripts/plotting/plot_resource_classes_map.py"
 
 
-rule plot_results:
-    input:
-        network="results/{name}/solved/model_scen-{scenario}.nc",
-        crop_production="results/{name}/analysis/scen-{scenario}/crop_production.csv",
-    output:
-        crop_pdf="results/{name}/plots/scen-{scenario}/crop_production.pdf",
-        resource_pdf="results/{name}/plots/scen-{scenario}/resource_usage.pdf",
-        crop_csv="results/{name}/plots/scen-{scenario}/crop_production.csv",
-        food_csv="results/{name}/plots/scen-{scenario}/food_production.csv",
-    params:
-        output_dir="results/{name}/plots/scen-{scenario}",
-    log:
-        "logs/{name}/plot_results_scen-{scenario}.log",
-    script:
-        "../scripts/plotting/plot_results.py"
-
-
 rule plot_objective_breakdown:
     """Plot objective function breakdown from pre-computed analysis."""
     input:

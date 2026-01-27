@@ -65,10 +65,6 @@ ALL_RULE_TARGETS = [
     "results/{name}/plots/system_cost_comparison.csv",
     "results/{name}/plots/relative_risk_curves.pdf",
     # results plots
-    "results/{name}/plots/scen-default/crop_production.pdf",
-    "results/{name}/plots/scen-default/resource_usage.pdf",
-    "results/{name}/plots/scen-default/crop_production.csv",
-    "results/{name}/plots/scen-default/food_production.csv",
     "results/{name}/plots/scen-default/consumption_balance.pdf",
     "results/{name}/plots/scen-default/objective_breakdown.pdf",
     "results/{name}/plots/scen-default/objective_breakdown.csv",
