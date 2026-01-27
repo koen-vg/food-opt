@@ -34,11 +34,11 @@ rule extract_statistics:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",
     output:
-        crop_production="results/{name}/statistics/scen-{scenario}/crop_production.csv",
-        land_use="results/{name}/statistics/scen-{scenario}/land_use.csv",
-        animal_production="results/{name}/statistics/scen-{scenario}/animal_production.csv",
-        food_consumption="results/{name}/statistics/scen-{scenario}/food_consumption.csv",
-        food_group_consumption="results/{name}/statistics/scen-{scenario}/food_group_consumption.csv",
+        crop_production="results/{name}/analysis/scen-{scenario}/crop_production.csv",
+        land_use="results/{name}/analysis/scen-{scenario}/land_use.csv",
+        animal_production="results/{name}/analysis/scen-{scenario}/animal_production.csv",
+        food_consumption="results/{name}/analysis/scen-{scenario}/food_consumption.csv",
+        food_group_consumption="results/{name}/analysis/scen-{scenario}/food_group_consumption.csv",
     log:
         "logs/{name}/extract_statistics_scen-{scenario}.log",
     script:

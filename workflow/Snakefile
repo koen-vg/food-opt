@@ -107,6 +107,12 @@ SOLVE_ALL_SCENARIOS_TARGETS = [
     f"results/{{name}}/solved/model_scen-{scenario}.nc" for scenario in list_scenarios()
 ]
 
+# Extract statistics for all configured scenarios.
+EXTRACT_ALL_STATISTICS_TARGETS = [
+    f"results/{{name}}/analysis/scen-{scenario}/crop_production.csv"
+    for scenario in list_scenarios()
+]
+
 # Dynamically add targets for all comparison scenarios
 # This ensures all prerequisite files are generated for comparison plots
 # comparison_scenarios is defined in plotting.smk (loaded above via include)
@@ -127,3 +133,8 @@ rule all:
 rule solve_all_scenarios:
     input:
         expand(SOLVE_ALL_SCENARIOS_TARGETS, name=[name]),
+
+
+rule extract_all_statistics:
+    input:
+        expand(EXTRACT_ALL_STATISTICS_TARGETS, name=[name]),
