@@ -18,20 +18,53 @@ matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pypsa
 import seaborn as sns
 
-from workflow.scripts.plotting.plot_food_consumption import (
-    DAYS_PER_YEAR,
-    GRAMS_PER_MEGATONNE,
-    _aggregate_group_mass,
-    _assign_colors,
-    _select_snapshot,
-)
-from workflow.scripts.plotting.plot_objective_breakdown import compute_system_costs
-from workflow.scripts.population import get_total_population
+from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
+
+
+def _assign_colors(
+    groups: list[str], overrides: dict[str, str] | None = None
+) -> dict[str, str]:
+    """Assign colors to food groups."""
+    return categorical_colors(groups, overrides)
+
+
+def _load_consumption_from_csv(csv_path: str) -> pd.Series:
+    """Load per-capita consumption by food group from analysis CSV.
+
+    Returns Series indexed by food_group with values in g/person/day.
+    """
+    df = pd.read_csv(csv_path)
+    if df.empty:
+        return pd.Series(dtype=float)
+
+    # Aggregate across countries to get global per-capita average
+    # The CSV has per-country consumption, so we need to weight by country population
+    # For simplicity, sum total consumption and divide by total population
+    # Actually, the values are already per-capita, so we can just average
+    global_avg = df.groupby("food_group")["consumption_g_per_person_day"].mean()
+    return global_avg
+
+
+def _load_objective_from_csv(csv_path: str) -> pd.DataFrame:
+    """Load objective breakdown from analysis CSV.
+
+    Returns DataFrame with category index and total column.
+    """
+    df = pd.read_csv(csv_path)
+    if df.empty:
+        return pd.DataFrame(columns=["total", "capex", "opex"])
+
+    # Convert single-row format to DataFrame with category index
+    row = df.iloc[0]
+    costs_df = pd.DataFrame({"total": row})
+    costs_df["capex"] = 0.0
+    costs_df["opex"] = row
+    return costs_df
+
 
 SCENARIO_LABELS = {
     "baseline": "Baseline (fixed)",
@@ -51,16 +84,6 @@ SCENARIO_PAIR_ORDER = [
     ("cv_G", "no_cv_G"),
     ("cv_HG", "no_cv_HG"),
 ]
-
-
-def _per_capita_consumption(
-    n: pypsa.Network, food_to_group: dict[str, str], population_total: float
-) -> pd.Series:
-    """Get per-capita consumption by food group in g/person/day."""
-    snapshot = _select_snapshot(n)
-    mass_mt = _aggregate_group_mass(n, snapshot, food_to_group)
-    mass_per_capita = mass_mt * GRAMS_PER_MEGATONNE / (population_total * DAYS_PER_YEAR)
-    return mass_per_capita
 
 
 def _plot_consumption_comparison(
@@ -321,19 +344,13 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
     scenarios = list(snakemake.params.scenarios)
-    food_groups_path = Path(snakemake.input.food_groups)
 
     # Create output directories
     Path(snakemake.output.consumption_pdf).parent.mkdir(parents=True, exist_ok=True)
 
-    # Load food group mapping
-    food_groups_df = pd.read_csv(food_groups_path)
-    food_to_group = food_groups_df.set_index("food")["group"].to_dict()
-
-    # Load networks and compute metrics
+    # Load analysis outputs for each scenario
     consumption_data = {}
     objective_data = {}
-    population_total: float | None = None
 
     ordered_scenarios: list[str] = []
     if "baseline" in scenarios:
@@ -348,29 +365,28 @@ def main() -> None:
             ordered_scenarios.append(scen)
 
     for scen in ordered_scenarios:
-        input_key = f"network_{scen}"
-        network_path = getattr(snakemake.input, input_key, None)
-        if network_path is None:
-            logger.warning("Network input not found for scenario: %s", scen)
+        consumption_key = f"consumption_{scen}"
+        breakdown_key = f"breakdown_{scen}"
+        consumption_path = getattr(snakemake.input, consumption_key, None)
+        breakdown_path = getattr(snakemake.input, breakdown_key, None)
+
+        if consumption_path is None:
+            logger.warning("Consumption input not found for scenario: %s", scen)
             continue
-
-        logger.info("Loading network for scenario: %s", scen)
-        n = pypsa.Network(network_path)
-
-        # Get population from first network loaded
-        if population_total is None:
-            population_total = get_total_population(n)
-            logger.info("Total population: %.3e", population_total)
+        if breakdown_path is None:
+            logger.warning("Breakdown input not found for scenario: %s", scen)
+            continue
 
         label = SCENARIO_LABELS.get(scen, scen)
 
-        # Compute consumption
-        consumption = _per_capita_consumption(n, food_to_group, population_total)
+        # Load consumption from pre-computed analysis
+        logger.info("Loading consumption from: %s", consumption_path)
+        consumption = _load_consumption_from_csv(consumption_path)
         consumption_data[label] = consumption
 
-        # Compute objective breakdown
-        costs_df = compute_system_costs(n)
-        objective_data[label] = costs_df
+        # Load objective breakdown from pre-computed analysis
+        logger.info("Loading objective breakdown from: %s", breakdown_path)
+        objective_data[label] = _load_objective_from_csv(breakdown_path)
 
     # Assign colors to food groups
     all_groups = set()

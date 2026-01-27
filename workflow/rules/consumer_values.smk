@@ -35,11 +35,16 @@ if not CV_SCENARIOS:
 
 
 def consumer_values_comparison_inputs(wildcards):
-    """Get networks for consumer values comparison."""
-    return {
-        f"network_{scen}": f"results/{wildcards.name}/solved/model_scen-{scen}.nc"
-        for scen in CV_SCENARIOS
-    }
+    """Get analysis outputs for consumer values comparison."""
+    inputs = {}
+    for scen in CV_SCENARIOS:
+        inputs[f"consumption_{scen}"] = (
+            f"results/{wildcards.name}/analysis/scen-{scen}/food_group_consumption.csv"
+        )
+        inputs[f"breakdown_{scen}"] = (
+            f"results/{wildcards.name}/analysis/scen-{scen}/objective_breakdown.csv"
+        )
+    return inputs
 
 
 rule plot_consumer_values_comparison:
@@ -47,7 +52,6 @@ rule plot_consumer_values_comparison:
     input:
         unpack(consumer_values_comparison_inputs),
         consumer_values="results/{name}/consumer_values/values.csv",
-        food_groups="data/food_groups.csv",
     output:
         consumption_pdf="results/{name}/plots/consumer_values/consumption_comparison.pdf",
         consumption_csv="results/{name}/plots/consumer_values/consumption_comparison.csv",

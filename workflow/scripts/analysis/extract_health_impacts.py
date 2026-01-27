@@ -346,8 +346,9 @@ def add_monetary_value(df: pd.DataFrame, value_per_yll: float) -> pd.DataFrame:
 def extract_yll_totals(n: pypsa.Network) -> pd.DataFrame:
     """Extract total YLL by health cluster from network stores.
 
-    YLL stores have carriers like 'yll_cluster_0', 'yll_cluster_1', etc.
-    The store's energy level (e) at the final snapshot gives total YLL.
+    YLL stores have carriers like 'yll_CHD', 'yll_Stroke', etc. and a
+    'health_cluster' metadata column. The store's energy level (e) at the
+    final snapshot gives total YLL for that (cluster, cause) pair.
 
     Parameters
     ----------
@@ -359,7 +360,6 @@ def extract_yll_totals(n: pypsa.Network) -> pd.DataFrame:
     DataFrame with columns: health_cluster, yll_myll
         Total YLL in millions (MYLL) by health cluster.
     """
-    # Find YLL stores by carrier pattern
     stores = n.stores.static
     yll_mask = stores["carrier"].str.startswith("yll_")
 
@@ -369,28 +369,27 @@ def extract_yll_totals(n: pypsa.Network) -> pd.DataFrame:
 
     yll_stores = stores[yll_mask].copy()
 
-    # Extract cluster ID from carrier (e.g., 'yll_cluster_0' -> 0)
-    yll_stores["health_cluster"] = (
-        yll_stores["carrier"].str.replace("yll_cluster_", "").astype(int)
-    )
+    if "health_cluster" not in yll_stores.columns:
+        logger.warning("YLL stores missing 'health_cluster' column")
+        return pd.DataFrame(columns=["health_cluster", "yll_myll"])
 
     # Get energy level at final snapshot
     snapshot = n.snapshots[-1]
     e = n.stores.dynamic.e.loc[snapshot]
 
-    # Build result
-    records = []
-    for store_name, row in yll_stores.iterrows():
-        cluster = row["health_cluster"]
-        # Store e is in the model's unit (YLL), convert to MYLL
-        yll_value = e.get(store_name, 0.0)
-        records.append({"health_cluster": cluster, "yll_myll": yll_value / 1e6})
+    # Collect YLL per store, then aggregate by cluster
+    yll_stores["yll"] = yll_stores.index.map(lambda s: e.get(s, 0.0))
 
-    result = pd.DataFrame(records)
-    if not result.empty:
-        result = result.sort_values("health_cluster").reset_index(drop=True)
+    result = (
+        yll_stores.groupby("health_cluster")["yll"]
+        .sum()
+        .reset_index()
+        .rename(columns={"yll": "yll_myll"})
+    )
+    # Convert from model units (million YLL) to MYLL (already in MYLL)
+    # Note: model stores are in million YLL, so no conversion needed
 
-    return result
+    return result.sort_values("health_cluster").reset_index(drop=True)
 
 
 def main() -> None:

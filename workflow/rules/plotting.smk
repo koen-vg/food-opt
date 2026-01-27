@@ -89,24 +89,9 @@ rule plot_results:
 
 
 rule plot_objective_breakdown:
+    """Plot objective function breakdown from pre-computed analysis."""
     input:
-        network="results/{name}/solved/model_scen-{scenario}.nc",
-        risk_breakpoints="processing/{name}/health/scen-{scenario}/risk_breakpoints.csv",
-        health_cluster_cause="processing/{name}/health/scen-{scenario}/cluster_cause_baseline.csv",
-        health_cause_log="processing/{name}/health/scen-{scenario}/cause_log_breakpoints.csv",
-        health_cluster_summary="processing/{name}/health/scen-{scenario}/cluster_summary.csv",
-        health_clusters="processing/{name}/health/scen-{scenario}/country_clusters.csv",
-        health_cluster_risk_baseline="processing/{name}/health/scen-{scenario}/cluster_risk_baseline.csv",
-        population="processing/{name}/population.csv",
-        food_groups="data/food_groups.csv",
-    params:
-        ghg_price=lambda w: get_effective_config(w.scenario)["emissions"]["ghg_price"],
-        health_risk_factors=config["health"]["risk_factors"],
-        # Convert from USD/YLL -> bnUSD/YLL for objective consistency
-        health_value_per_yll=lambda w: float(
-            get_effective_config(w.scenario)["health"]["value_per_yll"]
-        )
-        * 1e-9,
+        objective_breakdown="results/{name}/analysis/scen-{scenario}/objective_breakdown.csv",
     output:
         breakdown_pdf="results/{name}/plots/scen-{scenario}/objective_breakdown.pdf",
         breakdown_csv="results/{name}/plots/scen-{scenario}/objective_breakdown.csv",

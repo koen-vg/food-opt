@@ -9,17 +9,22 @@ function, grouped into high-level categories. The output enables analysis
 of how different cost drivers contribute to the total system cost.
 
 Categories extracted:
-- Crop production: Land use and yield-related costs (including grassland, spare land)
-- Trade: Import/export costs
-- Fertilizer: Synthetic fertilizer costs
-- Processing: Food processing/conversion costs (including pathways)
+- Crop production: Land use and yield-related costs (including grassland, spare land,
+  residue incorporation, spared land stores)
+- Land use: Existing land use links
+- Trade: Import/export costs (crops, foods, feed)
+- Fertilizer: Synthetic fertilizer supply and distribution
+- Processing: Food processing/conversion costs (pathways, food conversion)
 - Animal production: Livestock production costs
 - Feed conversion: Feed processing costs
+- Consumption: Food consumption links
 - Consumer values: Utility from food group consumption (typically negative)
 - Biomass exports: Revenue from biomass exports (typically negative)
-- Biomass routing: Internal biomass flow costs
+- Biomass routing: Internal biomass flow costs (residue conversion)
 - Health burden: Health costs from YLL stores
 - GHG cost: Emissions costs from GHG stores
+- Emissions aggregation: Links aggregating emissions to GHG bus
+- Water: Water stores
 - Slack penalties: Constraint violation penalties (ideally zero)
 - Resource supply: Land and resource generators (usually zero cost)
 - Nutrient tracking: Nutrient stores (usually zero cost)
@@ -83,6 +88,9 @@ def _objective_category(n: pypsa.Network, component: str, **_) -> pd.Series:
             carrier = str(carriers.get(name, "")) if not carriers.empty else ""
             if name_str.startswith("biomass:"):
                 categories.append("Biomass exports")
+            elif name_str.startswith("sink:"):
+                # Sink generators (e.g., biomass sinks) - revenue from exports
+                categories.append("Biomass exports")
             elif name_str.startswith("slack:"):
                 categories.append("Slack penalties")
             elif carrier == "fertilizer":
@@ -101,7 +109,11 @@ def _objective_category(n: pypsa.Network, component: str, **_) -> pd.Series:
         prefix_map = {
             "produce": "Crop production",
             "trade": "Trade",
+            "trade_food": "Trade",
+            "trade_feed": "Trade",
             "convert": "Processing",
+            "convert_food": "Processing",
+            "convert_residue": "Biomass routing",
             "consume": "Consumption",
             "animal": "Animal production",
             "pathway": "Processing",
@@ -109,6 +121,10 @@ def _objective_category(n: pypsa.Network, component: str, **_) -> pd.Series:
             "feed": "Feed conversion",
             "grassland": "Crop production",
             "spare": "Crop production",
+            "aggregate": "Emissions aggregation",
+            "distribute": "Fertilizer",
+            "incorporate": "Crop production",
+            "use": "Land use",
         }
         categories = []
         for name in index:
@@ -125,6 +141,7 @@ def _objective_category(n: pypsa.Network, component: str, **_) -> pd.Series:
 
     if component == "Store":
         carriers = static["carrier"].astype(str)
+        nutrient_carriers = {"cal", "carb", "fat", "protein"}
         categories = []
         for name, carrier in zip(index, carriers):
             if carrier == "ghg":
@@ -133,9 +150,15 @@ def _objective_category(n: pypsa.Network, component: str, **_) -> pd.Series:
                 categories.append("Health burden")
             elif carrier.startswith("group_"):
                 categories.append("Consumer values")
-            elif carrier.startswith("nutrient_"):
+            elif carrier.startswith("nutrient_") or carrier in nutrient_carriers:
                 # Nutrient stores (protein, fat, carb, cal) - usually no cost
                 categories.append("Nutrient tracking")
+            elif carrier == "water":
+                categories.append("Water")
+            elif carrier == "fertilizer":
+                categories.append("Fertilizer")
+            elif carrier == "spared_land":
+                categories.append("Crop production")
             else:
                 raise ValueError(
                     f"Unrecognized Store carrier: '{carrier}' for store '{name}'. "
@@ -243,6 +266,9 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
         "Slack penalties": "slack_penalties",
         "Resource supply": "resource_supply",
         "Nutrient tracking": "nutrient_tracking",
+        "Emissions aggregation": "emissions_aggregation",
+        "Land use": "land_use",
+        "Water": "water",
     }
     result = result.rename(columns=column_map)
 

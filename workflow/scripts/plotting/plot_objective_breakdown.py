@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Generate an objective breakdown plot with updated emissions accounting."""
+"""Plot objective breakdown from pre-computed analysis data."""
 
 from collections.abc import Iterable
 import logging
@@ -15,167 +15,56 @@ matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pypsa
 
 logger = logging.getLogger(__name__)
 
-# Global mass unit conversion: tonne to megatonne
-TONNE_TO_MEGATONNE = 1e-6
+# Human-readable labels for category columns
+CATEGORY_LABELS = {
+    "crop_production": "Crop production",
+    "trade": "Trade",
+    "fertilizer": "Fertilizer",
+    "processing": "Processing",
+    "consumption": "Consumption",
+    "animal_production": "Animal production",
+    "feed_conversion": "Feed conversion",
+    "consumer_values": "Consumer values",
+    "biomass_exports": "Biomass exports",
+    "biomass_routing": "Biomass routing",
+    "health_burden": "Health",
+    "ghg_cost": "GHG cost",
+    "slack_penalties": "Slack penalties",
+    "resource_supply": "Resource supply",
+    "nutrient_tracking": "Nutrient tracking",
+    "emissions_aggregation": "Emissions aggregation",
+    "land_use": "Land use",
+    "water": "Water",
+}
 
 
-def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Series:
-    """Group assets into high-level categories for system cost aggregation."""
+def load_objective_breakdown(csv_path: Path) -> pd.Series:
+    """Load objective breakdown from analysis CSV.
 
-    static = n.components[component].static
-    if static.empty:
-        return pd.Series(dtype="object")
-
-    index = static.index
-    if component == "Generator":
-        # Separate biomass exports so they don't get netted out inside the
-        # generic "Generator" bucket.
-        carriers = static.get("carrier", pd.Series(dtype=str))
-        categories = []
-        for name in index:
-            carrier = str(carriers.get(name, "")) if not carriers.empty else ""
-            if carrier == "biomass_for_energy":
-                categories.append("Biomass exports")
-            elif carrier.startswith("slack"):
-                categories.append("Slack penalties")
-            elif carrier == "fertilizer":
-                categories.append("Fertilizer (synthetic)")
-            else:
-                categories.append("Other")
-        return pd.Series(categories, index=index, name="category")
-
-    if component == "Link":
-        # Direct carrier-to-category mapping using standardized carrier names
-        carrier_mapping = {
-            "crop_production": "Crop production",
-            "crop_production_multi": "Crop production",
-            "grassland_production": "Crop production",
-            "animal_production": "Animal production",
-            "food_consumption": "Consumption",
-            "food_processing": "Processing",
-            "feed_conversion": "Processing",
-            "trade_crop": "Trade",
-            "trade_food": "Trade",
-            "trade_feed": "Trade",
-            "biomass_crop": "Biomass routing",
-            "biomass_byproduct": "Biomass routing",
-        }
-        carriers = static.get("carrier", pd.Series(dtype=str))
-        categories = []
-        for name in index:
-            carrier = str(carriers.get(name, "")) if not carriers.empty else ""
-            categories.append(carrier_mapping.get(carrier, "Other"))
-        return pd.Series(categories, index=index, name="category")
-
-    if component == "Store":
-        carriers = static["carrier"].astype(str)
-        nutrients = static.get("nutrient", pd.Series(index=index, dtype=object))
-        food_groups = static.get("food_group", pd.Series(index=index, dtype=object))
-
-        def _has_value(value: object) -> bool:
-            return bool(str(value).strip())
-
-        categories = []
-        for name, carrier, nutrient, food_group in zip(
-            index, carriers, nutrients, food_groups
-        ):
-            name_str = str(name)
-            if carrier == "ghg" or name_str == "ghg":
-                categories.append("GHG storage")
-            elif carrier.startswith("yll_"):
-                categories.append(f"Health ({carrier.removeprefix('yll_')})")
-            elif _has_value(food_group) or carrier.startswith("group_"):
-                categories.append("Consumer values (food groups)")
-            elif _has_value(nutrient):
-                categories.append("Macronutrient stores")
-            elif carrier == "water":
-                categories.append("Water storage")
-            elif carrier == "fertilizer":
-                categories.append("Fertilizer storage")
-            elif carrier == "spared_land":
-                categories.append("Spared land")
-            else:
-                categories.append("Store")
-        return pd.Series(categories, index=index, name="category")
-
-    return pd.Series(component, index=index, name="category")
-
-
-def compute_system_costs(n: pypsa.Network) -> pd.Series:
-    """Aggregate system costs by the objective categories defined above."""
-    capex = n.statistics.capex(groupby=objective_category)
-    opex = n.statistics.opex(groupby=objective_category)
-
-    def _to_series(df_or_series: pd.Series | pd.DataFrame) -> pd.Series:
-        if isinstance(df_or_series, pd.DataFrame):
-            df_or_series = df_or_series.iloc[:, 0]
-        if df_or_series.empty:
-            return pd.Series(dtype=float)
-        idx = df_or_series.index
-        if "category" not in idx.names:
-            idx = idx.set_names([*list(idx.names[:-1]), "category"])
-            df_or_series.index = idx
-        return df_or_series.groupby("category").sum()
-
-    capex_series = _to_series(capex)
-    opex_series = _to_series(opex)
-
-    total = capex_series.add(opex_series, fill_value=0.0)
-    combined = pd.DataFrame(
-        {
-            "capex": capex_series,
-            "opex": opex_series,
-            "total": total,
-        }
-    ).fillna(0.0)
-
-    return combined.sort_values("total", key=np.abs, ascending=False)
-
-
-def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, float]:
-    """Return the objective contribution from the priced GHG store.
-
-    Assumes:
-    - GHG store level in MtCO2-eq
-    - `ghg_price` in USD per tCO2-eq (config currency_year)
-    - Objective units in bnUSD (model-wide)
+    The analysis CSV has a single row with category columns.
+    Returns a Series with human-readable category names as index.
     """
+    df = pd.read_csv(csv_path)
+    if df.empty:
+        return pd.Series(dtype=float)
 
-    if len(n.snapshots) == 0:
-        return {}
+    # Convert single row to Series
+    row = df.iloc[0]
 
-    snapshot = n.snapshots[-1]
-    if snapshot not in n.stores.dynamic.e.index:
-        return {}
+    # Rename columns to human-readable labels
+    result = {}
+    for col, value in row.items():
+        label = CATEGORY_LABELS.get(col, col.replace("_", " ").title())
+        result[label] = float(value)
 
-    store_levels = n.stores.dynamic.e.loc[snapshot]
-    if "ghg" not in store_levels.index:
-        return {}
-
-    level_mt = float(store_levels["ghg"])
-    if level_mt == 0.0:
-        return {}
-
-    # Convert: [USD/tCO2] * [MtCO2] * [1e6 t/Mt] * [1e-9 bnUSD/USD] => bnUSD
-    # = USD/tCO2 * MtCO2 * 1e-3 => bnUSD
-    contribution = ghg_price * level_mt / TONNE_TO_MEGATONNE / 1e9
-    label = "GHG pricing (CO₂-eq)"
-    logger.info(
-        "Computed %s contribution %.3e bnUSD (level %.3e MtCO2-eq, price %.2f USD/tCO2-eq)",
-        label,
-        contribution,
-        level_mt,
-        ghg_price,
-    )
-    return {label: contribution}
+    return pd.Series(result)
 
 
 def choose_scale(values: Iterable[float]) -> tuple[float, str]:
-    """Choose appropriate scale for cost values in billion USD (bnUSD)."""
+    """Choose appropriate scale for cost values in billion USD."""
     max_val = max((abs(v) for v in values), default=1.0)
     if max_val >= 1e9:
         return 1e9, "quintillion USD"
@@ -187,9 +76,18 @@ def choose_scale(values: Iterable[float]) -> tuple[float, str]:
 
 
 def plot_cost_breakdown(series: pd.Series, output_path: Path) -> None:
+    """Create bar chart of cost breakdown by category."""
     if series.empty:
         logger.warning("No cost data available for plotting")
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.text(0.5, 0.5, "No data", ha="center", va="center")
+        ax.axis("off")
+        fig.savefig(output_path, bbox_inches="tight", dpi=300)
+        plt.close(fig)
         return
+
+    # Sort by absolute value
+    series = series.sort_values(key=np.abs, ascending=False)
 
     scale, label = choose_scale(series.values)
     values = series / scale
@@ -220,44 +118,33 @@ def plot_cost_breakdown(series: pd.Series, output_path: Path) -> None:
 
 
 def main() -> None:
-    n = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
-    logger.info("Loaded network with objective %.3e", n.objective)
+    input_csv = Path(snakemake.input.objective_breakdown)  # type: ignore[name-defined]
+    output_pdf = Path(snakemake.output.breakdown_pdf)  # type: ignore[name-defined]
+    output_csv = Path(snakemake.output.breakdown_csv)  # type: ignore[name-defined]
 
-    system_costs = compute_system_costs(n)
-    ghg_store_cost = 0.0
-    if "GHG storage" in system_costs.index:
-        ghg_store_cost = float(system_costs.loc["GHG storage", "total"])
-        system_costs = system_costs.drop(index="GHG storage")
-        if ghg_store_cost != 0.0:
-            logger.info(
-                "Removed 'GHG storage' category contribution %.3e USD to avoid double counting priced emissions",
-                ghg_store_cost,
-            )
+    logger.info("Loading objective breakdown from %s", input_csv)
+    costs = load_objective_breakdown(input_csv)
 
-    total_series = system_costs["total"].copy()
+    # Filter out negligible costs
+    costs = costs[costs.abs() > 1e-9]
 
-    # Add priced greenhouse gas emissions
-    ghg_price = float(snakemake.params.ghg_price)
-    ghg_terms = compute_ghg_cost_breakdown(n, ghg_price)
-    if ghg_terms:
-        for label, value in ghg_terms.items():
-            total_series.loc[label] = value
-            system_costs.loc[label, ["capex", "opex", "total"]] = [0.0, value, value]
+    # Sort by absolute value
+    costs = costs.sort_values(key=np.abs, ascending=False)
 
-    total_series = total_series.sort_values(key=np.abs, ascending=False)
-    system_costs = system_costs.loc[total_series.index]
-
-    breakdown_csv = Path(snakemake.output.breakdown_csv)  # type: ignore[attr-defined]
-    breakdown_pdf = Path(snakemake.output.breakdown_pdf)
-    breakdown_csv.parent.mkdir(parents=True, exist_ok=True)
-
-    out_df = system_costs.rename(
-        columns={"capex": "capex_bnusd", "opex": "opex_bnusd", "total": "total_bnusd"}
+    logger.info(
+        "Loaded %d cost categories, total: %.4f bn USD", len(costs), costs.sum()
     )
-    out_df.to_csv(breakdown_csv)
-    logger.info("Wrote objective breakdown table to %s", breakdown_csv)
-    plot_cost_breakdown(total_series, breakdown_pdf)
-    logger.info("Wrote objective breakdown plot to %s", breakdown_pdf)
+
+    # Write CSV in format expected by downstream scripts (index=category, total_bnusd column)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    out_df = pd.DataFrame({"total_bnusd": costs})
+    out_df.index.name = "category"
+    out_df.to_csv(output_csv)
+    logger.info("Wrote objective breakdown to %s", output_csv)
+
+    # Create plot
+    plot_cost_breakdown(costs, output_pdf)
+    logger.info("Wrote objective breakdown plot to %s", output_pdf)
 
 
 if __name__ == "__main__":
