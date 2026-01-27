@@ -308,19 +308,20 @@ rule doc_fig_workflow_rulegraph:
         "../scripts/doc_figures/render_graph.py"
 
 
-rule doc_fig_analysis_marginal_damages:
-    """Generate marginal damages bar charts for documentation."""
+rule doc_fig_analysis_ghg_health:
+    """Generate GHG and health impact bar charts for documentation."""
     input:
-        marginal_damages=f"results/{DOC_FIG_NAME}/analysis/scen-default/marginal_damages.csv",
+        ghg_intensity=f"results/{DOC_FIG_NAME}/analysis/scen-default/ghg_intensity.csv",
+        health_impacts=f"results/{DOC_FIG_NAME}/analysis/scen-default/health_impacts.csv",
     output:
         ghg_svg="docs/_static/figures/analysis_marginal_ghg.svg",
         ghg_png="docs/_static/figures/analysis_marginal_ghg.png",
         yll_svg="docs/_static/figures/analysis_marginal_yll.svg",
         yll_png="docs/_static/figures/analysis_marginal_yll.png",
     log:
-        "logs/shared/doc_fig_analysis_marginal_damages.log",
+        "logs/shared/doc_fig_analysis_ghg_health.log",
     script:
-        "../scripts/doc_figures/analysis_marginal_damages.py"
+        "../scripts/doc_figures/analysis_ghg_health.py"
 
 
 rule doc_fig_health_clusters:

@@ -446,17 +446,18 @@ rule plot_consumption_balance:
         "../scripts/plotting/plot_consumption_balance.py"
 
 
-rule plot_marginal_damages_global:
+rule plot_ghg_health_global:
     """Plot consumption-weighted global average GHG and YLL by food group."""
     input:
-        marginal_damages="results/{name}/analysis/scen-{scenario}/marginal_damages.csv",
+        ghg_intensity="results/{name}/analysis/scen-{scenario}/ghg_intensity.csv",
+        health_impacts="results/{name}/analysis/scen-{scenario}/health_impacts.csv",
     output:
         ghg_pdf="results/{name}/plots/scen-{scenario}/marginal_ghg_global.pdf",
         yll_pdf="results/{name}/plots/scen-{scenario}/marginal_yll_global.pdf",
-        csv="results/{name}/plots/scen-{scenario}/marginal_damages_global.csv",
+        csv="results/{name}/plots/scen-{scenario}/ghg_health_global.csv",
     params:
         group_colors=food_group_colors,
     log:
-        "logs/{name}/plot_marginal_damages_global_scen-{scenario}.log",
+        "logs/{name}/plot_ghg_health_global_scen-{scenario}.log",
     script:
-        "../scripts/plotting/plot_marginal_damages_global.py"
+        "../scripts/plotting/plot_ghg_health_global.py"

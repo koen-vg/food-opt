@@ -107,10 +107,15 @@ SOLVE_ALL_SCENARIOS_TARGETS = [
     f"results/{{name}}/solved/model_scen-{scenario}.nc" for scenario in list_scenarios()
 ]
 
-# Extract statistics for all configured scenarios.
-EXTRACT_ALL_STATISTICS_TARGETS = [
-    f"results/{{name}}/analysis/scen-{scenario}/crop_production.csv"
+# Run analysis for all configured scenarios.
+ANALYZE_ALL_SCENARIOS_TARGETS = [
+    f"results/{{name}}/analysis/scen-{scenario}/{output}"
     for scenario in list_scenarios()
+    for output in [
+        "crop_production.csv",
+        "ghg_intensity.csv",
+        "health_impacts.csv",
+    ]
 ]
 
 # Dynamically add targets for all comparison scenarios
@@ -135,6 +140,6 @@ rule solve_all_scenarios:
         expand(SOLVE_ALL_SCENARIOS_TARGETS, name=[name]),
 
 
-rule extract_all_statistics:
+rule analyze_all_scenarios:
     input:
-        expand(EXTRACT_ALL_STATISTICS_TARGETS, name=[name]),
+        expand(ANALYZE_ALL_SCENARIOS_TARGETS, name=[name]),

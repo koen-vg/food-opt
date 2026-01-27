@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Generate documentation figures for marginal damages analysis.
+"""Generate documentation figures for GHG and health analysis.
 
 Creates horizontal bar charts showing consumption-weighted global averages
 of GHG intensity and health impacts by food group.
@@ -57,34 +57,64 @@ FOOD_GROUP_COLORS = {
 }
 
 
-def compute_global_averages(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute consumption-weighted global averages by food group."""
+def compute_global_ghg_averages(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute consumption-weighted global GHG averages by food group."""
     df = df[df["consumption_mt"] > 0].copy()
 
     if df.empty:
         return pd.DataFrame(
-            columns=["food_group", "consumption_mt", "ghg_kgco2e_per_kg", "yll_per_kg"]
+            columns=["food_group", "consumption_mt", "ghg_kgco2e_per_kg"]
         )
 
     def weighted_avg(group: pd.DataFrame) -> pd.Series:
         total_consumption = group["consumption_mt"].sum()
         ghg_weighted = (
-            group["ghg_mtco2e_per_mt"] * group["consumption_mt"]
-        ).sum() / total_consumption
-        yll_weighted = (
-            group["yll_myll_per_mt"] * group["consumption_mt"]
+            group["ghg_kgco2e_per_kg"] * group["consumption_mt"]
         ).sum() / total_consumption
         return pd.Series(
             {
                 "consumption_mt": total_consumption,
-                # MtCO2e/Mt = kgCO2e/kg (same ratio)
                 "ghg_kgco2e_per_kg": ghg_weighted,
-                # mYLL/Mt to YLL/kg: 1e6 YLL / 1e9 kg = 1e-3 YLL/kg
-                "yll_per_kg": yll_weighted * 1e-3,
             }
         )
 
     result = df.groupby("food_group").apply(weighted_avg, include_groups=False)
+    return result.reset_index()
+
+
+def compute_global_health_averages(
+    health_df: pd.DataFrame, ghg_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Compute consumption-weighted global health averages by food group."""
+    if health_df.empty:
+        return pd.DataFrame(columns=["food_group", "yll_per_kg"])
+
+    # Aggregate consumption to (country, food_group) level from ghg_df
+    consumption_by_group = (
+        ghg_df.groupby(["country", "food_group"])["consumption_mt"].sum().reset_index()
+    )
+
+    # Merge with health data
+    merged = health_df.merge(
+        consumption_by_group, on=["country", "food_group"], how="left"
+    )
+    merged["consumption_mt"] = merged["consumption_mt"].fillna(0.0)
+
+    # Filter to positive consumption
+    merged = merged[merged["consumption_mt"] > 0].copy()
+
+    if merged.empty:
+        return pd.DataFrame(columns=["food_group", "yll_per_kg"])
+
+    # Consumption-weighted average by food group
+    def weighted_avg(group: pd.DataFrame) -> pd.Series:
+        total_consumption = group["consumption_mt"].sum()
+        # yll_per_mt to yll_per_kg: divide by 1e9 (Mt to kg)
+        yll_per_kg = group["yll_per_mt"] / 1e9
+        yll_weighted = (yll_per_kg * group["consumption_mt"]).sum() / total_consumption
+        return pd.Series({"yll_per_kg": yll_weighted})
+
+    result = merged.groupby("food_group").apply(weighted_avg, include_groups=False)
     return result.reset_index()
 
 
@@ -215,27 +245,31 @@ def plot_yll_bar(
 
 
 def main(
-    marginal_damages_path: str,
+    ghg_intensity_path: str,
+    health_impacts_path: str,
     ghg_svg_path: str,
     ghg_png_path: str,
     yll_svg_path: str,
     yll_png_path: str,
 ) -> None:
-    """Generate both marginal damage figures."""
+    """Generate both GHG and health figures."""
     # Load data
-    df = pd.read_csv(marginal_damages_path)
+    ghg_df = pd.read_csv(ghg_intensity_path)
+    health_df = pd.read_csv(health_impacts_path)
 
     # Compute global averages
-    global_avg = compute_global_averages(df)
+    global_ghg = compute_global_ghg_averages(ghg_df)
+    global_health = compute_global_health_averages(health_df, ghg_df)
 
     # Generate plots
-    plot_ghg_bar(global_avg, ghg_svg_path, ghg_png_path)
-    plot_yll_bar(global_avg, yll_svg_path, yll_png_path)
+    plot_ghg_bar(global_ghg, ghg_svg_path, ghg_png_path)
+    plot_yll_bar(global_health, yll_svg_path, yll_png_path)
 
 
 if __name__ == "__main__":
     main(
-        marginal_damages_path=snakemake.input.marginal_damages,  # type: ignore[name-defined]
+        ghg_intensity_path=snakemake.input.ghg_intensity,  # type: ignore[name-defined]
+        health_impacts_path=snakemake.input.health_impacts,  # type: ignore[name-defined]
         ghg_svg_path=snakemake.output.ghg_svg,  # type: ignore[name-defined]
         ghg_png_path=snakemake.output.ghg_png,  # type: ignore[name-defined]
         yll_svg_path=snakemake.output.yll_svg,  # type: ignore[name-defined]

@@ -1,0 +1,385 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Extract health impacts (marginal YLL) by food group and country.
+
+This script computes marginal years of life lost per unit of food consumed,
+based on the derivative of piecewise-linear dose-response curves at current
+population intake levels.
+
+Uses food_group_consumption.csv from extract_statistics for consumption amounts,
+avoiding duplicate extraction of consumption data from the network.
+
+Output: health_impacts.csv at the food_group level (risk factors).
+"""
+
+from collections import defaultdict
+from dataclasses import dataclass
+import logging
+from math import exp
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PER_100K
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class HealthData:
+    """Container for health-related input data."""
+
+    risk_breakpoints: pd.DataFrame
+    cluster_cause: pd.DataFrame
+    cause_log_breakpoints: pd.DataFrame
+    country_clusters: pd.DataFrame
+    population: pd.DataFrame
+
+
+def load_health_data(inputs: dict) -> HealthData:
+    """Load health data files from snakemake inputs."""
+    return HealthData(
+        risk_breakpoints=pd.read_csv(inputs["risk_breakpoints"]),
+        cluster_cause=pd.read_csv(inputs["health_cluster_cause"]),
+        cause_log_breakpoints=pd.read_csv(inputs["health_cause_log"]),
+        country_clusters=pd.read_csv(inputs["health_clusters"]),
+        population=pd.read_csv(inputs["population"]),
+    )
+
+
+def get_cluster_population(
+    country_clusters: pd.DataFrame,
+    population: pd.DataFrame,
+) -> dict[int, float]:
+    """Compute total population per health cluster."""
+    clusters = country_clusters.assign(
+        country_iso3=lambda df: df["country_iso3"].str.upper()
+    )
+    cluster_lookup = (
+        clusters.set_index("country_iso3")["health_cluster"].astype(int).to_dict()
+    )
+
+    pop = population.assign(iso3=lambda df: df["iso3"].str.upper())
+    pop_map = pop.set_index("iso3")["population"].astype(float).to_dict()
+
+    result: dict[int, float] = defaultdict(float)
+    for iso3, cluster in cluster_lookup.items():
+        result[int(cluster)] += pop_map.get(iso3, 0.0)
+
+    return dict(result)
+
+
+def get_country_cluster_lookup(country_clusters: pd.DataFrame) -> dict[str, int]:
+    """Map country ISO3 codes to health cluster IDs."""
+    clusters = country_clusters.assign(
+        country_iso3=lambda df: df["country_iso3"].str.upper()
+    )
+    return clusters.set_index("country_iso3")["health_cluster"].astype(int).to_dict()
+
+
+def compute_intake_by_cluster_risk(
+    food_group_consumption: pd.DataFrame,
+    risk_factors: list[str],
+    cluster_lookup: dict[str, int],
+    cluster_population: dict[int, float],
+) -> dict[tuple[int, str], float]:
+    """Compute current intake in g/capita/day by (cluster, risk_factor).
+
+    Parameters
+    ----------
+    food_group_consumption : DataFrame with columns food_group, country, consumption_mt
+    risk_factors : List of food groups that are health risk factors
+    cluster_lookup : Dict mapping country ISO3 to cluster ID
+    cluster_population : Dict mapping cluster ID to total population
+
+    Returns dict mapping (cluster, risk_factor) to intake in g/capita/day
+    """
+    # Filter to risk factors only
+    df = food_group_consumption[
+        food_group_consumption["food_group"].isin(risk_factors)
+    ].copy()
+
+    if df.empty:
+        return {}
+
+    # Normalize country codes
+    df["country"] = df["country"].str.upper()
+
+    # Map countries to clusters
+    df["cluster"] = df["country"].map(cluster_lookup)
+
+    # Filter to countries with known clusters
+    df = df[df["cluster"].notna()].copy()
+    df["cluster"] = df["cluster"].astype(int)
+
+    # Aggregate consumption by (cluster, food_group)
+    cluster_consumption = (
+        df.groupby(["cluster", "food_group"])["consumption_mt"].sum().reset_index()
+    )
+
+    # Convert to g/capita/day
+    intake_totals: dict[tuple[int, str], float] = {}
+    for _, row in cluster_consumption.iterrows():
+        cluster = int(row["cluster"])
+        food_group = str(row["food_group"])
+        consumption_mt = float(row["consumption_mt"])
+
+        cluster_pop = cluster_population.get(cluster, 0.0)
+        if cluster_pop <= 0:
+            continue
+
+        # Convert Mt/year to g/capita/day
+        intake_g = consumption_mt * GRAMS_PER_MEGATONNE / (DAYS_PER_YEAR * cluster_pop)
+        intake_totals[(cluster, food_group)] = intake_g
+
+    return intake_totals
+
+
+def compute_health_marginals(
+    food_group_consumption: pd.DataFrame,
+    health_data: HealthData,
+    risk_factors: list[str],
+) -> pd.DataFrame:
+    """Compute marginal YLL per Mt consumed, by food group and country.
+
+    Computes the derivative of the piecewise linear dose-response curve
+    at the current intake level, then converts to per-Mt units.
+
+    Returns DataFrame with columns: country, food_group, yll_per_mt
+    """
+    # Build lookups
+    cluster_lookup = get_country_cluster_lookup(health_data.country_clusters)
+    cluster_population = get_cluster_population(
+        health_data.country_clusters, health_data.population
+    )
+
+    # Build risk tables: risk_factor -> DataFrame(intake, cause -> log_rr)
+    risk_tables = {}
+    for risk, group in health_data.risk_breakpoints.groupby("risk_factor"):
+        pivot = (
+            group.sort_values(["intake_g_per_day", "cause"])
+            .pivot_table(
+                index="intake_g_per_day",
+                columns="cause",
+                values="log_rr",
+                aggfunc="first",
+            )
+            .sort_index()
+        )
+        risk_tables[str(risk)] = pivot
+
+    # Build cause log breakpoint tables
+    cause_tables = {
+        str(cause): df.sort_values("log_rr_total")
+        for cause, df in health_data.cause_log_breakpoints.groupby("cause")
+    }
+
+    # Cluster-cause baseline data
+    cluster_cause = health_data.cluster_cause.assign(
+        health_cluster=lambda df: df["health_cluster"].astype(int)
+    ).set_index(["health_cluster", "cause"])
+
+    # Compute current intake per (cluster, risk_factor) from consumption data
+    intake_totals = compute_intake_by_cluster_risk(
+        food_group_consumption, risk_factors, cluster_lookup, cluster_population
+    )
+
+    # Compute marginal YLL per g/day for each (cluster, risk_factor)
+    # Iterate over all clusters and risks, not just those with non-zero intake
+    marginal_yll_per_g: dict[tuple[int, str], float] = {}
+
+    all_clusters = set(cluster_population.keys())
+    all_risks = set(risk_tables.keys())
+
+    for cluster in all_clusters:
+        cluster_pop = cluster_population[cluster]
+        if cluster_pop <= 0:
+            continue
+
+        for risk in all_risks:
+            intake_g = intake_totals.get((cluster, risk), 0.0)
+            risk_table = risk_tables[risk]
+
+            # Sum marginal YLL across all causes
+            total_marginal = 0.0
+
+            for cause in risk_table.columns:
+                if (cluster, cause) not in cluster_cause.index:
+                    continue
+
+                row = cluster_cause.loc[(cluster, cause)]
+
+                # Reconstruct absolute YLL from rate using planning-year population
+                yll_attrib_rate = float(row["yll_attrib_rate_per_100k"])
+                yll_base = (yll_attrib_rate / PER_100K) * cluster_pop
+
+                log_rr_ref = float(row["log_rr_total_ref"])
+                rr_ref = exp(log_rr_ref)
+
+                if yll_base <= 0 or rr_ref <= 0:
+                    continue
+
+                # Get breakpoints for this (risk, cause)
+                xs = risk_table.index.to_numpy(dtype=float)
+                ys = risk_table[cause].to_numpy(dtype=float)
+
+                if len(xs) < 2:
+                    continue
+
+                # Find current segment and compute slope
+                d_log_rr = compute_piecewise_slope(xs, ys, intake_g)
+
+                # Compute total log(RR) to get current RR
+                log_rr = float(np.interp(intake_g, xs, ys))
+
+                # Get cause breakpoints for RR interpolation
+                cause_bp = cause_tables.get(cause)
+                if cause_bp is None or cause_bp.empty:
+                    # Approximate: use exp(log_rr) directly
+                    rr = exp(log_rr)
+                else:
+                    log_points = cause_bp["log_rr_total"].to_numpy(dtype=float)
+                    rr_points = cause_bp["rr_total"].to_numpy(dtype=float)
+                    rr = float(np.interp(log_rr, log_points, rr_points))
+
+                # Chain rule: d(YLL)/d(intake) = d(YLL)/d(RR) * d(RR)/d(log_RR) * d(log_RR)/d(intake)
+                # d(YLL)/d(RR) = yll_base / rr_ref
+                # d(RR)/d(log_RR) = RR (derivative of exp)
+                marginal_yll = (yll_base / rr_ref) * rr * d_log_rr
+
+                total_marginal += marginal_yll
+
+            marginal_yll_per_g[(cluster, risk)] = total_marginal
+
+    # Convert to per-country, per-food_group output
+    # For each country, aggregate food group consumption and compute marginal
+    records = []
+
+    for country, cluster in cluster_lookup.items():
+        cluster_pop = cluster_population[cluster]
+        if cluster_pop <= 0:
+            continue
+
+        for risk in risk_factors:
+            marginal_g = marginal_yll_per_g.get((cluster, risk), 0.0)
+
+            # Convert from YLL per (g/capita/day) to YLL per Mt
+            # 1 Mt = 1e12 g, 1 year = 365 days
+            # marginal_g is YLL per (g/capita/day) for the whole cluster
+            # We want YLL per Mt consumed (affecting cluster health)
+            # Consumption of 1 Mt affects cluster intake by 1e12 / (365 * cluster_pop)
+            # So marginal per Mt = marginal_g * 1e12 / (365 * cluster_pop)
+            intake_per_mt = GRAMS_PER_MEGATONNE / (DAYS_PER_YEAR * cluster_pop)
+            yll_per_mt = marginal_g * intake_per_mt
+
+            records.append(
+                {
+                    "country": country,
+                    "food_group": risk,
+                    "yll_per_mt": yll_per_mt,
+                }
+            )
+
+    return pd.DataFrame(records)
+
+
+def compute_piecewise_slope(
+    x_breakpoints: np.ndarray,
+    y_breakpoints: np.ndarray,
+    x_current: float,
+) -> float:
+    """Compute the slope of a piecewise linear function at a given point.
+
+    Returns the derivative (slope) of the line segment containing x_current.
+    """
+    if len(x_breakpoints) < 2:
+        return 0.0
+
+    # Find the segment containing x_current
+    # np.searchsorted returns the index where x_current would be inserted
+    idx = np.searchsorted(x_breakpoints, x_current)
+
+    # Clamp to valid segment range
+    if idx == 0:
+        idx = 1
+    elif idx >= len(x_breakpoints):
+        idx = len(x_breakpoints) - 1
+
+    # Segment is [idx-1, idx]
+    x0, x1 = x_breakpoints[idx - 1], x_breakpoints[idx]
+    y0, y1 = y_breakpoints[idx - 1], y_breakpoints[idx]
+
+    dx = x1 - x0
+    if abs(dx) < 1e-12:
+        return 0.0
+
+    return (y1 - y0) / dx
+
+
+def add_monetary_value(df: pd.DataFrame, value_per_yll: float) -> pd.DataFrame:
+    """Add USD per tonne column for health damages.
+
+    Parameters
+    ----------
+    df : DataFrame with yll_per_mt column
+    value_per_yll : USD per YLL
+
+    Returns DataFrame with additional health_usd_per_t column
+    """
+    df = df.copy()
+    if df.empty:
+        df["health_usd_per_t"] = pd.Series(dtype=float)
+    else:
+        # YLL/Mt to YLL/t: divide by 1e6
+        # Then multiply by value_per_yll
+        df["health_usd_per_t"] = (df["yll_per_mt"] / 1e6) * value_per_yll
+    return df
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    # Load food group consumption from extract_statistics output
+    food_group_consumption = pd.read_csv(snakemake.input.food_group_consumption)
+    logger.info("Loaded %d food group consumption records", len(food_group_consumption))
+
+    # Load health data
+    health_data = load_health_data(
+        {
+            "risk_breakpoints": snakemake.input.risk_breakpoints,
+            "health_cluster_cause": snakemake.input.health_cluster_cause,
+            "health_cause_log": snakemake.input.health_cause_log,
+            "health_clusters": snakemake.input.health_clusters,
+            "population": snakemake.input.population,
+        }
+    )
+
+    # Get params
+    value_per_yll = float(snakemake.params.value_per_yll)
+    risk_factors = list(snakemake.params.health_risk_factors)
+
+    logger.info("Computing health marginals...")
+    result = compute_health_marginals(food_group_consumption, health_data, risk_factors)
+    logger.info("Computed health for %d food_group-country pairs", len(result))
+
+    logger.info("Adding monetary values...")
+    result = add_monetary_value(result, value_per_yll)
+
+    # Sort for consistent output
+    result = result.sort_values(["country", "food_group"]).reset_index(drop=True)
+
+    # Write output
+    output_path = Path(snakemake.output.csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    result.to_csv(output_path, index=False)
+    logger.info("Wrote health impacts to %s (%d rows)", output_path, len(result))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,304 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Extract GHG intensity by food and country.
+
+This script computes consumption-attributed GHG emissions by tracing emissions
+through trade and processing networks back to production using flow-based
+attribution via sparse matrix algebra.
+
+Uses food_consumption.csv from extract_statistics for consumption amounts,
+avoiding duplicate extraction of consumption data from the network.
+
+Output: ghg_intensity.csv at the food level (not aggregated to food_group).
+"""
+
+import logging
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pypsa
+
+logger = logging.getLogger(__name__)
+
+
+def compute_bus_intensities(
+    n: pypsa.Network,
+    ch4_gwp: float,
+    n2o_gwp: float,
+) -> dict[str, float]:
+    """Compute GHG emission intensity at each bus via flow-based attribution.
+
+    Uses sparse matrix solve: (I - M) * rho = e where:
+    - rho[b] = emission intensity at bus b (MtCO2e per Mt flow)
+    - M = weighted adjacency matrix (flow fractions)
+    - e = direct emission intensities
+
+    Returns dict mapping bus name to intensity (MtCO2e/Mt = kgCO2e/kg).
+    """
+    # Get snapshot and flows
+    snapshot = n.snapshots[-1]
+    p0 = (
+        n.links.dynamic.p0.loc[snapshot]
+        if snapshot in n.links.dynamic.p0.index
+        else pd.Series(dtype=float)
+    )
+
+    # Build links DataFrame with flows and emissions
+    links_df = build_ghg_links_dataframe(n, p0, ch4_gwp, n2o_gwp)
+
+    if links_df.empty:
+        logger.warning("No links with positive flow found")
+        return {}
+
+    # Compute emission intensities at each bus via sparse matrix solve
+    return solve_emission_intensities(links_df)
+
+
+def build_ghg_links_dataframe(
+    n: pypsa.Network,
+    p0: pd.Series,
+    ch4_gwp: float,
+    n2o_gwp: float,
+) -> pd.DataFrame:
+    """Build DataFrame of links with flows and GHG emissions.
+
+    Returns DataFrame with columns:
+    - link_name, bus0, bus1, flow, efficiency, emissions_co2e
+    """
+    # GWP factors (CH4/N2O are in tonnes, convert to MtCO2e)
+    gwp = {"co2": 1.0, "ch4": ch4_gwp * 1e-6, "n2o": n2o_gwp * 1e-6}
+
+    links = n.links.static.copy()
+    links["link_name"] = links.index
+    links["flow"] = p0.reindex(links.index).fillna(0.0)
+
+    # Filter to positive flows only
+    links = links[links["flow"] > 1e-12].copy()
+
+    if links.empty:
+        return pd.DataFrame()
+
+    # Ensure efficiency is filled
+    links["efficiency"] = links["efficiency"].fillna(1.0)
+
+    # Compute emissions per unit of input flow (summing bus2/3/4 contributions)
+    links["emissions_co2e"] = 0.0
+
+    for bus_col, eff_col in [
+        ("bus2", "efficiency2"),
+        ("bus3", "efficiency3"),
+        ("bus4", "efficiency4"),
+    ]:
+        if bus_col not in links.columns:
+            continue
+
+        # Get the emission bus and efficiency for each link
+        emission_bus = links[bus_col].fillna("")
+        eff = links[eff_col].fillna(0.0) if eff_col in links.columns else 0.0
+
+        # Only positive efficiencies are emissions (negative = inputs)
+        # Map to GWP factor based on bus name
+        for gas, gwp_factor in gwp.items():
+            mask = (emission_bus == gas) & (eff > 0)
+            links.loc[mask, "emissions_co2e"] += eff[mask] * gwp_factor
+
+    return links[["link_name", "bus0", "bus1", "flow", "efficiency", "emissions_co2e"]]
+
+
+def solve_emission_intensities(links_df: pd.DataFrame) -> dict[str, float]:
+    """Solve for emission intensity at each bus using sparse matrix.
+
+    The intensity rho[b] at bus b satisfies:
+        rho[b] = e[b] + sum over incoming links l: w[l] * rho[bus0[l]]
+
+    Where:
+        w[l] = flow[l] / total_outflow[bus1[l]]  (weight of link)
+        e[b] = sum(flow[l] * emissions[l]) / total_outflow[b]  (direct emissions)
+
+    This gives: (I - M) * rho = e, solved via sparse linear algebra.
+    """
+    from scipy import sparse
+    from scipy.sparse.linalg import spsolve
+
+    # Get unique buses and create integer indices
+    all_buses = pd.concat([links_df["bus0"], links_df["bus1"]]).unique()
+    bus_to_idx = {bus: i for i, bus in enumerate(all_buses)}
+    n_buses = len(all_buses)
+
+    # Map bus names to indices (vectorized)
+    links_df = links_df.copy()
+    links_df["idx0"] = links_df["bus0"].map(bus_to_idx)
+    links_df["idx1"] = links_df["bus1"].map(bus_to_idx)
+
+    # Compute total outflow at each destination bus: sum(flow * efficiency)
+    links_df["outflow"] = links_df["flow"] * links_df["efficiency"]
+    total_outflow = links_df.groupby("idx1")["outflow"].transform("sum")
+
+    # Compute weights: flow / total_outflow[bus1]
+    links_df["weight"] = links_df["flow"] / total_outflow
+
+    # Compute direct emission contribution: flow * emissions / total_outflow
+    links_df["emission_contrib"] = (
+        links_df["flow"] * links_df["emissions_co2e"] / total_outflow
+    )
+
+    # Build sparse matrix M where M[i, j] = sum of weights for links from j to i
+    # Using COO format for efficient construction
+    row = links_df["idx1"].values
+    col = links_df["idx0"].values
+    data = links_df["weight"].values
+
+    adj_matrix = sparse.coo_matrix((data, (row, col)), shape=(n_buses, n_buses))
+    adj_matrix = adj_matrix.tocsr()  # Convert to CSR for efficient arithmetic
+
+    # Build emission vector e[i] = sum of emission contributions to bus i
+    e = np.zeros(n_buses)
+    np.add.at(e, links_df["idx1"].values, links_df["emission_contrib"].values)
+
+    # Solve (I - M) * rho = e
+    identity = sparse.eye(n_buses, format="csr")
+    system_matrix = identity - adj_matrix
+
+    try:
+        rho = spsolve(system_matrix, e)
+    except Exception as ex:
+        logger.warning("Sparse solve failed: %s, falling back to iterative", ex)
+        rho = solve_iterative(adj_matrix, e, max_iter=50, tol=1e-9)
+
+    # Map back to bus names
+    idx_to_bus = {i: bus for bus, i in bus_to_idx.items()}
+    return {idx_to_bus[i]: float(rho[i]) for i in range(n_buses)}
+
+
+def solve_iterative(
+    adj_matrix: "sparse.csr_matrix",
+    e: np.ndarray,
+    max_iter: int = 50,
+    tol: float = 1e-9,
+) -> np.ndarray:
+    """Iterative solver for (I - M) * rho = e, i.e., rho = e + M @ rho."""
+    rho = e.copy()
+    for i in range(max_iter):
+        rho_new = e + adj_matrix @ rho
+        diff = np.abs(rho_new - rho).max()
+        rho = rho_new
+        if diff < tol:
+            logger.info("Iterative solver converged in %d iterations", i + 1)
+            break
+    else:
+        logger.warning(
+            "Iterative solver did not converge after %d iterations (diff=%.2e)",
+            max_iter,
+            diff,
+        )
+    return rho
+
+
+def join_intensities_to_consumption(
+    food_consumption: pd.DataFrame,
+    food_groups: pd.DataFrame,
+    bus_intensities: dict[str, float],
+) -> pd.DataFrame:
+    """Join bus intensities to food consumption data.
+
+    Parameters
+    ----------
+    food_consumption : DataFrame with columns food, country, consumption_mt
+    food_groups : DataFrame with columns food, group
+    bus_intensities : dict mapping bus name to GHG intensity
+
+    Returns DataFrame with columns: country, food, food_group, consumption_mt,
+    ghg_kgco2e_per_kg
+    """
+    # Build food -> food_group mapping
+    food_to_group = food_groups.set_index("food")["group"].to_dict()
+
+    # Select relevant columns and add food_group
+    df = food_consumption[["food", "country", "consumption_mt"]].copy()
+    df["food_group"] = df["food"].map(food_to_group)
+
+    # Filter to foods with known food_group
+    df = df[df["food_group"].notna()].copy()
+
+    # Construct food bus name and look up intensity
+    # Food buses are named: food:{food}:{country}
+    df["food_bus"] = "food:" + df["food"] + ":" + df["country"]
+    df["ghg_kgco2e_per_kg"] = df["food_bus"].map(bus_intensities).fillna(0.0)
+
+    # Select output columns
+    result = df[
+        ["country", "food", "food_group", "consumption_mt", "ghg_kgco2e_per_kg"]
+    ].copy()
+
+    return result
+
+
+def add_monetary_value(df: pd.DataFrame, ghg_price: float) -> pd.DataFrame:
+    """Add USD per tonne column for GHG damages.
+
+    Parameters
+    ----------
+    df : DataFrame with ghg_kgco2e_per_kg column
+    ghg_price : USD per tonne CO2e
+
+    Returns DataFrame with additional ghg_usd_per_t column
+    """
+    df = df.copy()
+    if df.empty:
+        df["ghg_usd_per_t"] = pd.Series(dtype=float)
+    else:
+        # kgCO2e/kg = tCO2e/t (same ratio), then multiply by price
+        df["ghg_usd_per_t"] = df["ghg_kgco2e_per_kg"] * ghg_price
+    return df
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    # Load network
+    n = pypsa.Network(snakemake.input.network)
+    logger.info("Loaded network with %d links", len(n.links))
+
+    # Load food consumption from extract_statistics output
+    food_consumption = pd.read_csv(snakemake.input.food_consumption)
+    logger.info("Loaded %d food consumption records", len(food_consumption))
+
+    # Load food groups
+    food_groups = pd.read_csv(snakemake.input.food_groups)
+
+    # Get params
+    ghg_price = float(snakemake.params.ghg_price)
+    ch4_gwp = float(snakemake.params.ch4_gwp)
+    n2o_gwp = float(snakemake.params.n2o_gwp)
+
+    logger.info("Computing bus intensities...")
+    bus_intensities = compute_bus_intensities(n, ch4_gwp, n2o_gwp)
+    logger.info("Computed intensities for %d buses", len(bus_intensities))
+
+    logger.info("Joining intensities to consumption data...")
+    result = join_intensities_to_consumption(
+        food_consumption, food_groups, bus_intensities
+    )
+    logger.info("Computed GHG for %d food-country pairs", len(result))
+
+    logger.info("Adding monetary values...")
+    result = add_monetary_value(result, ghg_price)
+
+    # Sort for consistent output
+    result = result.sort_values(["country", "food"]).reset_index(drop=True)
+
+    # Write output
+    output_path = Path(snakemake.output.csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    result.to_csv(output_path, index=False)
+    logger.info("Wrote GHG intensity to %s (%d rows)", output_path, len(result))
+
+
+if __name__ == "__main__":
+    main()

@@ -8,22 +8,31 @@ Results & Visualization
 Overview
 --------
 
-After solving, the model produces results in three formats:
+After solving, the model produces results in several formats:
 
-1. **PyPSA network** (``results/{name}/solved/model.nc``): Complete optimization results in NetCDF format
-2. **Visualizations** (``results/{name}/plots/*.pdf``): Publication-quality plots and maps
-3. **Data tables** (``results/{name}/plots/*.csv``): Tabular exports for custom analysis
+1. **PyPSA network** (``results/{name}/solved/model_scen-{scenario}.nc``): Complete optimization results in NetCDF format
+2. **Analysis outputs** (``results/{name}/analysis/scen-{scenario}/*.csv``): Extracted statistics and impact assessments (see :ref:`analysis`)
+3. **Visualizations** (``results/{name}/plots/scen-{scenario}/*.pdf``): Publication-quality plots and maps
 
 The various output files are structured as follows::
 
     results/{name}/
     ├── build/
-    │   └── model.nc           # Built model before solving
+    │   └── model_scen-{scenario}.nc    # Built model before solving
     ├── solved/
-    │   └── model.nc           # Solved model with optimal values
+    │   └── model_scen-{scenario}.nc    # Solved model with optimal values
+    ├── analysis/
+    │   └── scen-{scenario}/
+    │       ├── crop_production.csv     # Production by crop/region
+    │       ├── land_use.csv            # Land allocation
+    │       ├── animal_production.csv   # Livestock production
+    │       ├── food_consumption.csv    # Consumption by food
+    │       ├── food_group_consumption.csv  # Consumption by food group
+    │       ├── ghg_intensity.csv       # GHG intensity by food
+    │       └── health_impacts.csv      # Health impacts by food group
     └── plots/
-        ├── *.pdf              # Visualizations
-        └── *.csv              # Data exports
+        └── scen-{scenario}/
+            └── *.pdf                   # Visualizations
 
 PyPSA Network Results
 ---------------------

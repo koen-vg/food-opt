@@ -18,43 +18,80 @@ from workflow.scripts.plotting.color_utils import categorical_colors
 logger = logging.getLogger(__name__)
 
 
-def compute_global_averages(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute consumption-weighted global averages by food group.
+def compute_global_ghg_averages(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute consumption-weighted global GHG averages by food group.
 
-    Input DataFrame has columns: country, food_group, consumption_mt,
-    ghg_mtco2e_per_mt, yll_myll_per_mt
+    Input DataFrame has columns: country, food, food_group, consumption_mt,
+    ghg_kgco2e_per_kg
 
-    Returns DataFrame with columns: food_group, consumption_mt,
-    ghg_kgco2e_per_kg, yll_per_kg
+    Returns DataFrame with columns: food_group, consumption_mt, ghg_kgco2e_per_kg
     """
     # Filter to rows with positive consumption
     df = df[df["consumption_mt"] > 0].copy()
 
     if df.empty:
         return pd.DataFrame(
-            columns=["food_group", "consumption_mt", "ghg_kgco2e_per_kg", "yll_per_kg"]
+            columns=["food_group", "consumption_mt", "ghg_kgco2e_per_kg"]
         )
 
     # Consumption-weighted average by food group
     def weighted_avg(group: pd.DataFrame) -> pd.Series:
         total_consumption = group["consumption_mt"].sum()
         ghg_weighted = (
-            group["ghg_mtco2e_per_mt"] * group["consumption_mt"]
-        ).sum() / total_consumption
-        yll_weighted = (
-            group["yll_myll_per_mt"] * group["consumption_mt"]
+            group["ghg_kgco2e_per_kg"] * group["consumption_mt"]
         ).sum() / total_consumption
         return pd.Series(
             {
                 "consumption_mt": total_consumption,
-                # MtCO2e/Mt = kgCO2e/kg (same ratio)
                 "ghg_kgco2e_per_kg": ghg_weighted,
-                # mYLL/Mt to YLL/kg: 1e6 YLL / 1e9 kg = 1e-3 YLL/kg
-                "yll_per_kg": yll_weighted * 1e-3,
             }
         )
 
     result = df.groupby("food_group").apply(weighted_avg, include_groups=False)
+    return result.reset_index()
+
+
+def compute_global_health_averages(
+    health_df: pd.DataFrame, ghg_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Compute consumption-weighted global health averages by food group.
+
+    Uses consumption from ghg_df (aggregated to food_group) to weight health impacts.
+
+    Input health_df has columns: country, food_group, yll_per_mt
+    Input ghg_df has columns: country, food, food_group, consumption_mt, ghg_kgco2e_per_kg
+
+    Returns DataFrame with columns: food_group, yll_per_kg
+    """
+    if health_df.empty:
+        return pd.DataFrame(columns=["food_group", "yll_per_kg"])
+
+    # First aggregate consumption to (country, food_group) level from ghg_df
+    consumption_by_group = (
+        ghg_df.groupby(["country", "food_group"])["consumption_mt"].sum().reset_index()
+    )
+
+    # Merge with health data
+    merged = health_df.merge(
+        consumption_by_group, on=["country", "food_group"], how="left"
+    )
+    merged["consumption_mt"] = merged["consumption_mt"].fillna(0.0)
+
+    # Filter to positive consumption
+    merged = merged[merged["consumption_mt"] > 0].copy()
+
+    if merged.empty:
+        return pd.DataFrame(columns=["food_group", "yll_per_kg"])
+
+    # Consumption-weighted average by food group
+    def weighted_avg(group: pd.DataFrame) -> pd.Series:
+        total_consumption = group["consumption_mt"].sum()
+        # yll_per_mt to yll_per_kg: divide by 1e9 (Mt to kg)
+        yll_per_kg = group["yll_per_mt"] / 1e9
+        yll_weighted = (yll_per_kg * group["consumption_mt"]).sum() / total_consumption
+        return pd.Series({"yll_per_kg": yll_weighted})
+
+    result = merged.groupby("food_group").apply(weighted_avg, include_groups=False)
     return result.reset_index()
 
 
@@ -153,28 +190,50 @@ def plot_yll_bar(
     logger.info("Wrote YLL bar chart to %s", output_path)
 
 
-def save_csv(df: pd.DataFrame, output_path: Path) -> None:
-    """Save global averages to CSV."""
+def save_csv(ghg_df: pd.DataFrame, health_df: pd.DataFrame, output_path: Path) -> None:
+    """Save global averages to CSV by merging GHG and health data."""
+    # Merge the two DataFrames on food_group
+    if ghg_df.empty:
+        result = health_df.copy()
+        result["consumption_mt"] = 0.0
+        result["ghg_kgco2e_per_kg"] = 0.0
+    elif health_df.empty:
+        result = ghg_df.copy()
+        result["yll_per_kg"] = 0.0
+    else:
+        result = ghg_df.merge(health_df, on="food_group", how="outer")
+        result = result.fillna(
+            {"consumption_mt": 0.0, "ghg_kgco2e_per_kg": 0.0, "yll_per_kg": 0.0}
+        )
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False, float_format="%.6g")
+    result.to_csv(output_path, index=False, float_format="%.6g")
     logger.info("Wrote global averages to %s", output_path)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    # Load marginal damages
-    marginal_df = pd.read_csv(snakemake.input.marginal_damages)
-    logger.info("Loaded %d rows from marginal damages", len(marginal_df))
+    # Load GHG intensity data (at food level)
+    ghg_df = pd.read_csv(snakemake.input.ghg_intensity)
+    logger.info("Loaded %d rows from GHG intensity", len(ghg_df))
 
-    # Compute global averages
-    global_avg = compute_global_averages(marginal_df)
-    logger.info("Computed averages for %d food groups", len(global_avg))
+    # Load health impacts data (at food_group level)
+    health_df = pd.read_csv(snakemake.input.health_impacts)
+    logger.info("Loaded %d rows from health impacts", len(health_df))
+
+    # Compute global GHG averages (aggregates food to food_group)
+    global_ghg = compute_global_ghg_averages(ghg_df)
+    logger.info("Computed GHG averages for %d food groups", len(global_ghg))
+
+    # Compute global health averages
+    global_health = compute_global_health_averages(health_df, ghg_df)
+    logger.info("Computed health averages for %d food groups", len(global_health))
 
     # Get color overrides
     group_colors = getattr(snakemake.params, "group_colors", {}) or {}
 
     # Create plots
-    plot_ghg_bar(global_avg, Path(snakemake.output.ghg_pdf), group_colors)
-    plot_yll_bar(global_avg, Path(snakemake.output.yll_pdf), group_colors)
-    save_csv(global_avg, Path(snakemake.output.csv))
+    plot_ghg_bar(global_ghg, Path(snakemake.output.ghg_pdf), group_colors)
+    plot_yll_bar(global_health, Path(snakemake.output.yll_pdf), group_colors)
+    save_csv(global_ghg, global_health, Path(snakemake.output.csv))
