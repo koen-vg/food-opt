@@ -54,7 +54,7 @@ def get_effective_config(scenario_name):
     # We convert config to dict because it might be a Config object
     eff_config = copy.deepcopy(dict(config))
 
-    if scenario_name and scenario_name != "default":
+    if scenario_name:
         if scenario_name not in scenario_defs:
             # If scenario is not found, maybe raise warning or error?
             # For now, we assume if it's not in cache, no overrides (or invalid scenario handled elsewhere)
@@ -70,7 +70,7 @@ def scenario_override_hash(scenario_name):
     """Return a stable hash of scenario overrides."""
     # Snakemake does not track scenario_defs changes; this hash exists only to force
     # correct reruns when scenario definitions are edited.
-    if not scenario_name or scenario_name == "default":
+    if not scenario_name:
         overrides = {}
     else:
         scenario_defs = load_scenario_defs()
