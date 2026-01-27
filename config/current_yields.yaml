@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+name: "current_yields"
+scenario_defs: "config/current_yields_scenarios.yaml"
+
+# Consumer values derived from baseline consumption patterns
+food_group_incentives:
+  sources:
+    - "results/{name}/consumer_values/values.csv"
+
+validation:
+  use_actual_yields: true
+
+food_groups:
+  fix_within_group_ratios:
+    enabled: true
+    reference_year: 2018
+
+animal_products:
+  # Use regionalized feed efficiency values
+  feed_efficiency_regions: null
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 1

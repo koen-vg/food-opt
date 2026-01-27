@@ -206,7 +206,7 @@ rule merge_animal_costs:
 
 rule retrieve_faostat_crop_production:
     input:
-        mapping="data/faostat_item_map.csv",
+        mapping="data/faostat_crop_item_map.csv",
     params:
         countries=config["countries"],
         production_year=config["validation"]["production_year"],
@@ -596,6 +596,27 @@ rule download_ifa_fubc:
             "https://datadryad.org/api/v2/files/{params.metadata_file_id}/download" \
             >> {log} 2>&1
         """
+
+
+rule retrieve_faostat_fbs_items:
+    """Retrieve raw item-level supply data from FAOSTAT Food Balance Sheets.
+
+    Fetches supply data (kg/capita/year) for all items in the food item mapping,
+    used for calculating within-group food consumption ratios.
+    """
+    input:
+        food_item_map="data/faostat_food_item_map.csv",
+    params:
+        countries=config["countries"],
+        reference_year=config["food_groups"]["fix_within_group_ratios"][
+            "reference_year"
+        ],
+    output:
+        fbs_items="processing/{name}/faostat_fbs_items.csv",
+    log:
+        "logs/{name}/retrieve_faostat_fbs_items.log",
+    script:
+        "../scripts/retrieve_faostat_fbs_items.py"
 
 
 # Conditional rule: retrieve nutrition data from USDA if enabled in config

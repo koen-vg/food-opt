@@ -573,7 +573,7 @@ properties:
 
   food_groups:
     type: object
-    required: [included, constraints, equal_by_country_source, max_per_capita]
+    required: [included, constraints, equal_by_country_source, max_per_capita, fix_within_group_ratios]
     additionalProperties: false
     properties:
       included:
@@ -608,6 +608,20 @@ properties:
             type: number
             minimum: 0
         description: "Per-group maximum consumption caps in g/person/day, applied as e_nom_max on stores"
+      fix_within_group_ratios:
+        type: object
+        required: [enabled, reference_year]
+        additionalProperties: false
+        description: "Fix relative food contributions within each food group based on baseline consumption ratios"
+        properties:
+          enabled:
+            type: boolean
+            description: "Whether to fix within-group food ratios from baseline data"
+          reference_year:
+            type: integer
+            minimum: 2010
+            maximum: 2023
+            description: "Reference year for FAOSTAT FBS food supply data"
 
   diet:
     type: object

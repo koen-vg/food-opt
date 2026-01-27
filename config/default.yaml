@@ -319,6 +319,13 @@ food_groups:
     dairy: 2864
     eggs: 214
     sugar: 145
+  # Fix relative food contributions within each food group based on baseline
+  # consumption data. When enabled, the model maintains baseline ratios between
+  # foods in each group (e.g., if wheat is 60% and rice 40% of grains, that
+  # ratio is preserved) while allowing total group consumption to vary.
+  fix_within_group_ratios:
+    enabled: false
+    reference_year: 2018
 
 # --- section: diet ---
 diet:

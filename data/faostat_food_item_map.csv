@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+#
+# Mapping from model foods to FAOSTAT Food Balance Sheet (FBS) item codes.
+# Used for calculating within-group food consumption ratios from FBS supply data.
+#
+# When multiple model foods map to the same FBS item, their supply is split
+# equally among them during ratio calculation.
+#
+# Byproducts (wheat-bran, rice-bran, etc.) are excluded from ratio calculation
+# but included here for completeness.
+#
+# Item codes from: https://www.fao.org/faostat/en/#data/FBS
+food,faostat_item,item_code
+flour-white,Wheat and products,2511
+flour-wholemeal,Wheat and products,2511
+rice-white,Rice and products,2807
+rice-brown,Rice and products,2807
+maize,Maize and products,2514
+sorghum,Sorghum and products,2518
+buckwheat,Cereals other,2520
+foxtail-millet,Millet and products,2517
+pearl-millet,Millet and products,2517
+barley-hulled,Barley and products,2513
+oat,Oats,2516
+rye,Rye and products,2515
+soy,Soyabeans,2555
+cowpea,Beans,2546
+gram,Beans,2546
+phaseolus-bean,Beans,2546
+pigeon-pea,Beans,2546
+dry-pea,Peas,2547
+chickpea,Beans,2546
+potato,Potatoes and products,2531
+sweet-potato,Sweet potatoes,2533
+cassava,Cassava and products,2532
+yam,Yams,2535
+tomato,Tomatoes and products,2601
+carrot,Vegetables other,2605
+onion,Onions,2602
+cabbage,Vegetables other,2605
+banana,Bananas,2615
+apple,Apples and products,2617
+citrus,Citrus Other,2614
+coconut,Coconuts - Incl Copra,2560
+groundnut,Groundnuts,2552
+sesame-seed,Sesame seed,2561
+sunflower-seed,Sunflower seed,2557
+sunflower-oil,Sunflowerseed Oil,2573
+palm-oil,Palm Oil,2577
+olive-oil,Olive Oil,2580
+rapeseed-oil,Rape and Mustard Oil,2574
+sugar,Sugar (Raw Equivalent),2542
+meat-cattle,Bovine Meat,2731
+meat-pig,Pigmeat,2733
+meat-sheep,Mutton & Goat Meat,2732
+meat-chicken,Poultry Meat,2734
+dairy,Milk - Excluding Butter,2848
+dairy-buffalo,Milk - Excluding Butter,2848
+eggs,Eggs,2744

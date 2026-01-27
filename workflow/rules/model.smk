@@ -196,14 +196,40 @@ def solve_model_inputs(w):
                 f"processing/{w.name}/faostat_crop_production.csv"
             )
             # Include FAO item mapping to aggregate crops sharing an FAO item
-            inputs["faostat_item_map"] = "data/faostat_item_map.csv"
+            inputs["faostat_crop_item_map"] = "data/faostat_crop_item_map.csv"
         if stability_cfg["animals"]["enabled"]:
             inputs["animal_production_baseline"] = (
                 f"processing/{w.name}/faostat_animal_production.csv"
             )
             inputs["food_loss_waste"] = f"processing/{w.name}/food_loss_waste.csv"
 
+    # Add within-group food ratio inputs
+    ratio_cfg = eff_cfg["food_groups"]["fix_within_group_ratios"]
+    if ratio_cfg["enabled"]:
+        inputs["food_group_ratios"] = f"processing/{w.name}/food_group_ratios.csv"
+
     return inputs
+
+
+rule calculate_food_group_ratios:
+    """Calculate within-group food consumption ratios from FAOSTAT FBS data.
+
+    For each (country, food_group), calculates the fraction of total group
+    supply contributed by each food. These ratios are used to constrain
+    relative food contributions within each group during optimization.
+    """
+    input:
+        fbs_items="processing/{name}/faostat_fbs_items.csv",
+        food_item_map="data/faostat_food_item_map.csv",
+        food_groups="data/food_groups.csv",
+    params:
+        byproducts=config["byproducts"],
+    output:
+        ratios="processing/{name}/food_group_ratios.csv",
+    log:
+        "logs/{name}/calculate_food_group_ratios.log",
+    script:
+        "../scripts/calculate_food_group_ratios.py"
 
 
 def get_solver_threads(cfg: dict) -> int:
@@ -266,6 +292,9 @@ rule solve_model:
         production_stability=lambda w: get_effective_config(w.scenario)["validation"][
             "production_stability"
         ],
+        fix_within_group_ratios=lambda w: get_effective_config(w.scenario)[
+            "food_groups"
+        ]["fix_within_group_ratios"],
         # Only used to force correct reruns when scenario_defs changes.
         scenario_hash=lambda w: scenario_override_hash(w.scenario),
     output:

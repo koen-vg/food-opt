@@ -1158,12 +1158,140 @@ def _add_animal_stability_constraints(
         )
 
 
+def add_within_group_ratio_constraints(
+    n: pypsa.Network,
+    ratios_df: pd.DataFrame,
+) -> None:
+    """Fix relative food contributions within each food group.
+
+    For each (country, food_group), adds linear constraints that fix the ratio
+    between different foods based on baseline consumption data. For foods
+    f_1, ..., f_n with baseline ratios r_1, ..., r_n, the reference food f_1
+    (highest ratio) is unconstrained while others satisfy:
+
+        consumption(f_i) = (r_i / r_1) * consumption(f_1)   for i = 2, ..., n
+
+    This preserves baseline proportions while allowing total group consumption
+    to vary. Groups with only one food are skipped.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network containing the model (with linopy model attached).
+    ratios_df : pd.DataFrame
+        Ratios with columns: country, food_group, food, ratio
+    """
+    m = n.model
+    links_df = n.links.static
+    link_p = m.variables["Link-p"].sel(snapshot="now")
+
+    # Get food consumption links
+    consume_links = links_df[links_df["carrier"] == "food_consumption"].copy()
+
+    if consume_links.empty:
+        logger.warning("No food consumption links found; skipping ratio constraints")
+        return
+
+    # Build (country, food) -> link name mapping
+    consume_links["key"] = consume_links["country"] + ":" + consume_links["food"]
+
+    # For each (country, food_group), identify reference food (highest ratio)
+    ref_foods = (
+        ratios_df.sort_values("ratio", ascending=False)
+        .groupby(["country", "food_group"])
+        .first()
+        .reset_index()
+        .rename(columns={"food": "ref_food", "ratio": "ref_ratio"})
+    )
+
+    # Merge to get relative ratios for each food
+    ratios_with_ref = ratios_df.merge(
+        ref_foods[["country", "food_group", "ref_food", "ref_ratio"]],
+        on=["country", "food_group"],
+    )
+
+    # Exclude reference foods (they don't need constraints)
+    non_ref = ratios_with_ref[
+        ratios_with_ref["food"] != ratios_with_ref["ref_food"]
+    ].copy()
+
+    if non_ref.empty:
+        logger.info("No within-group ratio constraints to add (each group has ≤1 food)")
+        return
+
+    # Calculate relative ratio (handle zero ref_ratio)
+    non_ref["rel_ratio"] = 0.0
+    nonzero_mask = non_ref["ref_ratio"] > 0
+    non_ref.loc[nonzero_mask, "rel_ratio"] = (
+        non_ref.loc[nonzero_mask, "ratio"] / non_ref.loc[nonzero_mask, "ref_ratio"]
+    )
+
+    non_ref["food_key"] = non_ref["country"] + ":" + non_ref["food"]
+    non_ref["ref_key"] = non_ref["country"] + ":" + non_ref["ref_food"]
+
+    # Filter to foods that exist in the model
+    existing_keys = set(consume_links["key"])
+    non_ref = non_ref[
+        non_ref["food_key"].isin(existing_keys) & non_ref["ref_key"].isin(existing_keys)
+    ].copy()
+
+    if non_ref.empty:
+        logger.info("No within-group ratio constraints to add (no matching foods)")
+        return
+
+    # Build link name arrays
+    food_link_names = (
+        non_ref["food_key"]
+        .map(lambda k: consume_links[consume_links["key"] == k].index[0])
+        .values
+    )
+    ref_link_names = (
+        non_ref["ref_key"]
+        .map(lambda k: consume_links[consume_links["key"] == k].index[0])
+        .values
+    )
+
+    # Get link variables
+    food_vars = link_p.sel(name=list(food_link_names))
+    ref_vars = link_p.sel(name=list(ref_link_names))
+
+    # Build relative ratio array with matching coordinates
+    rel_ratio_arr = xr.DataArray(
+        non_ref["rel_ratio"].values,
+        coords={"name": list(food_link_names)},
+        dims="name",
+    )
+
+    # Rename ref_vars dimension to align with food_vars
+    ref_vars_aligned = ref_vars.assign_coords(name=list(food_link_names))
+
+    # Add vectorized constraint: food_var == rel_ratio * ref_var
+    m.add_constraints(
+        food_vars - rel_ratio_arr * ref_vars_aligned == 0,
+        name="GlobalConstraint-food_ratio",
+    )
+
+    # Add GlobalConstraints for shadow price tracking
+    gc_names = [
+        f"food_ratio_{row['country']}_{row['food_group']}_{row['food']}"
+        for _, row in non_ref.iterrows()
+    ]
+    n.global_constraints.add(
+        gc_names,
+        sense="==",
+        constant=0.0,
+        type="food_ratio",
+        country=non_ref["country"].values,
+        food_group=non_ref["food_group"].values,
+        food=non_ref["food"].values,
+    )
+
+    logger.info("Added %d within-group food ratio constraints", len(non_ref))
+
+
 def _run_solve() -> None:
     """Main solve logic, factored out for profiling."""
-    global logger
-
-    # Configure logging to write to Snakemake log file
-    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+    setup_script_logging(snakemake.log[0])
     # Suppress the noisy PyPSA shadow-price info log.
     logging.getLogger("pypsa.optimization.optimize").addFilter(_ShadowPriceLogFilter())
 
@@ -1301,7 +1429,7 @@ def _run_solve() -> None:
         if stability_cfg["crops"]["enabled"]:
             crop_baseline = pd.read_csv(snakemake.input.crop_production_baseline)
             # Load FAO item mapping to aggregate crops sharing an FAO item
-            fao_map_df = pd.read_csv(snakemake.input.faostat_item_map)
+            fao_map_df = pd.read_csv(snakemake.input.faostat_crop_item_map)
             crop_to_fao_item = dict(
                 zip(
                     fao_map_df["crop"].astype(str),
@@ -1326,6 +1454,12 @@ def _run_solve() -> None:
             food_loss_waste_df,
             slack_marginal_cost,
         )
+
+    # Add within-group food ratio constraints if enabled
+    ratio_cfg = snakemake.params.fix_within_group_ratios
+    if ratio_cfg["enabled"]:
+        ratios_df = pd.read_csv(snakemake.input.food_group_ratios)
+        add_within_group_ratio_constraints(n, ratios_df)
 
     # Add health impacts if enabled
     health_enabled = bool(snakemake.params.health_enabled)
