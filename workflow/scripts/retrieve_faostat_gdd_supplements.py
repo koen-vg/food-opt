@@ -4,17 +4,23 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Retrieve food supply data from FAOSTAT Food Balance Sheets (FBS).
+Retrieve FAOSTAT supply data to supplement GDD dietary intake.
 
-Extracts supply data for specific food groups (Dairy, Poultry, Vegetable Oils)
-and converts to g/day. Waste fractions are applied later in merge_dietary_sources.py.
+The Global Dietary Database (GDD) lacks data for certain food groups. This
+script fetches supply data from FAOSTAT Food Balance Sheets (FBS) for:
+- Dairy (milk, butter, cream - converted to milk equivalents)
+- Poultry meat
+- Vegetable oils
+
+Values are converted to g/day per capita. These supplement GDD data in
+merge_dietary_sources.py to create complete baseline dietary intake estimates.
 
 Input:
     - FAOSTAT API (via faostat package)
 
 Output:
-    - CSV with columns: unit,item,country,age,year,value
-      Values are raw food supply (not adjusted for waste)
+    - CSV with columns: unit, item, country, age, year, value
+      Values are raw food supply in g/day (not adjusted for waste)
 """
 
 import logging

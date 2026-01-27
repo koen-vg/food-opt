@@ -152,7 +152,7 @@ FAOSTAT Food Balance Sheets (FBS)
 
 **License**: CC BY 4.0 + FAO database terms
 
-**Retrieval**: Via the ``faostat`` Python client inside ``workflow/scripts/prepare_food_loss_waste.py`` and ``workflow/scripts/retrieve_faostat_food_supply.py``.
+**Retrieval**: Via the ``faostat`` Python client inside ``workflow/scripts/prepare_food_loss_waste.py`` and ``workflow/scripts/retrieve_faostat_gdd_supplements.py``.
 
 **Usage**:
   * **Food Waste**: Converts per-capita waste (kg) to fractions relative to available food supply.

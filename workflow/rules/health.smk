@@ -59,22 +59,27 @@ rule prepare_gdd_dietary_intake:
         "../scripts/prepare_gdd_dietary_intake.py"
 
 
-rule retrieve_faostat_food_supply:
+rule retrieve_faostat_gdd_supplements:
+    """Retrieve FAOSTAT supply data to supplement GDD dietary intake.
+
+    Fetches dairy, poultry, and oil supply data from FAOSTAT FBS to fill gaps
+    in the Global Dietary Database (GDD) which lacks data for these food groups.
+    """
     params:
         countries=config["countries"],
         reference_year=config["health"]["reference_year"],
     output:
-        supply="processing/{name}/faostat_food_supply.csv",
+        supply="processing/{name}/faostat_gdd_supplements.csv",
     log:
-        "logs/{name}/retrieve_faostat_food_supply.log",
+        "logs/{name}/retrieve_faostat_gdd_supplements.log",
     script:
-        "../scripts/retrieve_faostat_food_supply.py"
+        "../scripts/retrieve_faostat_gdd_supplements.py"
 
 
 rule merge_dietary_sources:
     input:
         gdd="processing/{name}/gdd_dietary_intake.csv",
-        faostat="processing/{name}/faostat_food_supply.csv",
+        faostat="processing/{name}/faostat_gdd_supplements.csv",
         food_loss_waste="processing/{name}/food_loss_waste.csv",
     output:
         diet="processing/{name}/dietary_intake.csv",
@@ -88,7 +93,7 @@ rule prepare_food_loss_waste:
     input:
         m49="data/M49-codes.csv",
         animal_production="processing/{name}/faostat_animal_production.csv",
-        faostat_food_supply="processing/{name}/faostat_food_supply.csv",
+        faostat_gdd_supplements="processing/{name}/faostat_gdd_supplements.csv",
         population="processing/{name}/population.csv",
     params:
         countries=config["countries"],

@@ -694,7 +694,7 @@ def process_food_waste_data(
 def main():
     m49_file = snakemake.input["m49"]
     animal_production_file = snakemake.input["animal_production"]
-    faostat_food_supply_file = snakemake.input["faostat_food_supply"]
+    faostat_gdd_supplements_file = snakemake.input["faostat_gdd_supplements"]
     population_file = snakemake.input["population"]
     output_file = snakemake.output["food_loss_waste"]
     countries = snakemake.params["countries"]
@@ -712,7 +712,7 @@ def main():
 
     # Load FAOSTAT data for dairy loss calculation
     animal_production = pd.read_csv(animal_production_file)
-    faostat_supply = pd.read_csv(faostat_food_supply_file)
+    faostat_supply = pd.read_csv(faostat_gdd_supplements_file)
     population = pd.read_csv(population_file)
 
     # Fetch FAOSTAT food supply data

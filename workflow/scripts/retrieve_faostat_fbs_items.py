@@ -29,7 +29,7 @@ from workflow.scripts.logging_config import setup_script_logging
 
 logger = logging.getLogger(__name__)
 
-# Proxy mapping for missing countries (same as retrieve_faostat_food_supply.py)
+# Proxy mapping for missing countries (same as retrieve_faostat_gdd_supplements.py)
 FALLBACK_MAPPING = {
     "ASM": ["WSM", "USA"],  # American Samoa -> Samoa / USA
     "BEN": ["TGO", "BFA", "NGA"],  # Benin -> Togo / Burkina Faso / Nigeria
