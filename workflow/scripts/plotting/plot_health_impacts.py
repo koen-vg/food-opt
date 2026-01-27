@@ -157,7 +157,7 @@ def compute_health_results(
     intake_totals: dict[tuple[int, str], float] = defaultdict(float)
     p_now = n.links.dynamic.p0.loc["now"]
 
-    consume_links = n.links.static[n.links.static["carrier"].str.startswith("consume_")]
+    consume_links = n.links.static[n.links.static["carrier"] == "food_consumption"]
     for link_name in consume_links.index:
         food = n.links.static.at[link_name, "food"]
         country = n.links.static.at[link_name, "country"]

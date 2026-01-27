@@ -15,27 +15,12 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
-def extract_crop_production(n: pypsa.Network) -> pd.Series:
-    """Extract total crop production aggregated across regions/classes."""
-    crop_totals: dict[str, float] = {}
-
-    # Use carrier-based filtering for production links
-    links_static = n.links.static
-    production_links = links_static[links_static["carrier"].str.startswith("produce_")]
-
-    for link in production_links.index:
-        # Use the 'crop' domain column instead of parsing carrier
-        crop = production_links.at[link, "crop"]
-        if pd.isna(crop):
-            continue
-        crop = str(crop)
-
-        # Flow at bus1 is crop output (megatonnes)
-        flow = float(n.links.dynamic.p1.loc["now", link])
-        production = abs(flow)
-        crop_totals[crop] = crop_totals.get(crop, 0.0) + production
-
-    return pd.Series(crop_totals).sort_index()
+def load_crop_production(csv_path: str | Path) -> pd.Series:
+    """Load crop production from statistics CSV, aggregated globally by crop."""
+    df = pd.read_csv(csv_path)
+    if df.empty:
+        return pd.Series(dtype=float)
+    return df.groupby("crop")["production_mt"].sum().sort_index()
 
 
 def extract_food_production(n: pypsa.Network) -> pd.Series:
@@ -44,7 +29,7 @@ def extract_food_production(n: pypsa.Network) -> pd.Series:
 
     # Use carrier-based filtering for consume links
     links_static = n.links.static
-    consume_links = links_static[links_static["carrier"].str.startswith("consume_")]
+    consume_links = links_static[links_static["carrier"] == "food_consumption"]
 
     for link in consume_links.index:
         # Use the 'food' domain column instead of parsing name
@@ -180,7 +165,7 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
 
 
 if __name__ == "__main__":
-    # Load the solved network
+    # Load the solved network (still needed for food_production and resource_usage)
     logger.info("Loading solved network...")
     n = pypsa.Network(snakemake.input.network)
 
@@ -190,9 +175,9 @@ if __name__ == "__main__":
 
     logger.info("Creating plots in %s", output_dir)
 
-    # Extract data
-    logger.info("Extracting crop production data...")
-    crop_production = extract_crop_production(n)
+    # Load crop production from pre-extracted statistics
+    logger.info("Loading crop production from statistics CSV...")
+    crop_production = load_crop_production(snakemake.input.crop_production)
     logger.info("Found %d crops with production data", len(crop_production))
 
     logger.info("Extracting food production data (for CSV)...")

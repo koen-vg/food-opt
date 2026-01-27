@@ -130,7 +130,7 @@ def compute_ghg_marginals(
 
     # Extract results for consumption links using carrier-based filtering
     links_static = n.links.static
-    consume_mask = links_static["carrier"].str.startswith("consume_")
+    consume_mask = links_static["carrier"] == "food_consumption"
     consume_links = links_static.loc[consume_mask].copy()
 
     # Get flows for consume links
@@ -486,7 +486,7 @@ def compute_intake_by_cluster_risk(
     links_static = n.links.static
 
     # Filter to consume links using carrier-based filtering
-    consume_mask = links_static["carrier"].str.startswith("consume_")
+    consume_mask = links_static["carrier"] == "food_consumption"
     consume_links = links_static.loc[consume_mask]
 
     for link_name in consume_links.index:

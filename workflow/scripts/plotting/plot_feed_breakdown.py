@@ -96,7 +96,7 @@ def _extract_feed_use(n: pypsa.Network) -> pd.DataFrame:
 
     # Filter for animal production links using carrier and feed_category columns
     feed_links = links_static[
-        links_static["carrier"].str.startswith("produce_")
+        (links_static["carrier"] == "animal_production")
         & links_static["product"].notna()
         & links_static["feed_category"].notna()
     ]

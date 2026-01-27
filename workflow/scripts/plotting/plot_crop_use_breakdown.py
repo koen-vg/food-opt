@@ -44,16 +44,13 @@ def _extract_crop_production(
         carrier = str(links_df.at[link, "carrier"])
 
         # Filter for crop production links using carrier
-        if not carrier.startswith("produce_"):
-            continue
-        # Skip grassland production (handled separately below)
-        if carrier == "produce_grassland":
+        if carrier != "crop_production":
             continue
 
         # Use crop column for metadata
-        # Skip links without crop metadata or multi-crop links (crop='nan' string)
+        # Skip links without crop metadata (NA or empty string per PyPSA convention)
         crop = links_df.at[link, "crop"]
-        if pd.isna(crop) or str(crop) == "nan":
+        if pd.isna(crop) or crop == "":
             continue
         crop_token = str(crop)
 
@@ -71,18 +68,13 @@ def _extract_crop_production(
         elif water_supply == "rainfed":
             rainfed[crop_token] = rainfed.get(crop_token, 0.0) + value
 
-    pasture_total = 0.0
-    for link in links_df.index:
-        carrier = str(links_df.at[link, "carrier"])
-        # Filter for grassland production using carrier
-        if carrier != "produce_grassland":
-            continue
-
-        value = abs(float(flows.get(link, 0.0)))
-        if value <= 0.0:
-            continue
-
-        pasture_total += value
+    # Add grassland production
+    grassland_links = links_df[links_df["carrier"] == "grassland_production"]
+    pasture_total = sum(
+        abs(float(flows.get(link, 0.0)))
+        for link in grassland_links.index
+        if abs(float(flows.get(link, 0.0))) > 0.0
+    )
 
     if pasture_total > 0.0:
         production["grassland"] = pasture_total
@@ -128,31 +120,26 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
 
         carrier = str(links_df.at[link, "carrier"])
 
-        # Human consumption: track via pathway links (crop → food processing)
+        # Human consumption: track via food_processing links (crop → food processing)
         # These links have the crop column set and represent crop use for food
-        if carrier.startswith("pathway_"):
+        if carrier == "food_processing":
             crop = links_df.at[link, "crop"]
             if pd.notna(crop):
                 human_use[str(crop)] += flow_in
-        # Animal feed: track via convert_to_feed links from crop buses
+        # Animal feed: track via feed_conversion links from crop buses
         # Only count direct crop→feed conversions (links with crop column set)
-        elif carrier == "convert_to_feed":
+        elif carrier == "feed_conversion":
             crop = links_df.at[link, "crop"]
             if pd.notna(crop):
                 feed_use[str(crop)] += flow_in
 
-    pasture_total = 0.0
-    for link in links_df.index:
-        carrier = str(links_df.at[link, "carrier"])
-        # Filter for grassland production using carrier
-        if carrier != "produce_grassland":
-            continue
-
-        value = abs(float(flows_p1.get(link, 0.0)))
-        if value <= 0.0:
-            continue
-
-        pasture_total += value
+    # Add grassland feed production
+    grassland_links = links_df[links_df["carrier"] == "grassland_production"]
+    pasture_total = sum(
+        abs(float(flows_p1.get(link, 0.0)))
+        for link in grassland_links.index
+        if abs(float(flows_p1.get(link, 0.0))) > 0.0
+    )
 
     if pasture_total > 0.0:
         feed_use["grassland"] = feed_use.get("grassland", 0.0) + pasture_total

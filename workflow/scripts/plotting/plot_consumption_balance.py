@@ -14,7 +14,6 @@ from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pypsa
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 from workflow.scripts.plotting.color_utils import categorical_colors
@@ -28,14 +27,6 @@ CLUSTER_WIDTH_FACTOR = 1.2
 MIN_FIGURE_WIDTH = 8
 FIGURE_WIDTH_PADDING = 2
 FIGURE_HEIGHT = 8
-
-
-def _select_snapshot(network: pypsa.Network) -> str:
-    if "now" in network.snapshots:
-        return "now"
-    if len(network.snapshots) == 1:
-        return network.snapshots[0]
-    raise ValueError("Expected snapshot 'now' or single snapshot")
 
 
 def _get_cluster_map(clusters_path: str) -> dict[str, int]:
@@ -69,69 +60,70 @@ def _aggregate_by_cluster(
     return [cluster_sums.get(cluster, 0.0) for cluster in clusters]
 
 
+def _load_consumption_by_cluster(
+    food_consumption_path: str,
+    food_groups_path: str,
+    cluster_map: dict[str, int],
+    cluster_pop: dict[int, float],
+) -> pd.DataFrame:
+    """Load food consumption and aggregate to clusters with per-capita conversion.
+
+    Returns DataFrame with columns: cluster, group, food, value_g_person_day
+    """
+    food_df = pd.read_csv(food_consumption_path)
+    food_groups_df = pd.read_csv(food_groups_path)
+    food_to_group = food_groups_df.set_index("food")["group"].to_dict()
+
+    if food_df.empty:
+        return pd.DataFrame(columns=["cluster", "group", "food", "value_g_person_day"])
+
+    # Map country to cluster and add food group
+    food_df["cluster"] = food_df["country"].str.upper().map(cluster_map)
+    food_df["group"] = food_df["food"].map(food_to_group).fillna("Unknown")
+
+    # Drop rows without cluster mapping
+    food_df = food_df.dropna(subset=["cluster"])
+    food_df["cluster"] = food_df["cluster"].astype(int)
+
+    # Aggregate by cluster, group, food
+    agg = food_df.groupby(["cluster", "group", "food"], as_index=False)[
+        "consumption_mt"
+    ].sum()
+
+    # Convert to per-capita (g/person/day)
+    agg["population"] = agg["cluster"].map(cluster_pop)
+    agg["value_g_person_day"] = (
+        agg["consumption_mt"]
+        * GRAMS_PER_MEGATONNE
+        / (agg["population"] * DAYS_PER_YEAR)
+    )
+
+    return agg[["cluster", "group", "food", "value_g_person_day"]]
+
+
 def main() -> None:
     try:
         snakemake
     except NameError as exc:
         raise RuntimeError("Must be run via Snakemake") from exc
 
-    network_path = snakemake.input.network
+    food_consumption_path = snakemake.input.food_consumption
+    food_groups_path = snakemake.input.food_groups
     population_path = snakemake.input.population
     clusters_path = snakemake.input.clusters
-    food_groups_path = snakemake.input.food_groups
     output_pdf = Path(snakemake.output.pdf)
     output_pdf.parent.mkdir(parents=True, exist_ok=True)
 
     group_colors = snakemake.params.get("group_colors", {})
 
-    # Load Data
-    n = pypsa.Network(network_path)
-    snapshot = _select_snapshot(n)
+    # Load cluster and population mappings
     cluster_map = _get_cluster_map(clusters_path)
     cluster_pop = _get_cluster_population(population_path, cluster_map)
 
-    food_groups_df = pd.read_csv(food_groups_path)
-    food_to_group = food_groups_df.set_index("food")["group"].to_dict()
-
-    # Collect consumption data from consume links
-    consumption_data = []  # (cluster, group, food, value_mt)
-
-    # Process Consumption Links
-    links_static = n.links.static
-    consume_links = links_static[links_static["carrier"].str.startswith("consume_")]
-    links_dynamic = n.links.dynamic
-    p0 = (
-        links_dynamic.p0.loc[snapshot]
-        if hasattr(links_dynamic, "p0") and not links_dynamic.p0.empty
-        else pd.Series(0, index=links_static.index)
+    # Load and aggregate consumption data
+    df = _load_consumption_by_cluster(
+        food_consumption_path, food_groups_path, cluster_map, cluster_pop
     )
-
-    for link in consume_links.index:
-        val = p0.get(link, 0.0)
-        if val <= EPSILON:
-            continue
-
-        # Extract food and country from link attributes
-        food = links_static.at[link, "food"]
-        country = links_static.at[link, "country"]
-
-        cluster = cluster_map.get(country)
-        if cluster is None:
-            continue
-
-        group = food_to_group.get(food, "Unknown")
-
-        consumption_data.append(
-            {
-                "cluster": cluster,
-                "group": group,
-                "food": food,
-                "value": val,
-            }
-        )
-
-    # Convert to DataFrame
-    df = pd.DataFrame(consumption_data)
 
     if df.empty:
         logger.warning("No consumption data to plot.")
@@ -145,20 +137,6 @@ def main() -> None:
     # Get unique clusters and groups
     clusters = sorted(df["cluster"].unique())
     all_groups = sorted(df["group"].unique())
-
-    # Validate population data
-    missing_clusters = [c for c in clusters if c not in cluster_pop]
-    if missing_clusters:
-        raise ValueError(
-            f"Population data missing for clusters: {missing_clusters}. "
-            "Cannot compute per-capita values."
-        )
-
-    # Convert to g/person/day
-    df["population"] = df["cluster"].map(cluster_pop)
-    df["value_g_person_day"] = (
-        df["value"] * GRAMS_PER_MEGATONNE / (df["population"] * DAYS_PER_YEAR)
-    )
 
     # Create figure
     fig_width = max(

@@ -8,37 +8,67 @@ import logging
 from pathlib import Path
 
 import matplotlib
-import numpy as np
-import pandas as pd
-import pypsa
 
 matplotlib.use("pdf")
+import matplotlib.patches
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
-from workflow.scripts.plotting.plot_food_consumption import (
-    DAYS_PER_YEAR,
-    GRAMS_PER_MEGATONNE,
-    KCAL_PER_PJ,
-    _aggregate_group_calories,
-    _aggregate_group_mass,
-    _assign_colors,
-    _select_snapshot,
-)
-from workflow.scripts.population import get_total_population
+from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO_KCAL
+from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
 
 
-def _per_capita_consumption(
-    network: pypsa.Network, food_to_group: dict[str, str], population_total: float
+def _load_global_per_capita(
+    food_group_consumption_path: str,
 ) -> tuple[pd.Series, pd.Series]:
-    snapshot = _select_snapshot(network)
+    """Load food group consumption and compute global per-capita values.
 
-    mass_mt = _aggregate_group_mass(network, snapshot, food_to_group)
-    calories_pj = _aggregate_group_calories(network, snapshot, food_to_group)
+    Derives total population from the relationship between absolute and per-capita
+    values already in the CSV.
 
-    mass_per_capita = mass_mt * GRAMS_PER_MEGATONNE / (population_total * DAYS_PER_YEAR)
-    calories_per_capita = calories_pj * KCAL_PER_PJ / (population_total * DAYS_PER_YEAR)
+    Parameters
+    ----------
+    food_group_consumption_path : str
+        Path to food_group_consumption.csv
+
+    Returns
+    -------
+    tuple[pd.Series, pd.Series]
+        (mass_g_per_person_day, calories_kcal_per_person_day) indexed by food_group
+    """
+    df = pd.read_csv(food_group_consumption_path)
+
+    if df.empty:
+        return pd.Series(dtype=float), pd.Series(dtype=float)
+
+    # Derive country population from absolute and per-capita values
+    # population = consumption_mt * GRAMS_PER_MEGATONNE / (g_per_person_day * DAYS_PER_YEAR)
+    valid = df["consumption_g_per_person_day"] > 0
+    df_valid = df[valid].copy()
+    df_valid["_implied_pop"] = (
+        df_valid["consumption_mt"]
+        * GRAMS_PER_MEGATONNE
+        / (df_valid["consumption_g_per_person_day"] * DAYS_PER_YEAR)
+    )
+    # Get unique population per country (take first valid row per country)
+    country_pop = df_valid.groupby("country")["_implied_pop"].first()
+    total_population = country_pop.sum()
+
+    # Sum absolute values across all countries
+    global_totals = df.groupby("food_group")[["consumption_mt", "cal_pj"]].sum()
+
+    # Convert to per-capita
+    mass_per_capita = (
+        global_totals["consumption_mt"]
+        * GRAMS_PER_MEGATONNE
+        / (total_population * DAYS_PER_YEAR)
+    )
+    calories_per_capita = (
+        global_totals["cal_pj"] * PJ_TO_KCAL / (total_population * DAYS_PER_YEAR)
+    )
 
     return mass_per_capita, calories_per_capita
 
@@ -149,42 +179,25 @@ def main() -> None:
     except NameError as exc:  # pragma: no cover - Snakemake injects the variable
         raise RuntimeError("This script must be run from Snakemake") from exc
 
-    network_paths = [Path(p) for p in snakemake.input.networks]  # type: ignore[attr-defined]
+    csv_paths = [Path(p) for p in snakemake.input.food_group_consumption]  # type: ignore[attr-defined]
     comparison_labels = list(snakemake.params.wildcards)  # type: ignore[attr-defined]
-    food_groups_path = Path(snakemake.input.food_groups)  # type: ignore[attr-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[attr-defined]
     output_csv = Path(snakemake.output.csv)  # type: ignore[attr-defined]
 
-    if len(network_paths) != len(comparison_labels):
+    if len(csv_paths) != len(comparison_labels):
         raise ValueError(
-            "Number of network inputs must match number of comparison labels"
+            "Number of food_group_consumption inputs must match number of comparison labels"
         )
 
     output_pdf.parent.mkdir(parents=True, exist_ok=True)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Loading food group mapping from %s", food_groups_path)
-    food_groups_df = pd.read_csv(food_groups_path)
-    food_to_group = food_groups_df.set_index("food")["group"].to_dict()
-
     mass_data: dict[str, pd.Series] = {}
     cal_data: dict[str, pd.Series] = {}
-    population_total: float | None = None
 
-    for label, network_path in zip(comparison_labels, network_paths):
-        logger.info("Aggregating consumption for %s", network_path)
-        network = pypsa.Network(network_path)
-
-        # Get population from first network
-        if population_total is None:
-            population_total = get_total_population(network)
-            logger.info(
-                "Total population for per-capita conversion: %.3e", population_total
-            )
-
-        mass_pc, cal_pc = _per_capita_consumption(
-            network, food_to_group, population_total
-        )
+    for label, csv_path in zip(comparison_labels, csv_paths):
+        logger.info("Loading consumption for %s from %s", label, csv_path)
+        mass_pc, cal_pc = _load_global_per_capita(str(csv_path))
         mass_data[label] = mass_pc
         cal_data[label] = cal_pc
 
@@ -199,7 +212,7 @@ def main() -> None:
         else pd.DataFrame()
     )
 
-    group_colors = _assign_colors(
+    group_colors = categorical_colors(
         _ordered_groups(mass_df, cal_df),
         overrides=getattr(snakemake.params, "group_colors", {}) or None,  # type: ignore[attr-defined]
     )

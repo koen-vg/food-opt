@@ -49,24 +49,26 @@ def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Seri
         return pd.Series(categories, index=index, name="category")
 
     if component == "Link":
-        mapping = {
-            "crop": "Crop production",
-            "produce": "Crop production",
-            "trade": "Trade",
-            "convert": "Processing",
-            "consume": "Consumption",
+        # Direct carrier-to-category mapping using standardized carrier names
+        carrier_mapping = {
+            "crop_production": "Crop production",
+            "crop_production_multi": "Crop production",
+            "grassland_production": "Crop production",
+            "animal_production": "Animal production",
+            "food_consumption": "Consumption",
+            "food_processing": "Processing",
+            "feed_conversion": "Processing",
+            "trade_crop": "Trade",
+            "trade_food": "Trade",
+            "trade_feed": "Trade",
+            "biomass_crop": "Biomass routing",
+            "biomass_byproduct": "Biomass routing",
         }
         carriers = static.get("carrier", pd.Series(dtype=str))
         categories = []
         for name in index:
             carrier = str(carriers.get(name, "")) if not carriers.empty else ""
-            if carrier in ("crop_to_biomass", "byproduct_to_biomass"):
-                categories.append("Biomass routing")
-                continue
-
-            # Extract category prefix from carrier (e.g., "crop_wheat_rainfed" -> "crop")
-            carrier_prefix = carrier.split("_", 1)[0] if carrier else ""
-            categories.append(mapping.get(carrier_prefix, "Other"))
+            categories.append(carrier_mapping.get(carrier, "Other"))
         return pd.Series(categories, index=index, name="category")
 
     if component == "Store":

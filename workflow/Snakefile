@@ -59,7 +59,6 @@ ALL_RULE_TARGETS = [
     # maps (not objective-specific, in base plots directory)
     "results/{name}/plots/regions_map.pdf",
     "results/{name}/plots/resource_classes_map.pdf",
-    "results/{name}/plots/food_consumption_baseline_map.pdf",
     "results/{name}/plots/food_consumption_comparison.pdf",
     "results/{name}/plots/food_consumption_comparison.csv",
     "results/{name}/plots/system_cost_comparison.pdf",
@@ -81,8 +80,6 @@ ALL_RULE_TARGETS = [
     # "results/{name}/plots/scen-default/health_baseline_by_region.csv",
     # objective-specific maps
     "results/{name}/plots/scen-default/crop_production_map.pdf",
-    "results/{name}/plots/scen-default/cropland_fraction_map.pdf",
-    "results/{name}/plots/scen-default/irrigated_cropland_fraction_map.pdf",
     "results/{name}/plots/scen-default/crop_use_breakdown.pdf",
     "results/{name}/plots/scen-default/crop_use_breakdown.csv",
     "results/{name}/plots/scen-default/feed_breakdown.pdf",
@@ -98,6 +95,7 @@ ALL_RULE_TARGETS = [
     # "results/{name}/plots/scen-default/water_value_map.pdf",   # Current not working
     "results/{name}/plots/scen-default/food_consumption.pdf",
     "results/{name}/plots/scen-default/food_consumption_map.pdf",
+    "results/{name}/plots/scen-default/food_consumption_baseline_map.pdf",
     # marginal damages analysis
     "results/{name}/plots/scen-default/marginal_ghg_global.pdf",
     "results/{name}/plots/scen-default/marginal_yll_global.pdf",

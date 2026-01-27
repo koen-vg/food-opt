@@ -121,7 +121,7 @@ def _aggregate_consumption_by_group(network: pypsa.Network) -> pd.Series:
     totals: dict[str, float] = {}
 
     # Filter to consume links using carrier-based filtering
-    consume_mask = links["carrier"].astype(str).str.startswith("consume_")
+    consume_mask = links["carrier"] == "food_consumption"
     consume_links = links[consume_mask]
 
     for link_name, link_row in consume_links.iterrows():

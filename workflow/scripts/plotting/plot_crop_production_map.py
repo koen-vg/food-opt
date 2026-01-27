@@ -8,6 +8,7 @@ from pathlib import Path
 
 from affine import Affine
 import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 import geopandas as gpd
 import matplotlib
@@ -21,7 +22,6 @@ import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 from pyproj import Geod
-import pypsa
 from rasterio.transform import array_bounds
 import xarray as xr
 
@@ -94,67 +94,28 @@ CROP_GROUP_COLORS = {
 }
 
 
-def _extract_land_use_by_region_class_crop(
-    n: pypsa.Network,
-    snapshot: str,
-) -> pd.DataFrame:
-    """Extract used land area by region, resource class, and crop.
+def _load_land_use_by_region_class_crop(csv_path: str) -> pd.DataFrame:
+    """Load land use from statistics CSV, aggregated by region/resource_class/crop.
 
     Returns DataFrame with columns: region, resource_class, crop, used_ha
     """
-    links_static = n.links.static
-    if links_static.empty:
+    df = pd.read_csv(csv_path)
+    if df.empty:
         return pd.DataFrame(columns=["region", "resource_class", "crop", "used_ha"])
 
-    # Find crop production links (produce_*) excluding grassland
-    crop_links = links_static[
-        links_static["carrier"].str.startswith("produce_", na=False)
-        & (links_static["carrier"] != "produce_grassland")
-    ]
+    # Aggregate by region, resource_class, crop (sum over water_supply and country)
+    df = df.groupby(["region", "resource_class", "crop"], as_index=False)[
+        "area_mha"
+    ].sum()
 
-    # Filter to links with valid resource_class and crop
-    crop_links = crop_links[
-        crop_links["resource_class"].notna() & crop_links["crop"].notna()
-    ]
+    # Convert Mha to ha
+    df["used_ha"] = df["area_mha"] * 1e6
+    df = df.drop(columns=["area_mha"])
 
-    rows = []
+    # Filter to positive values
+    df = df[df["used_ha"] > 0]
 
-    if not crop_links.empty:
-        p0_flows = n.links.dynamic.p0.loc[snapshot, crop_links.index] * 1e6
-        for idx in crop_links.index:
-            used_ha = max(float(p0_flows[idx]), 0.0)
-            if used_ha > 0:
-                rows.append(
-                    {
-                        "region": crop_links.at[idx, "region"],
-                        "resource_class": int(crop_links.at[idx, "resource_class"]),
-                        "crop": str(crop_links.at[idx, "crop"]),
-                        "used_ha": used_ha,
-                    }
-                )
-
-    # Handle grassland separately
-    grass_links = links_static[links_static["carrier"] == "produce_grassland"]
-    grass_links = grass_links[grass_links["resource_class"].notna()]
-
-    if not grass_links.empty:
-        p0_flows_grass = n.links.dynamic.p0.loc[snapshot, grass_links.index] * 1e6
-        for idx in grass_links.index:
-            used_ha = max(float(p0_flows_grass[idx]), 0.0)
-            if used_ha > 0:
-                rows.append(
-                    {
-                        "region": grass_links.at[idx, "region"],
-                        "resource_class": int(grass_links.at[idx, "resource_class"]),
-                        "crop": "grassland",
-                        "used_ha": used_ha,
-                    }
-                )
-
-    if not rows:
-        return pd.DataFrame(columns=["region", "resource_class", "crop", "used_ha"])
-
-    return pd.DataFrame(rows)
+    return df
 
 
 def _load_resource_classes(path: str) -> dict:
@@ -382,13 +343,41 @@ def _plot_gridcell_intensity(
     no_data_mask = dominant_group_grid < 0
     rgba[no_data_mask, 3] = 0.0
 
+    # Add unmodeled land areas with light gray and white hatching (Greenland, Antarctica, etc.)
+    # Hatch color follows edgecolor, so we add two layers: fill and hatching
+    ax.add_feature(
+        cfeature.LAND,
+        facecolor="#f0f0f0",
+        edgecolor="none",
+        zorder=0,
+    )
+    # Add hatching layer with white edge (hatch color follows edgecolor)
+    # More slashes = tighter spacing
+    ax.add_feature(
+        cfeature.LAND,
+        facecolor="none",
+        edgecolor="#ffffff",
+        hatch="//////",
+        linewidth=0.3,
+        zorder=0.5,
+    )
+
+    # Add modeled regions with white fill (on top of gray land, covering hatching)
+    ax.add_geometries(
+        gdf.geometry,
+        crs=plate,
+        facecolor="#ffffff",
+        edgecolor="none",
+        zorder=1,
+    )
+
     ax.imshow(
         rgba,
         origin="upper",
         extent=extent,
         transform=plate,
         interpolation="nearest",
-        zorder=1,
+        zorder=2,
     )
 
     # Add region boundaries in subtle grey
@@ -398,7 +387,7 @@ def _plot_gridcell_intensity(
         facecolor="none",
         edgecolor="#999999",
         linewidth=0.2,
-        zorder=2,
+        zorder=3,
     )
 
     # Style spines
@@ -428,6 +417,10 @@ def _plot_gridcell_intensity(
     gl.top_labels = False
     gl.right_labels = False
 
+    # Force layout computation to get accurate axes position for inset placement
+    fig.canvas.draw()
+    map_pos = ax.get_position()
+
     # Build inset stacked bar chart showing land use breakdown by crop group
     # Compute area by group and crop
     group_data = []
@@ -451,9 +444,54 @@ def _plot_gridcell_intensity(
     group_data.sort(key=lambda x: -x[1])
 
     if group_data:
-        # Create inset axes in bottom-left corner
-        inset_width_frac = 0.29
-        inset_ax = fig.add_axes([0.0, 0.0, inset_width_frac, 0.42])
+        # Determine inset width by converting a target longitude to figure coordinates.
+        # The inset right edge should stop before South America.
+        target_lon = -100  # degrees West
+
+        # Transform from lon/lat to projection coordinates, then to figure coordinates
+        # Use lat=0 (equator) as reference point for the x-coordinate transformation
+        proj_coords = ax.projection.transform_point(target_lon, 0, plate)
+        display_coords = ax.transData.transform(proj_coords)
+        fig_coords = fig.transFigure.inverted().transform(display_coords)
+
+        inset_x = map_pos.x0
+        inset_y = map_pos.y0
+        inset_width = fig_coords[0] - inset_x
+        inset_height = 0.42  # Fixed height as fraction of figure
+
+        # Add white background behind inset to cover map gridline labels
+        # Convert 1mm to figure fraction based on actual figure size
+        fig_w_inches, fig_h_inches = fig.get_size_inches()
+        mm_to_fig_x = 1 / (fig_w_inches * 25.4)
+        mm_to_fig_y = 1 / (fig_h_inches * 25.4)
+        bg_padding_left = 0.03  # Extra padding to cover latitude labels
+        bg_padding_right = 1 * mm_to_fig_x  # 1mm padding
+        bg_padding_bottom = 0.06  # Extra padding to cover longitude labels
+        bg_padding_top = 1 * mm_to_fig_y  # 1mm padding
+        inset_bg_ax = fig.add_axes(
+            [
+                inset_x - bg_padding_left,
+                inset_y - bg_padding_bottom,
+                inset_width + bg_padding_left + bg_padding_right,
+                inset_height + bg_padding_bottom + bg_padding_top,
+            ]
+        )
+        inset_bg_ax.set_facecolor("#ffffff")
+        inset_bg_ax.patch.set_alpha(1.0)
+        inset_bg_ax.set_zorder(9)
+        inset_bg_ax.set_xticks([])
+        inset_bg_ax.set_yticks([])
+        for spine in inset_bg_ax.spines.values():
+            spine.set_visible(False)
+
+        inset_ax = fig.add_axes(
+            [
+                inset_x,
+                inset_y,
+                inset_width,
+                inset_height,
+            ]
+        )
         inset_ax.set_facecolor("#ffffff")
         inset_ax.patch.set_alpha(1.0)
         inset_ax.set_zorder(10)
@@ -477,8 +515,8 @@ def _plot_gridcell_intensity(
         x_range = max_area_mha * x_margin_factor
 
         # Calculate conversion factor from points to data coordinates
-        fig_width_points = 13 * 72
-        inset_width_points = fig_width_points * inset_width_frac
+        fig_width_points = fig_w_inches * 72
+        inset_width_points = fig_width_points * inset_width
         points_to_data = x_range / inset_width_points
 
         def get_text_width_data(text: str) -> float:
@@ -582,19 +620,53 @@ def _plot_gridcell_intensity(
     )
     sm.set_array([])
 
-    # Add colorbar with white background
-    cbar_bg_ax = fig.add_axes([0.44, 0.07, 0.26, 0.08])
+    # Add colorbar with white background, positioned at bottom-center of map
+    fig_w_inches, fig_h_inches = fig.get_size_inches()
+    mm_to_fig_x = 1 / (fig_w_inches * 25.4)
+    mm_to_fig_y = 1 / (fig_h_inches * 25.4)
+    cbar_padding_x = 1 * mm_to_fig_x  # 1mm padding around bordered box
+    cbar_padding_y = 1 * mm_to_fig_y
+    cbar_box_width = 0.26
+    cbar_box_height = 0.08
+    cbar_box_x = map_pos.x0 + (map_pos.width - cbar_box_width) / 2 + 0.10
+    cbar_box_y = map_pos.y0
+
+    # White background layer (behind bordered box, to cover map labels)
+    cbar_bg_ax = fig.add_axes(
+        [
+            cbar_box_x - cbar_padding_x,
+            cbar_box_y - cbar_padding_y,
+            cbar_box_width + 2 * cbar_padding_x,
+            cbar_box_height + 2 * cbar_padding_y,
+        ]
+    )
     cbar_bg_ax.set_facecolor("#ffffff")
     cbar_bg_ax.patch.set_alpha(1.0)
-    cbar_bg_ax.set_zorder(9)
+    cbar_bg_ax.set_zorder(8)
     cbar_bg_ax.set_xticks([])
     cbar_bg_ax.set_yticks([])
     for spine in cbar_bg_ax.spines.values():
+        spine.set_visible(False)
+
+    # Bordered box layer
+    cbar_border_ax = fig.add_axes(
+        [cbar_box_x, cbar_box_y, cbar_box_width, cbar_box_height]
+    )
+    cbar_border_ax.set_facecolor("#ffffff")
+    cbar_border_ax.patch.set_alpha(1.0)
+    cbar_border_ax.set_zorder(9)
+    cbar_border_ax.set_xticks([])
+    cbar_border_ax.set_yticks([])
+    for spine in cbar_border_ax.spines.values():
         spine.set_visible(True)
         spine.set_linewidth(0.5)
         spine.set_color("#cccccc")
 
-    cbar_ax = fig.add_axes([0.48, 0.12, 0.18, 0.018])
+    cbar_width = 0.18
+    cbar_height = 0.018
+    cbar_x = cbar_box_x + (cbar_box_width - cbar_width) / 2
+    cbar_y = cbar_box_y + 0.05
+    cbar_ax = fig.add_axes([cbar_x, cbar_y, cbar_width, cbar_height])
     cbar_ax.set_zorder(10)
     cbar = fig.colorbar(sm, cax=cbar_ax, orientation="horizontal")
     cbar.set_ticks([0, 50, 100])
@@ -607,6 +679,18 @@ def _plot_gridcell_intensity(
     cbar.outline.set_linewidth(0.5)
     cbar.outline.set_edgecolor("#cccccc")
 
+    # Add annotation for unmodeled regions at bottom right of map area
+    fig.text(
+        map_pos.x1,
+        map_pos.y0,
+        "Gray hatched areas not modeled",
+        ha="right",
+        va="bottom",
+        fontsize=6,
+        color="#666666",
+        style="italic",
+    )
+
     ax.set_title(title, fontsize=8)
     fig.savefig(out, bbox_inches="tight", dpi=300)
     plt.close(fig)
@@ -615,14 +699,12 @@ def _plot_gridcell_intensity(
 
 
 def main() -> None:
-    n = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
     resource_classes_path: str = snakemake.input.resource_classes  # type: ignore[name-defined]
     land_area_by_class_path: str = snakemake.input.land_area_by_class  # type: ignore[name-defined]
     land_grazing_only_path: str = snakemake.input.land_grazing_only  # type: ignore[name-defined]
+    land_use_path: str = snakemake.input.land_use  # type: ignore[name-defined]
     output_pdf: str = snakemake.output.pdf  # type: ignore[name-defined]
-
-    snapshot = "now" if "now" in n.snapshots else n.snapshots[0]
 
     gdf = _setup_regions(regions_path)
     region_name_to_id = {region: idx for idx, region in enumerate(gdf["region"])}
@@ -631,7 +713,7 @@ def main() -> None:
     potential_area = _load_potential_area(
         land_area_by_class_path, land_grazing_only_path
     )
-    land_use_by_rc_crop = _extract_land_use_by_region_class_crop(n, snapshot)
+    land_use_by_rc_crop = _load_land_use_by_region_class_crop(land_use_path)
 
     if not land_use_by_rc_crop.empty:
         dominant_group_grid, intensity_grid, crops_by_group, area_by_crop = (

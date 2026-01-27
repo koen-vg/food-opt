@@ -20,100 +20,41 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
-import pypsa
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
 from workflow.scripts.plotting.color_utils import categorical_colors
-from workflow.scripts.population import get_health_cluster_population
 
 logger = logging.getLogger(__name__)
 
 PLATE_CARREE = ccrs.PlateCarree()
 
 
-def _select_snapshot(network: pypsa.Network) -> pd.Index | str:
-    if "now" in network.snapshots:
-        return "now"
-    if len(network.snapshots) == 1:
-        return network.snapshots[0]
-    raise ValueError("Expected snapshot 'now' or single snapshot in solved network")
+def _load_country_group_mass(food_group_consumption_path: str) -> pd.DataFrame:
+    """Load country-level consumption by food group from pre-extracted statistics.
 
-
-def _link_dispatch_at_snapshot(
-    network: pypsa.Network, snapshot
-) -> dict[int, pd.Series]:
-    dispatch: dict[int, pd.Series] = {}
-    links_dynamic = network.links.dynamic
-    for attr in dir(links_dynamic):
-        if not attr.startswith("p"):
-            continue
-        suffix = attr[1:]
-        if not suffix.isdigit():
-            continue
-        series = getattr(links_dynamic, attr)
-        if snapshot not in series.index:
-            continue
-        dispatch[int(suffix)] = series.loc[snapshot]
-    return dispatch
-
-
-def _aggregate_consume_link_totals(
-    network: pypsa.Network, snapshot, food_to_group: dict[str, str]
-) -> dict[tuple[str, str], float]:
-    """Aggregate consumption by country and food group using link attributes."""
-    links = network.links.static
-    consume_links = links[links["carrier"].str.startswith("consume_")]
-    if consume_links.empty:
-        return {}
-
-    dispatch_lookup = _link_dispatch_at_snapshot(network, snapshot)
-    if not dispatch_lookup:
-        return {}
-
-    totals: dict[tuple[str, str], float] = {}
-    for link_name in consume_links.index:
-        food = str(consume_links.at[link_name, "food"])
-        country = str(consume_links.at[link_name, "country"]).upper()
-        food_group = consume_links.at[link_name, "food_group"]
-
-        group = food_to_group.get(food)
-        if group is None:
-            continue
-
-        # Find the leg that outputs to the group bus (identified by food_group column)
-        for _leg, dispatch in dispatch_lookup.items():
-            value = float(dispatch.get(link_name, 0.0))
-            if value == 0.0 or not np.isfinite(value):
-                continue
-            # Use the food_group column to identify group output legs
-            if pd.notna(food_group):
-                key = (country, group)
-                totals[key] = totals.get(key, 0.0) + abs(value)
-                break
-
-    return totals
-
-
-def _aggregate_country_group_mass(
-    network: pypsa.Network,
-    snapshot,
-    food_to_group: dict[str, str],
-) -> pd.DataFrame:
-    totals = _aggregate_consume_link_totals(network, snapshot, food_to_group)
-
-    if not totals:
+    Returns DataFrame with countries as rows, food groups as columns, values in Mt.
+    """
+    df = pd.read_csv(food_group_consumption_path)
+    if df.empty:
         return pd.DataFrame()
 
-    series = pd.Series(totals, dtype=float)
-    df = series.unstack(fill_value=0.0).sort_index(axis=0).sort_index(axis=1)
-    df.index.name = "iso3"
-    return df
+    # Pivot to wide format: rows=country, columns=food_group, values=consumption_mt
+    pivot = df.pivot_table(
+        index="country",
+        columns="food_group",
+        values="consumption_mt",
+        aggfunc="sum",
+        fill_value=0.0,
+    )
+    pivot.index.name = "iso3"
+    return pivot.sort_index(axis=0).sort_index(axis=1)
 
 
 def _aggregate_cluster_group_mass(
     country_group: pd.DataFrame,
     iso_to_cluster: Mapping[str, int],
 ) -> pd.DataFrame:
+    """Aggregate country-level consumption to health clusters."""
     if country_group.empty:
         return pd.DataFrame()
 
@@ -135,6 +76,17 @@ def _aggregate_cluster_group_mass(
     df = series.unstack(fill_value=0.0).sort_index(axis=0).sort_index(axis=1)
     df.index.name = "health_cluster"
     return df
+
+
+def _get_cluster_population(
+    population_path: str, iso_to_cluster: Mapping[str, int]
+) -> pd.Series:
+    """Compute population by health cluster from country population data."""
+    pop_df = pd.read_csv(population_path)
+    pop_df["iso3"] = pop_df["iso3"].str.upper()
+    pop_df["cluster"] = pop_df["iso3"].map(iso_to_cluster)
+    cluster_pop = pop_df.groupby("cluster")["population"].sum()
+    return cluster_pop
 
 
 def _colors_for_groups(
@@ -403,25 +355,16 @@ def main() -> None:
     except NameError as exc:  # pragma: no cover
         raise RuntimeError("This script must be run via Snakemake") from exc
 
-    network_path = snakemake.input.network  # type: ignore[attr-defined]
-    clusters_path = snakemake.input.clusters  # type: ignore[attr-defined]
-    regions_path = snakemake.input.regions  # type: ignore[attr-defined]
-    food_groups_path = snakemake.input.food_groups  # type: ignore[attr-defined]
-    output_pdf = Path(snakemake.output.pdf)  # type: ignore[attr-defined]
+    food_group_consumption_path = snakemake.input.food_group_consumption
+    population_path = snakemake.input.population
+    clusters_path = snakemake.input.clusters
+    regions_path = snakemake.input.regions
+    output_pdf = Path(snakemake.output.pdf)
     output_csv = Path(snakemake.output.csv)
 
-    logger.info("Loading network from %s", network_path)
-    network = pypsa.Network(network_path)
-    snapshot = _select_snapshot(network)
-    logger.info("Using snapshot '%s'", snapshot)
-
-    # Load food->group mapping
-    food_groups_df = pd.read_csv(food_groups_path)
-    food_to_group = food_groups_df.set_index("food")["group"].to_dict()
-
-    logger.info("Aggregating country-level consumption")
-    country_group = _aggregate_country_group_mass(network, snapshot, food_to_group)
-    logger.info("Found %d countries with food group loads", country_group.shape[0])
+    logger.info("Loading food group consumption from %s", food_group_consumption_path)
+    country_group = _load_country_group_mass(food_group_consumption_path)
+    logger.info("Found %d countries with food group data", country_group.shape[0])
 
     cluster_df = pd.read_csv(clusters_path)
     if (
@@ -441,9 +384,8 @@ def main() -> None:
     cluster_mass = _aggregate_cluster_group_mass(country_group, iso_to_cluster)
     logger.info("Aggregated to %d clusters", cluster_mass.shape[0])
 
-    # Get cluster population from network metadata
-    pop_map = get_health_cluster_population(network)
-    population_series = pd.Series(pop_map, dtype=float)
+    # Get cluster population from population CSV
+    population_series = _get_cluster_population(population_path, iso_to_cluster)
     missing_population = sorted(
         cluster
         for cluster in cluster_mass.index

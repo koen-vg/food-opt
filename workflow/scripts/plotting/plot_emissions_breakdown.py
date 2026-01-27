@@ -38,7 +38,7 @@ def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
     carrier_map = {
         "residue_incorporation": "Crop residue incorporation",
         "spare_land": "Carbon sequestration",  # Link carrier (not "spared_land" which is bus/store)
-        "distribute_fertilizer": "Synthetic fertilizer application",
+        "fertilizer_distribution": "Synthetic fertilizer application",
         "land_conversion": "Land Use Change",  # Link carrier for land expansion
     }
 
@@ -46,29 +46,29 @@ def categorize_emission_carrier(carrier: str, bus_carrier: str) -> str:
         return carrier_map[carrier]
 
     # Pattern-based categorization
-    if carrier.startswith("crop_"):
+    if carrier == "crop_production":
         if bus_carrier == "ch4":
             return "Rice cultivation"
         if bus_carrier == "co2":
             return "Land Use Change"
         return "Crop production"
-    elif carrier == "produce_multi":
+    elif carrier == "crop_production_multi":
         if bus_carrier == "co2":
             return "Land Use Change"
         return "Multi-cropping"
-    elif carrier.startswith("produce_"):
-        # Animal production carriers
+    elif carrier == "animal_production":
+        # Animal production carrier
         if bus_carrier == "n2o":
             return "Manure management & application"
         elif bus_carrier == "ch4":
             # Combined enteric + manure CH4
             return "Enteric fermentation & Manure management"
         return "Livestock production"
-    elif carrier.startswith("feed_"):
+    elif carrier == "grassland_production":
         if bus_carrier == "co2":
             return "Land Use Change"
         return "Grassland"
-    elif carrier.startswith("food_"):
+    elif carrier == "food_processing":
         return "Food processing"
     elif carrier.startswith("trade_"):
         return "Trade"
@@ -118,8 +118,8 @@ def extract_emissions_by_source(
 
     # Carriers representing conversion links to be excluded (sinks)
     # - co2, ch4, n2o: links that feed into individual gas buses
-    # - aggregate_emissions: links that move emissions from gas buses to GHG bus
-    conversion_carriers = {"co2", "ch4", "n2o", "aggregate_emissions"}
+    # - emission_aggregation: links that move emissions from gas buses to GHG bus
+    conversion_carriers = {"co2", "ch4", "n2o", "emission_aggregation"}
 
     # Get energy balance with grouping by bus_carrier and carrier
     # This gives us flows into each bus, grouped by component carrier
@@ -170,7 +170,7 @@ def extract_emissions_by_source(
     # This is based on MMS (Manure Management System) distributions from GLEAM.
     if "Manure management & application" in emissions.get("N2O", {}):
         links_df = n.links.static
-        produce_mask = links_df.carrier.str.startswith("produce_")
+        produce_mask = links_df.carrier == "animal_production"
         pasture_share = (
             links_df.loc[produce_mask, "pasture_n2o_share"].fillna(0.0).astype(float)
         )
@@ -192,7 +192,7 @@ def extract_emissions_by_source(
     # --- Split CH4 into enteric vs manure using link-level shares -------------
     if "Enteric fermentation & Manure management" in emissions.get("CH4", {}):
         links_df = n.links.static
-        produce_mask = links_df.carrier.str.startswith("produce_")
+        produce_mask = links_df.carrier == "animal_production"
         manure_share = (
             links_df.loc[produce_mask, "manure_ch4_share"].fillna(0.0).astype(float)
         )

@@ -74,6 +74,7 @@ rule plot_resource_classes_map:
 rule plot_results:
     input:
         network="results/{name}/solved/model_scen-{scenario}.nc",
+        crop_production="results/{name}/statistics/scen-{scenario}/crop_production.csv",
     output:
         crop_pdf="results/{name}/plots/scen-{scenario}/crop_production.pdf",
         resource_pdf="results/{name}/plots/scen-{scenario}/resource_usage.pdf",
@@ -172,7 +173,7 @@ rule plot_relative_risk_curves:
 
 rule plot_crop_production_map:
     input:
-        network="results/{name}/solved/model_scen-{scenario}.nc",
+        land_use="results/{name}/statistics/scen-{scenario}/land_use.csv",
         regions="processing/{name}/regions.geojson",
         resource_classes="processing/{name}/resource_classes.nc",
         land_area_by_class="processing/{name}/land_area_by_class.csv",
@@ -264,8 +265,8 @@ rule plot_water_use_map:
 
 rule plot_food_consumption:
     input:
-        network="results/{name}/solved/model_scen-{scenario}.nc",
-        food_groups="data/food_groups.csv",
+        food_group_consumption="results/{name}/statistics/scen-{scenario}/food_group_consumption.csv",
+        population="processing/{name}/population.csv",
     output:
         pdf="results/{name}/plots/scen-{scenario}/food_consumption.pdf",
     params:
@@ -278,15 +279,14 @@ rule plot_food_consumption:
 
 def food_consumption_comparison_inputs(wildcards):
     return [
-        f"results/{wildcards.name}/solved/model_{suffix}.nc"
+        f"results/{wildcards.name}/statistics/{suffix}/food_group_consumption.csv"
         for suffix in comparison_scenarios
     ]
 
 
 rule plot_food_consumption_comparison:
     input:
-        networks=food_consumption_comparison_inputs,
-        food_groups="data/food_groups.csv",
+        food_group_consumption=food_consumption_comparison_inputs,
     output:
         pdf="results/{name}/plots/food_consumption_comparison.pdf",
         csv="results/{name}/plots/food_consumption_comparison.csv",
@@ -322,10 +322,10 @@ rule plot_system_cost_comparison:
 
 rule plot_food_consumption_map:
     input:
-        network="results/{name}/solved/model_scen-{scenario}.nc",
+        food_group_consumption="results/{name}/statistics/scen-{scenario}/food_group_consumption.csv",
+        population="processing/{name}/population.csv",
         clusters="processing/{name}/health/scen-{scenario}/country_clusters.csv",
         regions="processing/{name}/regions.geojson",
-        food_groups="data/food_groups.csv",
     output:
         pdf="results/{name}/plots/scen-{scenario}/food_consumption_map.pdf",
         csv="results/{name}/plots/scen-{scenario}/food_consumption_map.csv",
@@ -385,38 +385,6 @@ rule plot_yield_map:
         "../scripts/plotting/plot_yield_map.py"
 
 
-rule plot_cropland_fraction_map:
-    input:
-        network="results/{name}/solved/model_scen-{scenario}.nc",
-        regions="processing/{name}/regions.geojson",
-        resource_classes="processing/{name}/resource_classes.nc",
-    output:
-        pdf="results/{name}/plots/scen-{scenario}/cropland_fraction_map.pdf",
-    log:
-        "logs/{name}/plot_cropland_fraction_map_scen-{scenario}.log",
-    script:
-        "../scripts/plotting/plot_cropland_fraction_map.py"
-
-
-rule plot_irrigated_cropland_fraction_map:
-    input:
-        network="results/{name}/solved/model_scen-{scenario}.nc",
-        regions="processing/{name}/regions.geojson",
-        land_area_by_class="processing/{name}/land_area_by_class.csv",
-        resource_classes="processing/{name}/resource_classes.nc",
-    output:
-        pdf="results/{name}/plots/scen-{scenario}/irrigated_cropland_fraction_map.pdf",
-    params:
-        water_supply="i",
-        title="Irrigated Cropland Fraction by Region and Resource Class",
-        colorbar_label="Irrigated cropland / total land area",
-        csv_prefix="irrigated_cropland",
-    log:
-        "logs/{name}/plot_irrigated_cropland_fraction_map_scen-{scenario}.log",
-    script:
-        "../scripts/plotting/plot_cropland_fraction_map.py"
-
-
 rule plot_average_yield_gap_by_country:
     input:
         regions="processing/{name}/regions.geojson",
@@ -464,10 +432,10 @@ rule plot_emissions_breakdown:
 
 rule plot_consumption_balance:
     input:
-        network="results/{name}/solved/model_scen-{scenario}.nc",
+        food_consumption="results/{name}/statistics/scen-{scenario}/food_consumption.csv",
+        food_groups="data/food_groups.csv",
         population="processing/{name}/population.csv",
         clusters="processing/{name}/health/scen-{scenario}/country_clusters.csv",
-        food_groups="data/food_groups.csv",
     output:
         pdf="results/{name}/plots/scen-{scenario}/consumption_balance.pdf",
     params:
