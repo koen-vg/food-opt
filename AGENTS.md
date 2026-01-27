@@ -28,7 +28,142 @@ Provide clear expectations and a safe, efficient workflow so agents can make sma
 - `processing/`: Intermediate datasets that feed the modeled workflow.
 - `notebooks/`: Exploratory analyses and sanity-check visualisations.
 - `results/`: Auto-generated artifacts organized as `results/{config_name}/`; never hand-edit. Rerun the relevant target instead.
-- `vendor/`: A few bundled third-party assets kept in-repo for customised tweaks.
+- `vendor/`: Custom branches of PyPSA and linopy for reference, though not used as local dependencies.
+
+## Model Structure
+
+The model represents global food systems as a PyPSA network where commodities flow through a supply chain from land/resources to human nutrition. The `build_model` rule (in `workflow/rules/model.smk`) orchestrates construction via `workflow/scripts/build_model.py`, which calls functions from the modular `workflow/scripts/build_model/` package.
+
+### Supply Chain Overview
+
+Key commodity flows:
+- **Land → Crops**: Production links consume land (Mha) and produce crops (Mt) with yields as efficiency
+- **Crops → Foods**: Processing pathways convert crops to foods with mass-balance factors
+- **Foods → Nutrition**: Consumption links route foods to nutrient stores and food-group stores
+- **Crops/Foods → Feed**: Conversion links supply animal feed categories
+- **Feed → Animal products**: Animal production with emissions and manure outputs
+- **Trade**: Hub-based networks enable commodity movement between countries
+
+The model also tracks supporting resource flows: regional irrigation **water** availability and consumption, synthetic **fertilizer N** supply with manure recycling, crop **residues** routed to feed or soil, and **biomass** export to the energy sector.
+
+### Emissions Tracking
+
+GHG emissions flow to global buses (`emission:co2`, `emission:ch4`, `emission:n2o`) that aggregate to `emission:ghg` using configurable GWP factors:
+
+| Source | Gas | Mechanism |
+|--------|-----|-----------|
+| Land-use change | CO₂ | Efficiency on `land_conversion` links (LUC carbon coefficients) |
+| Spared land | CO₂ | Sequestration credits on `spare_land` links (negative emissions) |
+| Rice cultivation | CH₄ | Efficiency on wetland rice production links (IPCC emission factors) |
+| Enteric fermentation | CH₄ | Efficiency on `animal_production` links (from feed digestibility) |
+| Manure management | CH₄ | Efficiency on `animal_production` links (country-specific factors) |
+| Synthetic fertilizer | N₂O | Efficiency on `fertilizer_distribution` links (direct + indirect) |
+| Manure application | N₂O | Efficiency on `animal_production` links (pasture + applied fractions) |
+| Residue incorporation | N₂O | Efficiency on `residue_incorporation` links (from residue N content) |
+
+The `emission:ghg` store accumulates total CO₂-equivalent emissions for use in optimization objectives and constraints.
+
+### Module Organization
+
+| Module | Purpose |
+|--------|---------|
+| `infrastructure.py` | Carriers, buses for crops/foods/feeds/nutrients per country |
+| `land.py` | Land buses, existing/new land generators, land-use-change emissions |
+| `primary_resources.py` | Water, fertilizer supply, emission aggregation buses |
+| `crops.py` | Crop production links, multi-cropping, spared land, residue incorporation |
+| `grassland.py` | Grassland/pasture feed production |
+| `food.py` | Crop→food conversion pathways, feed supply links |
+| `animals.py` | Feed→animal product conversion with CH₄/N₂O emissions |
+| `nutrition.py` | Food→nutrient/group links, stores for nutritional tracking |
+| `trade.py` | K-means hub networks for crop/food/feed trade |
+| `health.py` | Health impact stores by disease cluster |
+| `biomass.py` | Biomass export routes for crops and byproducts |
+
+### PyPSA Component Patterns
+
+**Multi-bus links** (the workhorse of this model):
+- `bus0`: Primary input (e.g., land in Mha)
+- `bus1`: Primary output; `efficiency` = output/input ratio
+- `bus2`, `bus3`, …: Additional inputs/outputs with `efficiency2`, `efficiency3`, …
+  - Positive efficiency → output; negative → input (relative to `bus0`)
+
+**Adding components**: PyPSA auto-expands scalar arguments, so use `marginal_cost=1` instead of `[1] * len(...)`.
+
+### Naming Conventions
+
+Names use `:` as delimiter. Pattern: `{type}:{specifier}:{scope}`
+
+| Component | Pattern | Examples |
+|-----------|---------|----------|
+| **Buses** | | |
+| Crops/foods | `{type}:{item}:{country}` | `crop:wheat:USA`, `food:bread:USA` |
+| Feed | `feed:{category}:{country}` | `feed:ruminant_grain:USA` |
+| Nutrients | `nutrient:{nutrient}:{country}` | `nutrient:protein:USA` |
+| Land | `land:{type}:{region}_c{class}_{water}` | `land:pool:usa_east_c1_r` |
+| Water | `water:{region}` | `water:usa_east` |
+| Emissions | `emission:{type}` | `emission:co2`, `emission:ghg` |
+| **Links** | | |
+| Production | `produce:{crop}_{water}:{region}_c{class}` | `produce:wheat_rainfed:usa_east_c1` |
+| Processing | `pathway:{pathway}:{country}` | `pathway:milling:USA` |
+| Consumption | `consume:{food}:{country}` | `consume:bread:USA` |
+| Animal | `animal:{product}_{feed}:{country}` | `animal:beef_grassfed:USA` |
+| Trade | `trade:{item}:{from}_to_{to}` | `trade:wheat:USA_to_hub0` |
+| **Stores** | `store:{type}:{item}:{scope}` | `store:group:cereals:USA` |
+| **Generators** | `supply:{type}:{scope}` | `supply:land_existing:usa_east_c1_r` |
+
+### Carrier and Metadata Columns
+
+**IMPORTANT**: Never parse component names. Always use columns for filtering.
+
+The `carrier` column identifies link/component type:
+- `crop_production`, `crop_production_multi`, `grassland_production`
+- `food_processing`, `food_consumption`, `feed_conversion`
+- `animal_production`, `trade_crop`, `trade_food`, `trade_feed`
+- `land_use`, `land_conversion`, `spare_land`
+
+Domain-specific columns for filtering:
+- `country`, `region`: Geographic scope
+- `crop`, `food`, `food_group`: Commodity type
+- `product`, `feed_category`: Animal production
+- `resource_class` (int), `water_supply` ("irrigated"/"rainfed"): Land characteristics
+
+### Accessing Components
+
+Always filter by carrier and metadata columns, never by parsing names:
+
+```python
+# Get crop production links for wheat in a country
+wheat_links = n.links.static[
+    (n.links.static["carrier"] == "crop_production") &
+    (n.links.static["crop"] == "wheat") &
+    (n.links.static["country"] == "USA")
+]
+
+# Get all food consumption links
+consume_links = n.links.static[n.links.static["carrier"] == "food_consumption"]
+
+# Get stores for a food group
+group_stores = n.stores.static[n.stores.static["carrier"] == f"group_{group}"]
+```
+
+Fail fast when components are missing:
+```python
+if group_stores.empty:
+    raise ValueError(f"No stores found for food group '{group}'")
+```
+
+### Units
+
+| Quantity | Unit | Notes |
+|----------|------|-------|
+| Land area | Mha | Megahectares (10⁶ ha) |
+| Commodities | Mt | Megatonnes (fresh weight for foods, dry matter for crops) |
+| Water | Mm³ | Million cubic meters |
+| Fertilizer N | Mt N | Megatonnes nitrogen |
+| Emissions | t CO₂/CH₄/N₂O | Tonnes (aggregated to GHG via GWP factors) |
+| Costs | bn USD | Billion USD (marginal_cost per unit of bus0 flow) |
+
+See `workflow/scripts/build_model/__init__.py` for the complete reference.
 
 ## Core Principles
 
@@ -160,40 +295,6 @@ Environment variables take precedence over the secrets file. This allows you to 
 ### Validation
 
 The workflow validates that all required credentials are present at startup (before any rules execute). If credentials are missing, you'll see a clear error message with instructions on how to configure them.
-
-
-## PyPSA Modeling Notes
-
-- Use standard PyPSA components: carriers, buses, stores, links, etc.
-- For multi-bus links:
-  - `bus0` is the (first) input bus.
-  - `bus1` is the (first) output bus; `efficiency` governs bus0→bus1.
-  - `bus2`, `bus3`, … are additional legs with `efficiency2`, `efficiency3`, …
-    - Positive efficiency ⇒ output; negative ⇒ input (relative to `bus0`).
-- When adding components multiple components (e.g. `n.generators.add(name=[...])`), PyPSA will automatically expand constant arguments, so you can write e.g. `marginal_cost=1` instead of `marginal_cost=[1] * len(...)`.
-
-### Component Naming and Accessing
-
-**IMPORTANT**: Never parse component names to extract metadata. Always use columns.
-
-Component names use `:` as delimiter (uncommon in data values):
-- Buses: `crop:wheat:USA`, `food:bread:USA`, `land:pool:usa_east_c1_r`
-- Links: `produce:wheat_rainfed:usa_east_c1`, `consume:bread:USA`
-- Stores: `store:group:cereals:USA`, `store:nutrient:protein:USA`
-- Generators: `supply:land_existing:usa_east_c1_r`, `slack:water:usa_east`
-
-Use columns for filtering instead of name parsing:
-- `carrier` column for type identification (e.g., `produce_wheat`, `consume_bread`)
-- Domain columns: `country`, `region`, `crop`, `food`, `food_group`, `product`, `resource_class`, `water_supply`
-
-Fail fast when expected components not found:
-```python
-group_stores = n.stores.static[n.stores.static["carrier"] == f"group_{group}"]
-if group_stores.empty:
-    raise ValueError(f"No stores found for food group '{group}'")
-```
-
-See `workflow/scripts/build_model/__init__.py` for complete naming and column conventions.
 
 ## When Implementing Changes
 
