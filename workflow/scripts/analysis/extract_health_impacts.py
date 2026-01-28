@@ -28,6 +28,7 @@ import pandas as pd
 import pypsa
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PER_100K
+from workflow.scripts.logging_config import setup_script_logging
 
 logger = logging.getLogger(__name__)
 
@@ -393,10 +394,8 @@ def extract_yll_totals(n: pypsa.Network) -> pd.DataFrame:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
 
     # Load network for YLL totals
     n = pypsa.Network(snakemake.input.network)

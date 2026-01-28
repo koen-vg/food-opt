@@ -1291,7 +1291,8 @@ def add_within_group_ratio_constraints(
 
 def _run_solve() -> None:
     """Main solve logic, factored out for profiling."""
-    setup_script_logging(snakemake.log[0])
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
     # Suppress the noisy PyPSA shadow-price info log.
     logging.getLogger("pypsa.optimization.optimize").addFilter(_ShadowPriceLogFilter())
 

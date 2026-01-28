@@ -33,6 +33,8 @@ from rasterio.enums import Resampling
 from rasterio.transform import Affine, array_bounds
 from rasterio.warp import calculate_default_transform, reproject
 
+from workflow.scripts.logging_config import setup_script_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -181,6 +183,8 @@ def plot_yield_gap(
 
 
 if __name__ == "__main__":
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
     # Snakemake interface
     plot_yield_gap(
         potential_path=snakemake.input.potential_yield,

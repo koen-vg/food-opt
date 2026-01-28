@@ -6,7 +6,6 @@
 """Plot baseline food consumption by health cluster using pie charts."""
 
 from collections.abc import Mapping
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -15,13 +14,12 @@ matplotlib.use("pdf")
 import numpy as np
 import pandas as pd
 
+from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
 from workflow.scripts.plotting.plot_food_consumption_map import (
     _plot_cluster_pies,
     _prepare_cluster_geodata,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _load_baseline_diet(
@@ -126,6 +124,7 @@ def main() -> None:
     except NameError as exc:  # pragma: no cover
         raise RuntimeError("This script must be run via Snakemake") from exc
 
+    logger = setup_script_logging(snakemake.log[0])
     diet_path = snakemake.input.diet  # type: ignore[attr-defined]
     clusters_path = snakemake.input.clusters
     regions_path = snakemake.input.regions

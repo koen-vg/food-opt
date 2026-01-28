@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pypsa
 
+from workflow.scripts.logging_config import setup_script_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -537,7 +539,8 @@ def save_emissions_table(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
 
     network = pypsa.Network(snakemake.input.network)
     ch4_gwp = float(snakemake.params.ch4_gwp)

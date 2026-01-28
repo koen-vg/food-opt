@@ -14,6 +14,8 @@ import pypsa
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 
+from workflow.scripts.logging_config import setup_script_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,7 +107,8 @@ def _write_csv(df: pd.DataFrame, output_csv: Path) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
 
     logger.info("Loading solved network from %s", snakemake.input.network)
     network = pypsa.Network(snakemake.input.network)

@@ -9,7 +9,6 @@ Generates:
 2. Objective composition comparison (stacked bars by cost component)
 """
 
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -20,9 +19,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
-
-logger = logging.getLogger(__name__)
 
 
 def _assign_colors(
@@ -341,7 +339,7 @@ def main() -> None:
     except NameError as exc:
         raise RuntimeError("This script must be run from Snakemake") from exc
 
-    logging.basicConfig(level=logging.INFO)
+    logger = setup_script_logging(snakemake.log[0])
 
     scenarios = list(snakemake.params.scenarios)
 

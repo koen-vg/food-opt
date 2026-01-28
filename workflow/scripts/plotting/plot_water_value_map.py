@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd
 import pypsa
 
+from workflow.scripts.logging_config import setup_script_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -164,6 +166,8 @@ def plot_water_value_map(
 
 
 if __name__ == "__main__":
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
     plot_water_value_map(
         Path(snakemake.input.network),  # type: ignore[name-defined]
         Path(snakemake.input.regions),  # type: ignore[name-defined]

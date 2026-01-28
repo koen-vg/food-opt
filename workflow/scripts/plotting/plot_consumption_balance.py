@@ -4,7 +4,6 @@
 
 """Plot food consumption by health region, showing breakdowns by food and by food group."""
 
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -16,9 +15,8 @@ import numpy as np
 import pandas as pd
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
-
-logger = logging.getLogger(__name__)
 
 EPSILON = 1e-6  # Threshold for considering values as zero
 BAR_WIDTH = 0.35  # Width of each bar (we'll have 2 per cluster)
@@ -107,6 +105,7 @@ def main() -> None:
     except NameError as exc:
         raise RuntimeError("Must be run via Snakemake") from exc
 
+    logger = setup_script_logging(snakemake.log[0])
     food_consumption_path = snakemake.input.food_consumption
     food_groups_path = snakemake.input.food_groups
     population_path = snakemake.input.population

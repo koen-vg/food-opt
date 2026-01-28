@@ -16,7 +16,6 @@ Uses actual dispatch flows (p0, p1, etc.) rather than p_nom_opt * efficiency
 for more accurate results that reflect actual model solutions.
 """
 
-import logging
 from pathlib import Path
 import re
 
@@ -26,8 +25,6 @@ import pypsa
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO_KCAL
 from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.population import get_country_population
-
-logger = logging.getLogger(__name__)
 
 
 def _get_output_ports(n: pypsa.Network, carrier: str) -> list[str]:
@@ -600,9 +597,7 @@ def extract_food_group_consumption(n: pypsa.Network) -> pd.DataFrame:
 
 
 def main() -> None:
-    # Configure logging to write to Snakemake log file
-    global logger
-    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+    logger = setup_script_logging(snakemake.log[0])
 
     # Load network
     n = pypsa.Network(snakemake.input.network)

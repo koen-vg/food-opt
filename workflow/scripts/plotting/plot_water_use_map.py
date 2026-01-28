@@ -4,7 +4,6 @@
 
 """Plot regional water use with pies for natural vs slack supply (Mm³)."""
 
-import logging
 from pathlib import Path
 
 import cartopy.crs as ccrs
@@ -18,7 +17,7 @@ import pypsa
 
 matplotlib.use("pdf")
 
-logger = logging.getLogger(__name__)
+from workflow.scripts.logging_config import setup_script_logging
 
 
 def _setup_regions(regions_path: str) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
@@ -239,7 +238,7 @@ def _plot_map(by_region: pd.DataFrame, gdf: gpd.GeoDataFrame, output_pdf: Path) 
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logger = setup_script_logging(snakemake.log[0])
 
     network = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]

@@ -20,6 +20,8 @@ import pandas as pd
 import rasterio
 import xarray as xr
 
+from workflow.scripts.logging_config import setup_script_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -206,7 +208,8 @@ def _determine_water_supply_for_title(
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
 
     params = snakemake.params  # type: ignore[name-defined]
     inputs = snakemake.input  # type: ignore[name-defined]

@@ -6,7 +6,6 @@
 """Plot objective breakdown from pre-computed analysis data."""
 
 from collections.abc import Iterable
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -16,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from workflow.scripts.logging_config import setup_script_logging
 
 # Human-readable labels for category columns
 CATEGORY_LABELS = {
@@ -118,6 +117,7 @@ def plot_cost_breakdown(series: pd.Series, output_path: Path) -> None:
 
 
 def main() -> None:
+    logger = setup_script_logging(snakemake.log[0])
     input_csv = Path(snakemake.input.objective_breakdown)  # type: ignore[name-defined]
     output_pdf = Path(snakemake.output.breakdown_pdf)  # type: ignore[name-defined]
     output_csv = Path(snakemake.output.breakdown_csv)  # type: ignore[name-defined]

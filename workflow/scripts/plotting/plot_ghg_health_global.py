@@ -13,6 +13,7 @@ matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
@@ -191,7 +192,8 @@ def plot_yll_bar(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
 
     # Load GHG intensity data (at food level)
     ghg_df = pd.read_csv(snakemake.input.ghg_intensity)

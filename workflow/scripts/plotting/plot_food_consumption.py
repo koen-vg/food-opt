@@ -4,7 +4,6 @@
 
 """Plot global food consumption by food group per person per day."""
 
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -14,9 +13,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO_KCAL
+from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
-
-logger = logging.getLogger(__name__)
 
 # Alias for backwards compatibility with modules that import from here
 KCAL_PER_PJ = PJ_TO_KCAL
@@ -151,6 +149,7 @@ def main() -> None:
     except NameError as exc:  # pragma: no cover - Snakemake injects the variable
         raise RuntimeError("This script must be run from Snakemake") from exc
 
+    logger = setup_script_logging(snakemake.log[0])
     food_group_consumption_path = snakemake.input.food_group_consumption
     population_path = snakemake.input.population
     output_pdf = Path(snakemake.output.pdf)

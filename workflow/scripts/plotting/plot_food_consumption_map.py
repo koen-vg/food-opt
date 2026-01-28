@@ -6,7 +6,6 @@
 """Plot food consumption by health cluster using pie charts on a map."""
 
 from collections.abc import Iterable, Mapping, Sequence
-import logging
 from pathlib import Path
 
 import cartopy.crs as ccrs
@@ -22,9 +21,8 @@ import numpy as np
 import pandas as pd
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE
+from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
-
-logger = logging.getLogger(__name__)
 
 PLATE_CARREE = ccrs.PlateCarree()
 
@@ -355,6 +353,7 @@ def main() -> None:
     except NameError as exc:  # pragma: no cover
         raise RuntimeError("This script must be run via Snakemake") from exc
 
+    logger = setup_script_logging(snakemake.log[0])
     food_group_consumption_path = snakemake.input.food_group_consumption
     population_path = snakemake.input.population
     clusters_path = snakemake.input.clusters

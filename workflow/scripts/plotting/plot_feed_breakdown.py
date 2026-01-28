@@ -14,6 +14,7 @@ import pypsa
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 
+from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
 
 logger = logging.getLogger(__name__)
@@ -211,7 +212,8 @@ def _plot_feed_breakdown(wide: pd.DataFrame, output_pdf: Path) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
 
     network = pypsa.Network(snakemake.input.network)
 

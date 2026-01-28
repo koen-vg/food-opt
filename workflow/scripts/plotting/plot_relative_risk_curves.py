@@ -5,7 +5,6 @@
 
 """Plot relative risk curves by risk factor and cause."""
 
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -14,7 +13,7 @@ matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from workflow.scripts.logging_config import setup_script_logging
 
 
 def plot_relative_risk_curves(
@@ -117,6 +116,7 @@ def plot_relative_risk_curves(
 
 
 def main() -> None:
+    logger = setup_script_logging(snakemake.log[0])
     relative_risks = pd.read_csv(snakemake.input.relative_risks)  # type: ignore[name-defined]
     output_path = Path(snakemake.output.pdf)  # type: ignore[name-defined]
 

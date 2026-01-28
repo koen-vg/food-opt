@@ -11,6 +11,8 @@ from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 import geopandas as gpd
 import matplotlib
 
+from workflow.scripts.logging_config import setup_script_logging
+
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -88,4 +90,6 @@ def plot_regions_map(regions_path: str, output_path: str) -> None:
 
 
 if __name__ == "__main__":
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
     plot_regions_map(snakemake.input.regions, snakemake.output.pdf)

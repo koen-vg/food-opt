@@ -4,7 +4,6 @@
 
 """Compare system costs across solved objectives."""
 
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -15,7 +14,7 @@ import pandas as pd
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 
-logger = logging.getLogger(__name__)
+from workflow.scripts.logging_config import setup_script_logging
 
 MIN_ABS_COST_BNUSD = 5.0
 
@@ -213,6 +212,7 @@ def main() -> None:
     except NameError as exc:
         raise RuntimeError("This script must be run from Snakemake") from exc
 
+    logger = setup_script_logging(snakemake.log[0])
     breakdown_csvs = [Path(p) for p in snakemake.input.breakdowns]  # type: ignore[attr-defined]
     comparison_labels = list(snakemake.params.wildcards)  # type: ignore[attr-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[attr-defined]

@@ -4,7 +4,6 @@
 
 """Compare food consumption across solved objectives."""
 
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -16,9 +15,8 @@ import numpy as np
 import pandas as pd
 
 from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO_KCAL
+from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
-
-logger = logging.getLogger(__name__)
 
 
 def _load_global_per_capita(
@@ -179,6 +177,7 @@ def main() -> None:
     except NameError as exc:  # pragma: no cover - Snakemake injects the variable
         raise RuntimeError("This script must be run from Snakemake") from exc
 
+    logger = setup_script_logging(snakemake.log[0])
     csv_paths = [Path(p) for p in snakemake.input.food_group_consumption]  # type: ignore[attr-defined]
     comparison_labels = list(snakemake.params.wildcards)  # type: ignore[attr-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[attr-defined]

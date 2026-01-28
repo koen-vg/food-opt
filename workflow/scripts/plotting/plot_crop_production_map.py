@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import logging
 from pathlib import Path
 
 from affine import Affine
@@ -25,7 +24,7 @@ from pyproj import Geod
 from rasterio.transform import array_bounds
 import xarray as xr
 
-logger = logging.getLogger(__name__)
+from workflow.scripts.logging_config import setup_script_logging
 
 # Crop to group mapping for simplified visualization
 CROP_TO_GROUP = {
@@ -699,6 +698,7 @@ def _plot_gridcell_intensity(
 
 
 def main() -> None:
+    logger = setup_script_logging(snakemake.log[0])
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
     resource_classes_path: str = snakemake.input.resource_classes  # type: ignore[name-defined]
     land_area_by_class_path: str = snakemake.input.land_area_by_class  # type: ignore[name-defined]

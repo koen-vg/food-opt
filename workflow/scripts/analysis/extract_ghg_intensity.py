@@ -24,6 +24,7 @@ import pandas as pd
 import pypsa
 
 from workflow.scripts.constants import TONNE_TO_MEGATONNE
+from workflow.scripts.logging_config import setup_script_logging
 
 logger = logging.getLogger(__name__)
 
@@ -295,10 +296,8 @@ def compute_ghg_totals(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    global logger
+    logger = setup_script_logging(snakemake.log[0])
 
     # Load network
     n = pypsa.Network(snakemake.input.network)

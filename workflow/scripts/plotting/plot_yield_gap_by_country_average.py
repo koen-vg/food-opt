@@ -14,7 +14,6 @@ Output:
  - PDF map at snakemake.output.pdf
 """
 
-import logging
 from pathlib import Path
 
 import geopandas as gpd
@@ -26,7 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from workflow.scripts.logging_config import setup_script_logging
 
 
 def plot_map(regions_path: str, csv_path: str, output_path: str) -> None:
@@ -98,4 +97,5 @@ def plot_map(regions_path: str, csv_path: str, output_path: str) -> None:
 
 
 if __name__ == "__main__":
+    logger = setup_script_logging(snakemake.log[0])
     plot_map(snakemake.input.regions, snakemake.input.csv, snakemake.output.pdf)

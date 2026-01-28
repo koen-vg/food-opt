@@ -277,7 +277,7 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
 
 def main() -> None:
     global logger
-    logger = setup_script_logging(log_file=snakemake.log[0] if snakemake.log else None)
+    logger = setup_script_logging(snakemake.log[0])
 
     # Load network
     n = pypsa.Network(snakemake.input.network)

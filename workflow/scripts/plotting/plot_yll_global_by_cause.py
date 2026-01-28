@@ -5,7 +5,6 @@
 
 """Plot global diet-attributable YLL by cause (million YLL)."""
 
-import logging
 from pathlib import Path
 
 import matplotlib
@@ -15,8 +14,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from workflow.scripts.constants import PER_100K
-
-logger = logging.getLogger(__name__)
+from workflow.scripts.logging_config import setup_script_logging
 
 YLL_TO_MILLION = 1e-6
 
@@ -74,6 +72,7 @@ def _plot(summary: pd.DataFrame, output_pdf: Path) -> None:
 
 
 if __name__ == "__main__":
+    logger = setup_script_logging(snakemake.log[0])
     cluster_cause_path = Path(snakemake.input.cluster_cause)  # type: ignore[name-defined]
     cluster_summary_path = Path(snakemake.input.cluster_summary)  # type: ignore[name-defined]
     output_pdf = Path(snakemake.output.pdf)  # type: ignore[name-defined]
